@@ -66,6 +66,7 @@ LINK_OBJS = \
 	"$(INTDIR)\AppSettings.obj" \
 	"$(INTDIR)\BookmarkDlg.obj" \
 	"$(INTDIR)\BookmarksView.obj" \
+	"$(INTDIR)\CropPagesDlg.obj" \
 	"$(INTDIR)\DjVuDoc.obj" \
 	"$(INTDIR)\DjVuSource.obj" \
 	"$(INTDIR)\DjVuView.obj" \
@@ -122,6 +123,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 "$(INTDIR)\AppSettings.obj" : AppSettings.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\BookmarkDlg.obj" : BookmarkDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\BookmarksView.obj" : BookmarksView.cpp "$(INTDIR)" $(PCH)
+"$(INTDIR)\CropPagesDlg.obj" : CropPagesDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\DjVuDoc.obj" : DjVuDoc.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\DjVuSource.obj" : DjVuSource.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\DjVuView.obj" : DjVuView.cpp "$(INTDIR)" $(PCH)

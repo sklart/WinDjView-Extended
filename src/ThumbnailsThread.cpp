@@ -103,6 +103,8 @@ unsigned int __stdcall CThumbnailsThread::RenderThreadProc(void* pvData)
 
 		if (bNotify)
 			pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(THUMBNAIL_RENDERED, job.nPage, pBitmap));
+		else
+			delete pBitmap;
 		pThread->m_stopping.Unlock();
 	}
 

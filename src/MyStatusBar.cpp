@@ -49,7 +49,7 @@ LRESULT CMyStatusBar::OnSetText(WPARAM wParam, LPARAM lParam)
 	ASSERT(::IsWindow(m_hWnd));
 
 	m_strHilightMsg = _T("");
-	LRESULT result = CStatusBar::OnSetText(wParam, lParam);
+	LRESULT result = DefWindowProc(WM_SETTEXT, wParam, lParam);
 	GetStatusBarCtrl().SetText((LPCTSTR)lParam, 0, SBT_NOBORDERS);
 
 	return result;

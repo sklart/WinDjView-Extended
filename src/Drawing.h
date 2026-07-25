@@ -82,6 +82,8 @@ protected:
 class CLightweightDIB : protected CDIB
 {
 public:
+	using CDIB::operator delete;
+
 	~CLightweightDIB();
 	bool IsValid() const { return m_pBits != NULL; }
 
