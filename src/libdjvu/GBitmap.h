@@ -566,7 +566,7 @@ GBitmap::operator[](int row)
 {
   if (!bytes) 
     uncompress();
-  if (row<0 || row>=nrows) {
+  if (row<0 || row>=nrows || !bytes) {
 #ifndef NDEBUG
     if (zerosize < bytes_per_row + border)
       G_THROW( ERR_MSG("GBitmap.zero_small") );
@@ -581,7 +581,7 @@ GBitmap::operator[](int row) const
 {
   if (!bytes) 
     ((GBitmap*)this)->uncompress();
-  if (row<0 || row>=nrows) {
+  if (row<0 || row>=nrows || !bytes) {
 #ifndef NDEBUG
     if (zerosize < bytes_per_row + border)
       G_THROW( ERR_MSG("GBitmap.zero_small") );
@@ -620,7 +620,7 @@ GBitmap::euclidian_ratio(int a, int b, int &q, int &r)
 inline int
 GBitmap::read_run(unsigned char *&data)
 {
-  register int z=*data++;
+  int z=*data++;
   return (z>=RUNOVERFLOWVALUE)?
     ((z&~RUNOVERFLOWVALUE)<<8)|(*data++):z;
 }
@@ -628,7 +628,7 @@ GBitmap::read_run(unsigned char *&data)
 inline int
 GBitmap::read_run(const unsigned char *&data)
 {
-  register int z=*data++;
+  int z=*data++;
   return (z>=RUNOVERFLOWVALUE)?
     ((z&~RUNOVERFLOWVALUE)<<8)|(*data++):z;
 }

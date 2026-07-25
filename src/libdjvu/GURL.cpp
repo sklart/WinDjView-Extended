@@ -79,7 +79,7 @@
 #include <math.h>
 #include <string.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 # include <tchar.h>
 # include <windows.h>
 # include <direct.h>
@@ -170,7 +170,6 @@ namespace DJVU {
 
 static const char djvuopts[]="DJVUOPTS";
 static const char localhost[]="file://localhost/";
-static const char backslash='\\';  
 static const char colon=':';
 static const char dot='.';
 static const char filespecslashes[] = "file://";
@@ -179,13 +178,14 @@ static const char slash='/';
 static const char percent='%';
 static const char localhostspec1[] = "//localhost/";
 static const char localhostspec2[] = "///";
-static const char nillchar=0;
 #if defined(UNIX)
   static const char tilde='~';
   static const char root[] = "/";
-#elif defined(WIN32) || defined(OS2)
+#elif defined(_WIN32) || defined(OS2)
   static const char root[] = "\\";
+  static const char backslash='\\';  
 #elif defined(macintosh)
+  static const char nillchar=0;
   static char const * const root = &nillchar; 
 #else
 #error "Define something here for your operating system"
@@ -232,7 +232,7 @@ void
 GURL::convert_slashes(void)
 {
    GUTF8String xurl(get_string());
-#if defined(WIN32)
+#if defined(_WIN32)
    const int protocol_length=protocol(xurl).length();
    for(char *ptr=(xurl.getbuf()+protocol_length);*ptr;ptr++)
      if(*ptr == backslash)
@@ -288,7 +288,7 @@ GURL::beautify_path(GUTF8String xurl)
   // Convert /./ stuff into plain /
   for(;(ptr=strstr(start, "/./"));collapse(ptr, 2))
     EMPTY_LOOP;
-#if defined(WIN32) || defined(OS2)
+#if defined(_WIN32) || defined(OS2)
   if(!xurl.cmp(filespec,sizeof(filespec)-1))
   {
 	int offset=1;
@@ -300,7 +300,7 @@ GURL::beautify_path(GUTF8String xurl)
 	}
     for(ptr=start+offset;(ptr=strchr(ptr, '/'));)
 	{
-	  if(isalpha((++ptr)[0]))
+	  if(isalpha((unsigned char)((++ptr)[0])))
 	  {
 	    if((ptr[1] == ':')&&(ptr[2]=='/'))
 		{
@@ -439,7 +439,7 @@ GURL::GURL(const GUTF8String & url_in)
 GURL::GURL(const GNativeString & url_in)
   : url(url_in.getNative2UTF8()), validurl(false)
 {
-#if defined(WIN32) || defined(OS2)
+#if defined(_WIN32) || defined(OS2)
   if(is_valid() && is_local_file_url())
   {
     GURL::Filename::UTF8 xurl(UTF8Filename());
@@ -484,10 +484,7 @@ GURL::protocol(const GUTF8String& url)
   const char * const url_ptr=url;
   const char * ptr=url_ptr;
   for(char c=*ptr;
-//< Changed for WinDjView project
-//      c && (isalnum(c) || c == '+' || c == '-' || c == '.');
-      c && (isalnum(static_cast<unsigned char>(c)) || c == '+' || c == '-' || c == '.');
-//>
+      c && isascii(c) && (isalnum(c) || c == '+' || c == '-' || c == '.');
       c=*(++ptr)) EMPTY_LOOP;
   if (ptr[0]==colon && ptr[1]=='/' && ptr[2]=='/')
     return GUTF8String(url_ptr, ptr-url_ptr);
@@ -1074,7 +1071,7 @@ GURL::encode_reserved(const GUTF8String &gs)
   for (; *s; s++,d++)
   {
     // Convert directory separator to slashes
-#if defined(WIN32) || defined(OS2)
+#if defined(_WIN32) || defined(OS2)
     if (*s == backslash || *s== slash)
 #else
 #ifdef macintosh
@@ -1248,7 +1245,7 @@ GURL::GURL(const GNativeString &xurl,const GURL &codebase)
   GURL retval(xurl.getNative2UTF8(),codebase);
   if(retval.is_valid())
   {
-#if defined(WIN32)
+#if defined(_WIN32)
     // Hack for IE to change \\ to /
     if(retval.is_local_file_url())
     {
@@ -1324,16 +1321,16 @@ GURL::UTF8Filename(void) const
     else if ( !GStringRep::cmp(localhostspec2, url_ptr, sizeof(localhostspec2)-1 ) )
       // RFC 1738 local host form
       url_ptr += sizeof(localhostspec2)-1;
-    else if ( (strlen(url_ptr) > 4)   // "file://<letter>:/<path>"
-        && (url_ptr[0] == slash)      // "file://<letter>|/<path>"
-        && (url_ptr[1] == slash)
-        && isalpha(url_ptr[2])
-        && ( url_ptr[3] == colon || url_ptr[3] == '|' )
-        && (url_ptr[4] == slash) )
+    else if ( (strlen(url_ptr) > 4)         // "file://<letter>:/<path>"
+              && (url_ptr[0] == slash)      // "file://<letter>|/<path>"
+              && (url_ptr[1] == slash)
+              && isalpha((unsigned char)(url_ptr[2]))
+              && ( url_ptr[3] == colon || url_ptr[3] == '|' )
+              && (url_ptr[4] == slash) )
       url_ptr += 2;
     else if ( (strlen(url_ptr)) > 2 // "file:/<path>"
-        && (url_ptr[0] == slash)
-        && (url_ptr[1] != slash) )
+              && (url_ptr[0] == slash)
+              && (url_ptr[1] != slash) )
       url_ptr++;
 #endif
 
@@ -1355,7 +1352,7 @@ GURL::UTF8Filename(void) const
     retval = expand_name(url_ptr,root);
 #endif
     
-#if defined(WIN32) || defined(OS2)
+#if defined(_WIN32) || defined(OS2)
     if (url_ptr[0] && url_ptr[1]=='|' && url_ptr[2]== slash)
     {
       if ((url_ptr[0]>='a' && url_ptr[0]<='z') 
@@ -1400,7 +1397,7 @@ GURL::is_file(void) const
     {
       retval=!(buf.st_mode & S_IFDIR);
     }
-#elif defined(WIN32)
+#elif defined(_WIN32)
     GUTF8String filename(UTF8Filename());
     if(filename.length() >= MAX_PATH)
       {
@@ -1472,7 +1469,7 @@ GURL::is_dir(void) const
     {
       retval=(buf.st_mode & S_IFDIR);
     }
-#elif defined(WIN32)   // (either Windows or WCE)
+#elif defined(_WIN32)   // (either Windows or WCE)
     GUTF8String filename(UTF8Filename());
     if(filename.length() >= MAX_PATH)
       {
@@ -1536,7 +1533,7 @@ GURL::mkdir() const
         retval = 0;
       else 
         retval = ::mkdir(NativeFilename(), 0755);
-#elif defined(WIN32)
+#elif defined(_WIN32)
       if (is_dir())
         retval = 0;
       else 
@@ -1562,14 +1559,11 @@ GURL::deletefile(void) const
         retval = ::rmdir(NativeFilename());
       else
         retval = ::unlink(NativeFilename());
-#elif defined(WIN32)
+#elif defined(_WIN32)
       if (is_dir())
         retval = ::RemoveDirectoryA(NativeFilename());
       else
-//< Changed for WinDjView project
-//        retval = ::DeleteFile(NativeFilename());
         retval = ::DeleteFileA(NativeFilename());
-//>
 #else
 # error "Define something here for your operating system"
 #endif
@@ -1595,14 +1589,10 @@ GURL::listdir(void) const
       retval.append(GURL::Native(de->d_name,*this));
     }
     closedir(dir);
-#elif defined (WIN32)
+#elif defined(_WIN32)
     GURL::UTF8 wildcard("*.*",*this);
-//< Changed for WinDjView project
-//    WIN32_FIND_DATA finddata;
-//    HANDLE handle = FindFirstFile(wildcard.NativeFilename(), &finddata);//MBCS cvt
     WIN32_FIND_DATAA finddata;
     HANDLE handle = FindFirstFileA(wildcard.NativeFilename(), &finddata);//MBCS cvt
-//>
     const GUTF8String gpathname=pathname();
     const GUTF8String gbase=base().pathname();
     if( handle != INVALID_HANDLE_VALUE)
@@ -1613,10 +1603,7 @@ GURL::listdir(void) const
         const GUTF8String gentry=Entry.pathname();
         if((gentry != gpathname) && (gentry != gbase))
           retval.append(Entry);
-//< Changed for WinDjView project
-//      } while( FindNextFile(handle, &finddata) );
       } while( FindNextFileA(handle, &finddata) );
-//>
 
       FindClose(handle);
     }
@@ -1768,7 +1755,7 @@ GURL::expand_name(const GUTF8String &xfname, const char *from)
       EMPTY_LOOP;
     *s = 0;
   }
-#elif defined (WIN32) // WIN32 implementation
+#elif defined(_WIN32) // WIN32 implementation
   // Handle base
   strcpy(string_buffer, (char const *)(from ? expand_name(from) : GOS::cwd()));
   //  GNativeString native;
@@ -1806,10 +1793,7 @@ GURL::expand_name(const GUTF8String &xfname, const char *from)
           drv[1]=colon;
           drv[2]= dot ;
           drv[3]=0;
-//< Changed for WinDjView project
-//          GetFullPathName(drv, maxlen, string_buffer, &s);
           GetFullPathNameA(drv, maxlen, string_buffer, &s);
-//>
           strcpy(string_buffer,(const char *)GUTF8String(string_buffer).getNative2UTF8());
           s = string_buffer;
         }
@@ -1846,12 +1830,8 @@ GURL::expand_name(const GUTF8String &xfname, const char *from)
                  && (fname[2]== slash || fname[2]==backslash || !fname[2]))
         {
           fname += 2;
-//< Changed for WinDjView project
-//          char *back=_tcsrchr(string_buffer,backslash);
-//          char *forward=_tcsrchr(string_buffer,slash);
           char *back=strrchr(string_buffer,backslash);
           char *forward=strrchr(string_buffer,slash);
-//>
           if(back>forward)
           {
             *back=0;
@@ -1866,7 +1846,7 @@ GURL::expand_name(const GUTF8String &xfname, const char *from)
       char* s2=s;//MBCS DBCS
       for(;*s;s++) 
         EMPTY_LOOP;
-	  if (s > string_buffer && s[-1] != slash && s[-1] != backslash)
+      if (s > string_buffer && s[-1] != slash && s[-1] != backslash)
         *s++ = backslash;
       while (*fname && (*fname!= slash) && (*fname!=backslash))
       {

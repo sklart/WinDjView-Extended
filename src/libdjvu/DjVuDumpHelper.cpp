@@ -106,7 +106,7 @@ display_djvu_info(ByteStream & out_str, IFFByteStream &iff,
     out_str.format( ", v%d", info.version);
   if (size >= 8)
     out_str.format( ", %d dpi", info.dpi);
-  if (size >= 8)
+  if (size >= 9)
     out_str.format( ", gamma=%3.1f", info.gamma);
 }
 
@@ -336,12 +336,12 @@ display_chunks(ByteStream & out_str, IFFByteStream &iff,
                                 size, djvminfo, counters[id]);
         break;
       }
-      // Default display of composite chunk
-      out_str.format( "\n");
-      if (iff.composite())
-        display_chunks(out_str, iff, head2, djvminfo);
-      // Terminate
-      iff.close_chunk();
+    // Default display of composite chunk
+    out_str.format( "\n");
+    if (iff.composite())
+      display_chunks(out_str, iff, head2, djvminfo);
+    // Terminate
+    iff.close_chunk();
   }
 }
 

@@ -381,13 +381,8 @@ GBitmapScaler::get_line(int fy,
 	      for (inp1=inp0; inp1<inp2; inp1++)
 		{
 		  g += conv[*inp1];
-//< Changed for WinDjView project
-//		  s += 1;
-//>
+		  s += 1;
 		}
-//< Changed for WinDjView project
-	      s += inp2 - inp0;
-//>
 	    }
           if (s == rnd+rnd)
             *p = (g+rnd)>>div;

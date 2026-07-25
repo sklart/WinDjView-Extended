@@ -110,6 +110,11 @@ class ByteStream;
     than this macro.  If the version field is greater than or equal to this
     number, the decoder will just throw a \Ref{GException}.  */
 #define DJVUVERSION_TOO_NEW      50
+#ifndef DJVULIBRE_VERSION
+/** DjVu library version string.
+   This is normally defined by autoconf, except on windows */
+# define DJVULIBRE_VERSION       "3.5.28"
+#endif
 //@}
 
 
@@ -129,10 +134,7 @@ public:
   /** Creates an empty DjVuInfo object.
       The #width# and #height# fields are set to zero.
       All other fields are initialized with suitable default values. */
-//< Changed for WinDjView project
-  static GP<DjVuInfo> create(void);
-//  static GP<DjVuInfo> create(void) {return new DjVuInfo();}
-//>
+  static GP<DjVuInfo> create(void) {return new DjVuInfo();}
 
   /** Decodes the DjVu #"INFO"# chunk.  This function reads binary data from
       ByteStream #bs# and populates the fields of this DjVuInfo object.  It is

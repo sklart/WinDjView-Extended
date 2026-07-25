@@ -249,19 +249,11 @@ GRectMapper::GRatio::GRatio(int p, int q)
 }
 
 
-//< Changed for WinDjView project
-#ifdef _MSC_VER
-#define llint_t __int64
-#else
-//>
 #ifdef HAVE_LONG_LONG_INT
 #define llint_t long long int
 #else
 #define llint_t long int
 #endif
-//< Changed for WinDjView project
-#endif
-//>
 
 inline int 
 operator*(int n, GRectMapper::GRatio r )
@@ -272,15 +264,9 @@ operator*(int n, GRectMapper::GRatio r )
      they encountered overflow issues.  Let's use long long ints. */
   llint_t x = (llint_t) n * (llint_t) r.p;
   if (x >= 0)
-//< Changed for WinDjView project
-//    return   ((r.q/2 + x) / r.q);
-    return static_cast<int>((r.q/2 + x) / r.q);
-//>
+    return   ((r.q/2 + x) / r.q);
   else
-//< Changed for WinDjView project
-//    return - ((r.q/2 - x) / r.q);
-    return -static_cast<int>((r.q/2 - x) / r.q);
-//>
+    return - ((r.q/2 - x) / r.q);
 }
 
 inline int 
@@ -289,15 +275,9 @@ operator/(int n, GRectMapper::GRatio r )
   /* [LB] -- See comment in operator*() above. */
   llint_t x = (llint_t) n * (llint_t) r.q;
   if (x >= 0)
-//< Changed for WinDjView project
-//    return   ((r.p/2 + x) / r.p);
-    return static_cast<int>((r.p/2 + x) / r.p);
-//>
+    return   ((r.p/2 + x) / r.p);
   else
-//< Changed for WinDjView project
-//    return - ((r.p/2 - x) / r.p);
-    return -static_cast<int>((r.p/2 - x) / r.p);
-//>
+    return - ((r.p/2 - x) / r.p);
 }
 
 

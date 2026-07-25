@@ -790,7 +790,8 @@ DataPool::create(const GP<DataPool> & pool, int start, int length)
 {
   DEBUG_MSG("DataPool::DataPool: pool=" << (void *)((DataPool *)pool) << " start=" << start << " length= " << length << "\n");
   DEBUG_MAKE_INDENT(3);
-
+  if (!pool)
+    G_THROW( ERR_MSG("DataPool.zero_DataPool") );
   DataPool *xpool=new DataPool();
   GP<DataPool> retval=xpool;
   xpool->init();
@@ -820,10 +821,8 @@ DataPool::clear_stream(const bool release)
 {
   DEBUG_MSG("DataPool::clear_stream()\n");
   DEBUG_MAKE_INDENT(3);
-//< Changed for WinDjView project
-//  if(fstream)
-//  {
-//>
+  if(fstream)
+  {
     GCriticalSectionLock lock1(&class_stream_lock);
     GP<OpenFiles_File> f=fstream;
     if(f)
@@ -833,9 +832,7 @@ DataPool::clear_stream(const bool release)
       if(release)
         OpenFiles::get()->stream_released(f->stream, this);
     }
-//< Changed for WinDjView project
-//  }
-//>
+  }
 }
 
 DataPool::~DataPool(void)
@@ -1160,16 +1157,12 @@ DataPool::get_data(void * buffer, int offset, int sz, int level)
 	     }
 	   G_CATCH(exc)
 	   {
-//< Changed for WinDjView project
-//	     pool->clear_stream(true);
-//>
+	     pool->clear_stream(true);
 	     if ((exc.get_cause() != GUTF8String(ERR_MSG("DataPool.reenter")))
 		 || level)
 	       G_RETHROW;
 	   } G_ENDCATCH;
-//< Changed for WinDjView project
-//	   pool->clear_stream(true);
-//>
+	   pool->clear_stream(true);
 	   return retval;
 	 }
      }
@@ -1182,11 +1175,8 @@ DataPool::get_data(void * buffer, int offset, int sz, int level)
        if (sz<0)
          sz=0;
        
-//< Changed for WinDjView project
-       GP<OpenFiles_File> f;
-//       GP<OpenFiles_File> f=fstream;
-//       if (!f)
-//>
+       GP<OpenFiles_File> f=fstream;
+       if (!f)
          {
            GCriticalSectionLock lock(&class_stream_lock);
            f=fstream;
@@ -1283,9 +1273,6 @@ DataPool::wait_for_data(const GP<Reader> & reader)
 	     ", length=" << reader->size << "\n");
    DEBUG_MAKE_INDENT(3);
 
-#if THREADMODEL==NOTHREADS
-   G_THROW( ERR_MSG("DataPool.no_threadless") );
-#else
    for(;;)
    {
       if (stop_flag)
@@ -1303,7 +1290,6 @@ DataPool::wait_for_data(const GP<Reader> & reader)
       DEBUG_MSG("calling event.wait()...\n");
       reader->event.wait();
    }
-#endif
    
    DEBUG_MSG("Got some data to read\n");
 }
@@ -1370,14 +1356,7 @@ DataPool::stop(bool only_blocked)
 	 // to continue issuing this command until we get rid of all
 	 // "active_readers"
       while(*active_readers)
-      {
-//< Changed for WinDjView project
-//#if (THREADMODEL==COTHREADS) || (THREADMODEL==MACTHREADS)
-//	 GThread::yield();
-//#endif
-//>
-	 pool->restart_readers();
-      }
+        pool->restart_readers();
    }
 }
 
@@ -1759,7 +1738,7 @@ PoolByteStream::seek(long offset, int whence, bool nothrow)
   {
     case SEEK_CUR:
       offset+=position;
-      // fallthrough;
+      /* FALLTHRU */
     case SEEK_SET:
       if(offset<position)
       {

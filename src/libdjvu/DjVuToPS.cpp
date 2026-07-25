@@ -1276,9 +1276,9 @@ print_bg(ByteStream &str,
   int ps_chunk_height = 30960/prn_rect.width()+1;
   buffer_size = buffer_size*23/10;
   bool do_color = options.get_color();
-  if ((!dimg->is_legal_photo() &&
-       !dimg->is_legal_compound())
-      || options.get_mode()==Options::BW)
+  if (//(!dimg->is_legal_photo() &&
+      // !dimg->is_legal_compound()) ||
+      options.get_mode()==Options::BW)
     do_color = false;
   if (do_color) 
     buffer_size *= 3;
@@ -1913,7 +1913,11 @@ print_ps_string(const char *data, int length, ByteStream &out)
       else
         {
           char buffer[5];
-          sprintf(buffer,"\\%03o", *(unsigned char*)data);
+#if HAVE_SNPRINTF
+          snprintf(buffer, sizeof(buffer), "\\%03o", *(unsigned char*)data);
+#else
+          sprintf(buffer, "\\%03o", *(unsigned char*)data);
+#endif
           out.write(buffer,4);
           data += 1;
           length -= 1;
@@ -2210,7 +2214,7 @@ public:
   double decode_done;
   GURL decode_page_url;
   virtual void notify_file_flags_changed(const DjVuFile*,long,long);
-  virtual void notify_decode_progress(const DjVuPort*,double);
+  virtual void notify_decode_progress(const DjVuPort*,float);
 };
 
 DjVuToPS::DecodePort::
@@ -2247,7 +2251,7 @@ notify_file_flags_changed(const DjVuFile *source,
 
 void 
 DjVuToPS::DecodePort::
-notify_decode_progress(const DjVuPort *source, double done)
+notify_decode_progress(const DjVuPort *source, float done)
 {
   // WARNING! This function is called from another thread
   if (source->inherits("DjVuFile"))

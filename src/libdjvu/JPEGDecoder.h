@@ -91,25 +91,6 @@ class GPixmap;
 */
 //@{
 
-//< Changed for WinDjView project
-#ifdef WIN32_JPEG
-
-class JPEGImage : public GPEnabled
-{
-public:
-	static GP<JPEGImage> create(ByteStream& bs);
-	virtual ~JPEGImage();
-
-	GP<GPixmap> get_pixmap();
-
-protected:
-	JPEGImage() {}
-	void* bytes;
-};
-
-#else
-//>
-
 class GUTF8String;
 
 /** This class ensures namespace isolation. */
@@ -134,9 +115,6 @@ public:
 #endif // LIBJPEGNAME
 };
 
-//< Changed for WinDjView project
-#endif // WIN32_JPEG
-//>
 
 //@}
 

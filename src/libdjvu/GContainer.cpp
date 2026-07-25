@@ -636,7 +636,7 @@ GListBase::operator= (const GListBase & ref)
 
 
 GSetBase::GSetBase(const Traits &traits)
-  : traits(traits), nelems(0), nbuckets(0), 
+  : traits(traits), nelems(0), nbuckets(0), table(0),
     gtable(table), first(0)
 {
   rehash(17);
@@ -644,8 +644,8 @@ GSetBase::GSetBase(const Traits &traits)
 
 
 GSetBase::GSetBase(const GSetBase &ref)
-  : traits(ref.traits), 
-    nelems(0), nbuckets(0), gtable(table), first(0)
+  : traits(ref.traits), nelems(0), nbuckets(0), table(0),
+    gtable(table), first(0)
 {
   GSetBase::operator= (ref);
 }
@@ -719,10 +719,7 @@ GSetBase::deletenode(GCONT HNode *n)
   // HPrev links
   if (table[bucket] == n)
     table[bucket] = n->hprev;
-//< Changed for WinDjView project
-//  else
-  else if (n->next)
-//>
+  else
     ((HNode*)(n->next))->hprev = n->hprev;
   // Delete entry
   traits.fini( (void*)n, 1 );
@@ -740,15 +737,10 @@ GSetBase::rehash(int newbuckets)
   nelems = 0;
   first = 0;
   // Allocate a new empty bucket table
-// delete [] table;
   gtable.resize(0);
   nbuckets = newbuckets;
-  typedef HNode *HNodePtr;
-// table = new HNodePtr[nbuckets];
   gtable.resize(nbuckets);
   gtable.clear();
-//  for (int i=0; i<nbuckets; i++)
-//    table[i] = 0;
   // Insert saved nodes
   while (n)
     {

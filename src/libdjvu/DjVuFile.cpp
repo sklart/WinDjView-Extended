@@ -532,9 +532,7 @@ DjVuFile::decode_func(void)
 	} G_ENDCATCH;
   } G_ENDCATCH;
 
-//< Changed for WinDjView project
-//  decode_data_pool->clear_stream();
-//>
+  decode_data_pool->clear_stream();
   G_TRY {
     if (flags.test_and_modify(DECODING, 0, DECODE_OK | INCL_FILES_CREATED, DECODING))
       pcaster->notify_file_flags_changed(this, DECODE_OK | INCL_FILES_CREATED, 
@@ -570,7 +568,7 @@ DjVuFile::process_incl_chunk(ByteStream & str, int file_num)
   
   if (incl_str.length()>0)
   {
-    if (strchr(incl_str, '/'))
+    if (strchr(incl_str,'/') || strchr(incl_str,'\\') || strchr(incl_str,':'))
       G_THROW( ERR_MSG("DjVuFile.malformed") );
     
     DEBUG_MSG("incl_str='" << incl_str << "'\n");
@@ -578,6 +576,8 @@ DjVuFile::process_incl_chunk(ByteStream & str, int file_num)
     GURL incl_url=pcaster->id_to_url(this, incl_str);
     if (incl_url.is_empty())	// Fallback. Should never be used.
       incl_url=GURL::UTF8(incl_str,url.base());
+    if (incl_url == url)        // Infinite loop avoidance
+      G_THROW( ERR_MSG("DjVuFile.malformed") );
     
     // Now see if there is already a file with this *name* created
     {
@@ -660,31 +660,22 @@ DjVuFile::report_error(const GException &ex,bool throw_errors)
 {
   data_pool->clear_stream();
   if((!verbose_eof)|| (ex.cmp_cause(ByteStream::EndOfFile)))
-  {
-    if(throw_errors)
     {
-      G_EMTHROW(ex);
-    }else
-    {
-      get_portcaster()->notify_error(this,ex.get_cause());
+      if(throw_errors)
+        G_RETHROW(ex);
+      else
+        get_portcaster()->notify_error(this,ex.get_cause());
     }
-  }else
-  {
-    GURL url=get_url();
-    GUTF8String url_str=url.get_string();
-//    if (url.is_local_file_url())
-//      url_str=url.filename();
-    
-    GUTF8String msg = GUTF8String( ERR_MSG("DjVuFile.EOF") "\t") + url;
-    if(throw_errors)
+  else
     {
-      G_EMTHROW(GException(msg, ex.get_file(), ex.get_line(), 
-                           ex.get_function() ));
-    }else
-    {
-      get_portcaster()->notify_error(this,msg);
+      GURL url=get_url();
+      GUTF8String url_str=url.get_string();
+      GUTF8String msg = GUTF8String( ERR_MSG("DjVuFile.EOF") "\t") + url;
+      if(throw_errors)
+        G_RETHROW(GException(msg,ex.get_file(),ex.get_line(),ex.get_function()));
+      else
+        get_portcaster()->notify_error(this,msg);
     }
-  }
 }
 
 void
@@ -1025,19 +1016,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
       G_THROW( ERR_MSG("DjVuFile.dupl_backgrnd") );
     set_can_compress(true);
 #ifdef NEED_JPEG_DECODER
-//< Changed for WinDjView project
-#ifdef WIN32_JPEG
-	this->bg_jpeg = JPEGImage::create(bs);
-	desc = ERR_MSG("DjVuFile.JPEG_bg1_w");
-#else
-//>
     this->bgpm = JPEGDecoder::decode(bs);
     desc.format( ERR_MSG("DjVuFile.JPEG_bg1") "\t%d\t%d\t%d",
       bgpm->columns(), bgpm->rows(),
       get_dpi(bgpm->columns(), bgpm->rows()));
-//< Changed for WinDjView project
-#endif
-//>
 #else
     desc.format( ERR_MSG("DjVuFile.JPEG_bg2") );
 #endif
@@ -1049,19 +1031,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
     if (fgpm || fgbc)
       G_THROW( ERR_MSG("DjVuFile.dupl_foregrnd") );
 #ifdef NEED_JPEG_DECODER
-//< Changed for WinDjView project
-#ifdef WIN32_JPEG
-	this->fg_jpeg = JPEGImage::create(bs);
-	desc = ERR_MSG("DjVuFile.JPEG_fg1_w");
-#else
-//>
     this->fgpm = JPEGDecoder::decode(bs);
     desc.format( ERR_MSG("DjVuFile.JPEG_fg1") "\t%d\t%d\t%d",
       fgpm->columns(), fgpm->rows(),
       get_dpi(fgpm->columns(), fgpm->rows()));
-//< Changed for WinDjView project
-#endif
-//>
 #else
     desc.format( ERR_MSG("DjVuFile.JPEG_fg2") );
 #endif
@@ -1146,12 +1119,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         anno=ByteStream::create();
       }
       anno->seek(0,SEEK_END);
-//< Changed for WinDjView project
-//      if (anno->tell())
-//      {
-//        anno->write((void*)"", 1);
-//      }
-//>
+      if (anno->tell())
+      {
+        anno->write((void*)"", 1);
+      }
       // Copy data
       anno->copy(achunk);
       desc.format( ERR_MSG("DjVuFile.anno1") );
@@ -1170,12 +1141,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         anno = ByteStream::create();
       }
       anno->seek(0,SEEK_END);
-//< Changed for WinDjView project
-//      if (anno->tell() & 1)
-//      {
-//        anno->write((const void*)"", 1);
-//      }
-//>
+      if (anno->tell() & 1)
+      {
+        anno->write((const void*)"", 1);
+      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(anno));
       IFFByteStream &iffout=*giffout;
@@ -1196,12 +1165,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         text = ByteStream::create();
       }
       text->seek(0,SEEK_END);
-//< Changed for WinDjView project
-//      if (text->tell())
-//      {
-//        text->write((const void*)"", 1);
-//      }
-//>
+      if (text->tell())
+      {
+        text->write((const void*)"", 1);
+      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(text));
       IFFByteStream &iffout=*giffout;
@@ -1222,12 +1189,10 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         meta = ByteStream::create();
       }
       meta->seek(0,SEEK_END);
-//< Changed for WinDjView project
-//      if (meta->tell())
-//      {
-//        meta->write((const void*)"", 1);
-//      }
-//>
+      if (meta->tell())
+      {
+        meta->write((const void*)"", 1);
+      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(meta));
       IFFByteStream &iffout=*giffout;

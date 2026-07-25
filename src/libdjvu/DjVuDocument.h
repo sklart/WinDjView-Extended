@@ -524,7 +524,6 @@ public:
 		   \begin{enumerate}
 		      \item File ID from the \Ref{DjVmDir}
 		      \item File name from the \Ref{DjVmDir}
-		      \item File title from the \Ref{DjVmDir}
 		   \end{enumerate}
 		   Then for #BUNDLED# document the URL is obtained by
 		   appending the #name# of the found file to the document's
@@ -773,9 +772,6 @@ public:
 	  not been set yet). Check \Ref{is_init_complete}() and \Ref{init}()
           for details. */
    GP<DjVmNav>		get_djvm_nav(void) const;
-//< Changed for WinDjView project
-   void set_djvm_nav(GP<DjVmNav> nav);
-//>
       /** Returns pointer to the internal directory of the document, if it
 	  is in obsolete #OLD_BUNDLED# format.
 
@@ -1034,14 +1030,6 @@ DjVuDocument::get_djvm_nav(void) const
     return djvm_nav;
   return 0;
 }
-
-//< Changed for WinDjView project
-inline void
-DjVuDocument::set_djvm_nav(GP<DjVmNav> nav)
-{
-  djvm_nav = nav;
-}
-//>
 
 inline GP<DjVmDir0>
 DjVuDocument::get_djvm_dir0(void) const

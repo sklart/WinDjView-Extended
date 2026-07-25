@@ -153,12 +153,6 @@ DjVuImage::get_bgpm(const GP<DjVuFile> & file) const
 {
    if (file->bgpm)
      return file->bgpm;
-//< Changed for WinDjView project
-#if defined(NEED_JPEG_DECODER) && defined(WIN32_JPEG)
-   if (file->bg_jpeg)
-     return file->bg_jpeg->get_pixmap();
-#endif
-//>
    GPList<DjVuFile> list=file->get_included_files();
    for(GPosition pos=list;pos;++pos)
    {
@@ -188,12 +182,6 @@ DjVuImage::get_fgpm(const GP<DjVuFile> & file) const
 {
    if (file->fgpm)
      return file->fgpm;
-//< Changed for WinDjView project
-#if defined(NEED_JPEG_DECODER) && defined(WIN32_JPEG)
-   if (file->fg_jpeg)
-     return file->fg_jpeg->get_pixmap();
-#endif
-//>
    GPList<DjVuFile> list=file->get_included_files();
    for(GPosition pos=list;pos;++pos)
    {
@@ -1456,7 +1444,7 @@ DjVuImage::writeXML(ByteStream &str_out,const GURL &doc_url,const int flags) con
   }
   str_out.writestring(page_param);
   const GP<DjVuAnno> anno(DjVuAnno::create());
-  if(!(flags & NOINFO)||!(flags&NOMAP))
+  if(!(flags & NOMAP))
   {
     const GP<ByteStream> anno_str(get_anno());
     if(anno_str)
