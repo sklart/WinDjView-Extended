@@ -1,0 +1,17 @@
+# Build outputs created by the legacy NMAKE build.
+src/Release/
+src/Release_x64/
+src/libdjvu/Objs/
+src/libdjvu/Objs64/
+src/libdjvu/*.lib
+
+# Visual Studio user and intermediate files.
+*.suo
+*.user
+*.ncb
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+*.pdb
+*.idb
+*.ipch
