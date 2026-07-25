@@ -93,7 +93,7 @@
 # endif
 #endif
 
-#if WINTHREADS
+#if THREADMODEL==WINTHREADS
 # include <process.h>
 #endif
 
@@ -110,7 +110,7 @@ namespace DJVU {
 // WIN32 IMPLEMENTATION
 // ----------------------------------------
 
-#if WINTHREADS
+#if THREADMODEL==WINTHREADS
 
 static unsigned __stdcall 
 start(void *arg)
@@ -353,7 +353,7 @@ GMonitor::wait(unsigned long timeout)
 // POSIXTHREADS IMPLEMENTATION
 // ----------------------------------------
 
-#if POSIXTHREADS
+#if THREADMODEL==POSIXTHREADS
 
 #if defined(CMA_INCLUDE)
 # define DCETHREADS 1
