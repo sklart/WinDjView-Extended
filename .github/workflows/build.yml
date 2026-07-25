@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  win32-release:
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build bundled libdjvu and WinDjView
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=x64
+          cd src\libdjvu
+          nmake /nologo /f makefile
+          cd ..
+          nmake /nologo /f makefile
+
+      - name: Verify executable
+        shell: pwsh
+        run: |
+          $exe = 'src\Release\WinDjView.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "Expected build output was not created: $exe"
+          }
+          Get-Item -LiteralPath $exe | Select-Object FullName, Length
