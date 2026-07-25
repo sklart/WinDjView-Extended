@@ -325,9 +325,6 @@ private:
   GP<JB2Dict> inherited_dict;
   GArray<JB2Shape> shapes;
 
-//< Changed for WinDjView project
-public:
-//>
   struct LibRect {
     int top,left,right,bottom;
     void compute_bounding_box(const GBitmap &cbm);
@@ -621,9 +618,7 @@ protected:
   void code_bitmap_by_cross_coding (GBitmap &bm, GP<GBitmap> &cbm, const int libno);
   void code_record(int &rectype, const GP<JB2Dict> &jim, JB2Shape *jshp);
   void code_record(int &rectype, const GP<JB2Image> &jim, JB2Shape *jshp, JB2Blit *jblt);
-//< Changed for WinDjView project
-//  static void compute_bounding_box(GBitmap &cbm, LibRect &lrect);
-//>
+  static void compute_bounding_box(GBitmap &cbm, LibRect &lrect);
   static int get_direct_context( unsigned char const * const up2,
     unsigned char const * const up1, unsigned char const * const up0,
     const int column);

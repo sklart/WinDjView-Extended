@@ -106,24 +106,12 @@ class ByteStream;
 
 struct DJVUAPI GPixel
 {
-//< Changed for MacDjView project
-// Fix for Mac OS X and Quartz
-#ifdef QUARTZ
-  unsigned char r;
-  unsigned char g;
-  unsigned char b;
-  unsigned char alpha;
-#else
-//>
   /** Blue component. */
   unsigned char b;
   /** Green component. */
   unsigned char g;
   /** Red component. */
   unsigned char r;
-//< Changed for MacDjView project
-#endif
-//>
   /** Returns true iff colors are identical. */
   friend int operator==(const GPixel & p1, const GPixel & p2);
   /** Returns true iff colors are different. */

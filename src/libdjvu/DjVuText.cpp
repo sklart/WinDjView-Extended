@@ -283,10 +283,7 @@ DjVuTXT::Zone::decode(const GP<ByteStream> &gbs, int maxtext,
   int size = bs.read24();
 
   // Checks
-//< Changed for WinDjView project
-//  if (rect.isempty() || text_start<0 || text_start+text_length>maxtext )
-  if (text_start<0 || text_start+text_length>maxtext)
-//>
+  if (rect.isempty() || text_start<0 || text_start+text_length>maxtext )
     G_THROW( ERR_MSG("DjVuText.corrupt_text") );
 
   // Process children
@@ -296,11 +293,6 @@ DjVuTXT::Zone::decode(const GP<ByteStream> &gbs, int maxtext,
   {
     Zone *z = append_child();
     z->decode(gbs, maxtext, this, prev_child);
-//< Changed for WinDjView project
-    if (z->rect.isempty())
-      children.del(children.lastpos());
-    else
-//>
     prev_child=z;
   }
 }
@@ -353,9 +345,9 @@ DjVuTXT::decode(const GP<ByteStream> &gbs)
   int textsize = bs.read24();
   char *buffer = textUTF8.getbuf(textsize);
   int readsize = bs.read(buffer,textsize);
-  buffer[readsize] = 0;
-  if (readsize < textsize)
+  if (readsize < textsize || textsize <= 0)
     G_THROW( ERR_MSG("DjVuText.corrupt_chunk") );
+  buffer[readsize] = 0;
   // Try reading zones
   unsigned char version;
   if ( bs.read( (void*) &version, 1 ) == 1) 

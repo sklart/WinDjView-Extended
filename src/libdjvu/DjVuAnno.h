@@ -88,10 +88,6 @@
 
 
 #include "GString.h"
-//< Changed for WinDjView Extended project
-#include <vector>
-using std::vector;
-//>
 
 #ifdef HAVE_NAMESPACES
 namespace DJVU {
@@ -139,6 +135,10 @@ public:
           \item[ZOOM_WIDTH] "Fit width" mode.
           \item[ZOOM_PAGE] "Fit page" mode.
           \item[ZOOM_UNSPEC] Annotation does not specify a zoom factor.
+          \item[Any positive number] Zoom in \%. Please note that
+                   all constants above are either negative or ZERO. Thus
+                   it's possible to distinguish numerical zoom from those
+                   special cases.
           \end{description} */
    int		zoom;
       /** Initial mode. Possible values are:
@@ -148,10 +148,6 @@ public:
              \item[MODE_BACK] background mode.
              \item[MODE_BW] black and white mode.
              \item[MODE_UNSPEC] Annotation does not specify a display mode.
-	     \item[Any positive number] Zoom in \%. Please note that
-                   all constants above are either negative or ZERO. Thus
-                   it's possible to distinguish numerical zoom from those
-                   special cases.
           \end{description} */
    int		mode;
       /** Horizontal page alignment. Possible values are #ALIGN_LEFT#,
@@ -165,10 +161,7 @@ public:
 	  \Ref{GMapPoly} and \Ref{GMapOval} for details. */
    GPList<GMapArea> map_areas;
       /** Metainformations like title, author ... */
-//< Changed for WinDjView Extended project
-   //GMap<GUTF8String,GUTF8String> metadata;
-   vector<GMap<GUTF8String,GUTF8String> > metadata;
-//>
+   GMap<GUTF8String,GUTF8String> metadata;
       /** Metainformations like title, author ... */
    GUTF8String xmpmetadata;
       /** Returns TRUE if no features are specified or specified features
@@ -221,10 +214,7 @@ private:
    static alignment get_hor_align(class GLParser & parser);
    static alignment get_ver_align(class GLParser & parser);
    static GPList<GMapArea> get_map_areas(class GLParser & parser);
-//< Changed for WinDjView Extended project
-   //static GMap<GUTF8String, GUTF8String>get_metadata(GLParser & parser);
-   static vector<GMap<GUTF8String, GUTF8String> >get_metadata(GLParser & parser);
-//>
+   static GMap<GUTF8String, GUTF8String>get_metadata(GLParser & parser);
    static GUTF8String get_xmpmetadata(GLParser & parser);
    static void del_all_items(const char * name, class GLParser & parser);
 };

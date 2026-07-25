@@ -3,6 +3,14 @@
 WinDjView Extended is a native Windows DjVu viewer written in C++ with MFC.
 The bundled `src/libdjvu` directory is built as a static library.
 
+## Upstream and acknowledgements
+
+This repository is based on the WinDjView Extended sources published by
+[N.M.E. (nme3001) on SourceForge](https://sourceforge.net/projects/windjviewextended/).
+Many thanks to N.M.E. for maintaining and making WinDjView Extended available,
+and to Andrew Zhezherun, the original author of WinDjView.
+
+
 ## License
 
 The source code is distributed under the GNU General Public License, version 2

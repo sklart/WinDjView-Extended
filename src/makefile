@@ -36,7 +36,7 @@ CPP_PCH_CREATE = /Yc"stdafx.h"
 CPP_FLAGS = $(CPP_FLAGS) /nologo /c /MT /W3 /EHsc /O2 /GL /GR- \
             /D "WIN32" $(WIN64) /D "NDEBUG" /D "_WINDOWS" /Fp$(PCH) /Fo"$(INTDIR)/"
 
-LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" msimg32.lib version.lib shlwapi.lib \
+LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "third_party\jpeg-6b\jpeg.lib" msimg32.lib version.lib shlwapi.lib \
              /nologo /subsystem:windows /incremental:no /machine:$(MACHINE) \
              /nodefaultlib:"msvcrt.lib" /ltcg /out:$(OUT)
 

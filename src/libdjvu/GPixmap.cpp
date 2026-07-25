@@ -98,20 +98,9 @@ namespace DJVU {
 
 const GPixel GPixel::WHITE = { 255, 255, 255 };
 const GPixel GPixel::BLACK = {   0,   0,   0 };
-//< Changed for MacDjView project
-// Fix for Mac OS X and Quartz
-#ifdef QUARTZ
-const GPixel GPixel::BLUE  = {   0,   0, 255 };
-const GPixel GPixel::GREEN = {   0, 255,   0 };
-const GPixel GPixel::RED   = { 255,   0,   0 };
-#else
-//>
 const GPixel GPixel::BLUE  = { 255,   0,   0 };
 const GPixel GPixel::GREEN = {   0, 255,   0 };
 const GPixel GPixel::RED   = {   0,   0, 255 };
-//< Changed for MacDjView project
-#endif
-//>
 
 
 //////////////////////////////////////////////////
@@ -295,9 +284,11 @@ GPixmap::GPixmap(const GPixmap &ref, const GRect &rect)
 void 
 GPixmap::init(int arows, int acolumns, const GPixel *filler)
 {
+  size_t np = arows * acolumns;
   if (arows != (unsigned short) arows ||
-      acolumns != (unsigned short) acolumns )
-    G_THROW("Illegal arguments");
+      acolumns != (unsigned short) acolumns ||
+      (arows>0 && np/(size_t)arows!=(size_t)acolumns) )
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
   destroy();
   nrows = arows;
   ncolumns = acolumns;
@@ -491,6 +482,7 @@ GPixmap::init(ByteStream &bs)
       break;
     case ('P'<<8)+'5':
       raw = grey = true;
+      /* FALLTHRU */
     case ('P'<<8)+'6':
       raw = true;
       break;
@@ -503,15 +495,7 @@ GPixmap::init(ByteStream &bs)
     default:
 #ifdef NEED_JPEG_DECODER
       bs.seek(0L);
-//< Changed for WinDjView project
-#ifdef WIN32_JPEG
-      init(*(JPEGImage::create(bs)->get_pixmap()));
-#else
-//>
       JPEGDecoder::decode(bs,*this);
-//< Changed for WinDjView project
-#endif
-//>
       return;
 #else
       

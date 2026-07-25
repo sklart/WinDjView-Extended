@@ -249,10 +249,7 @@ convertToColor(const GUTF8String &s)
   unsigned long retval=0;
   if(s.length())
   {
-//< Changed for WinDjView project
-//    int endpos;
     int endpos = -1;
-//>
     if(s[0] == '#')
     {
       retval=s.substr(1,-1).toULong(0,endpos,16);

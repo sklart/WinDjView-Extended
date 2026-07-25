@@ -1894,7 +1894,8 @@ void DjVuSource::FindDocMetaData()
 			{
 				if (pDjVuAnno->ant->metadata.size() > 0)
 				{
-					m_pDocMetadata = pDjVuAnno->ant->metadata;
+					m_pDocMetadata.clear();
+					m_pDocMetadata.push_back(pDjVuAnno->ant->metadata);
 				}
 				else if (pDjVuAnno->ant->xmpmetadata.length() > 0)
 				{
@@ -1962,7 +1963,8 @@ GUTF8String DjVuSource::GetPageMetaData(int nPage)
 			{
 				if (pDjVuAnno->ant->metadata.size() > 0)
 				{
-					vector<GMap<GUTF8String, GUTF8String> > metadata = pDjVuAnno->ant->metadata;
+					vector<GMap<GUTF8String, GUTF8String> > metadata;
+					metadata.push_back(pDjVuAnno->ant->metadata);
 					for(UINT i = 0; i < metadata.size(); ++i)
 					{
 						if (!IsDocMetaData(&metadata[i]))

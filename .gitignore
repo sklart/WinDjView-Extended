@@ -5,6 +5,7 @@ src/libdjvu/Objs/
 src/libdjvu/Objs64/
 src/libdjvu/*.lib
 
+src/third_party/jpeg-6b/Objs/
 # Visual Studio user and intermediate files.
 *.suo
 *.user
