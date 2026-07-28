@@ -240,6 +240,8 @@ DjVuDocument::~DjVuDocument(void)
      }
    }
    DataPool::close_all();
+   if (init_data_pool)
+     init_data_pool->clear_stream(true);
 }
 
 void
