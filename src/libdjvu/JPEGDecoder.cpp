@@ -65,6 +65,7 @@
 #include "GSmartPointer.h"
 #include "ByteStream.h"
 #include "GPixmap.h"
+#include <limits.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -147,6 +148,7 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
 
   JSAMPARRAY buffer;    /* Output row buffer */
   int row_stride;   /* physical row width in output buffer */
+  int output_width, output_height;
   int isGrey,i;
 
   cinfo.err = jpeg_std_error(&jerr.pub);
@@ -178,6 +180,15 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
     jpeg_destroy_decompress(&cinfo);
     G_THROW("Unsupported JPEG color space" );
   }
+  if (!cinfo.output_width || !cinfo.output_height ||
+      cinfo.output_width > INT_MAX / cinfo.output_components ||
+      cinfo.output_height > INT_MAX)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG dimensions" );
+  }
+  output_width = (int)cinfo.output_width;
+  output_height = (int)cinfo.output_height;
   
   /* We may need to do some setup of our own at this point before reading
    * the data.  After jpeg_start_decompress() we have the correct scaled
@@ -187,7 +198,7 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
    */
 
   /* JSAMPLEs per row in output buffer */
-  row_stride = cinfo.output_width * cinfo.output_components;
+  row_stride = output_width * cinfo.output_components;
 
   /* Make a one-row-high sample array that will go away when done with image */
   buffer = (*cinfo.mem->alloc_sarray)
@@ -195,8 +206,7 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
 
   GP<ByteStream> goutputBlock=ByteStream::create();
   ByteStream &outputBlock=*goutputBlock;
-  outputBlock.format("P6\n%d %d\n%d\n",cinfo.output_width, 
-                                 cinfo.output_height,255);
+  outputBlock.format("P6\n%d %d\n%d\n",output_width, output_height,255);
 
   isGrey = ( cinfo.out_color_space == JCS_GRAYSCALE) ? 1 : 0; 
 
