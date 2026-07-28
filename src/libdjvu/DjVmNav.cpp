@@ -279,36 +279,23 @@ DjVmNav::dump(const GP<ByteStream> &gstr)
 bool 
 DjVmNav::isValidBookmark()
 {
-  //test if the bookmark is properly given
-  //for example: (4, "A", urla)
-  //	         (0, "B", urlb)
-  //             (0, "C", urlc)
-  //is not a bookmark since A suppose to have 4 decendents, it only get one.
-  int bookmark_totalnum=getBookMarkCount();
-  GP<DjVuBookMark> gpBookMark;
-  int* count_array=(int*)malloc(sizeof(int)*bookmark_totalnum);
-  for(int i=0;i<bookmark_totalnum;i++)
+  // A preorder bookmark forest is valid when every declared child slot is
+  // occupied by exactly one following bookmark.  Keep only the number of
+  // open slots: this avoids temporary allocations and detects truncated
+  // trees as well as invalid negative counts.
+  int open_slots=0;
+  const int bookmark_totalnum=getBookMarkCount();
+  GP<DjVuBookMark> bookmark;
+  for (int index=0; index<bookmark_totalnum; ++index)
     {
-      getBookMark(gpBookMark, i);
-      count_array[i]=gpBookMark->count;
+      if (open_slots==0)
+        open_slots=1;
+      getBookMark(bookmark, index);
+      if (!bookmark || bookmark->count<0 || bookmark->count>0x7fffffff-open_slots+1)
+        return false;
+      open_slots += bookmark->count-1;
     }
-  int index=0;
-  int trees=0;
-  int* treeSizes=(int*)malloc(sizeof(int)*bookmark_totalnum);
-  while(index<bookmark_totalnum)
-    {
-      int treeSize=get_tree(index,count_array,bookmark_totalnum);
-      if(treeSize>0) //is a tree
-        {
-          index+=treeSize;
-          treeSizes[trees++]=treeSize;
-        }
-      else //not a tree
-        break;
-    }
-  free(count_array);
-  free(treeSizes);
-  return true;
+  return (open_slots==0);
 }
 
 int 
