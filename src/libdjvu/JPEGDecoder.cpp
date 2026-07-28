@@ -181,8 +181,8 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
     G_THROW("Unsupported JPEG color space" );
   }
   if (!cinfo.output_width || !cinfo.output_height ||
-      cinfo.output_width > INT_MAX / cinfo.output_components ||
-      cinfo.output_height > INT_MAX)
+      cinfo.output_width > (JDIMENSION)(INT_MAX / cinfo.output_components) ||
+      cinfo.output_height > (JDIMENSION)INT_MAX)
   {
     jpeg_destroy_decompress(&cinfo);
     G_THROW("Unsupported JPEG dimensions" );
