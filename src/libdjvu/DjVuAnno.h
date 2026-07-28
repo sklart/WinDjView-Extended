@@ -88,6 +88,9 @@
 
 
 #include "GString.h"
+#include <vector>
+
+using std::vector;
 
 #ifdef HAVE_NAMESPACES
 namespace DJVU {
@@ -161,7 +164,7 @@ public:
 	  \Ref{GMapPoly} and \Ref{GMapOval} for details. */
    GPList<GMapArea> map_areas;
       /** Metainformations like title, author ... */
-   GMap<GUTF8String,GUTF8String> metadata;
+   vector<GMap<GUTF8String,GUTF8String> > metadata;
       /** Metainformations like title, author ... */
    GUTF8String xmpmetadata;
       /** Returns TRUE if no features are specified or specified features
@@ -214,7 +217,7 @@ private:
    static alignment get_hor_align(class GLParser & parser);
    static alignment get_ver_align(class GLParser & parser);
    static GPList<GMapArea> get_map_areas(class GLParser & parser);
-   static GMap<GUTF8String, GUTF8String>get_metadata(GLParser & parser);
+   static vector<GMap<GUTF8String, GUTF8String> >get_metadata(GLParser & parser);
    static GUTF8String get_xmpmetadata(GLParser & parser);
    static void del_all_items(const char * name, class GLParser & parser);
 };

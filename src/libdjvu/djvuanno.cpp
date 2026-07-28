@@ -1101,13 +1101,13 @@ DjVuANT::get_ver_align(GLParser & parser)
   return retval;
 }
 
-GMap<GUTF8String, GUTF8String>
+vector<GMap<GUTF8String, GUTF8String> >
 DjVuANT::get_metadata(GLParser & parser)
 {
   DEBUG_MSG("DjVuANT::get_metadata(): forming and returning metadata table\n");
   DEBUG_MAKE_INDENT(3);
   
-  GMap<GUTF8String, GUTF8String> mdata;
+  vector<GMap<GUTF8String, GUTF8String> > mdata;
   
   GPList<GLObject> list=parser.get_list();
   for(GPosition pos=list;pos;++pos)
@@ -1124,7 +1124,9 @@ DjVuANT::get_metadata(GLParser & parser)
                   if (type == GLObject::LIST)
                     { 
                       const GUTF8String & name=el.get_name();  
-                      mdata[name]=(el[0])->get_string();
+                      GMap<GUTF8String, GUTF8String> map_data;
+                      map_data[name]=(el[0])->get_string();
+                      mdata.push_back(map_data);
                     }
                 }
             } 
@@ -1429,12 +1431,13 @@ DjVuANT::encode_raw(void) const
    }
       //*** Metadata
    del_all_items(METADATA_TAG, parser);
-   if (!metadata.isempty())
+   if (metadata.size() > 0)
      {
        GUTF8String mdatabuffer("(");
        mdatabuffer +=  METADATA_TAG ;
-       for (GPosition pos=metadata; pos; ++pos)
-         mdatabuffer +=" (" + metadata.key(pos) + " " + make_c_string(metadata[pos]) + ")";
+       for (size_t i=0; i<metadata.size(); ++i)
+         for (GPosition pos=metadata[i]; pos; ++pos)
+           mdatabuffer +=" (" + metadata[i].key(pos) + " " + make_c_string(metadata[i][pos]) + ")";
        mdatabuffer += " )";
        parser.parse(mdatabuffer);
      }
