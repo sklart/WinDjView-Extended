@@ -719,7 +719,7 @@ GSetBase::deletenode(GCONT HNode *n)
   // HPrev links
   if (table[bucket] == n)
     table[bucket] = n->hprev;
-  else
+  else if (n->next)
     ((HNode*)(n->next))->hprev = n->hprev;
   // Delete entry
   traits.fini( (void*)n, 1 );

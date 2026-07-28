@@ -171,7 +171,7 @@ public:
    void		save(void);
 
       /** Saves the document. */
-   virtual void	save_as(const GURL &where, bool bundled);
+   virtual void	save_as(const GURL &where, bool bundled=false);
 
       /** Saves the document in the {\em new bundled} format. All the data
 	  is "bundled" into one file and this file is written into the
