@@ -134,17 +134,17 @@ static VersionInfo theVersionInfo;
 VersionInfo::VersionInfo()
 	: bNT(false), b2kPlus(false), bXPPlus(false), bVistaPlus(false)
 {
-	OSVERSIONINFO vi;
-	vi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-	if (::GetVersionEx(&vi))
+	typedef LONG (WINAPI* RtlGetVersionProc)(OSVERSIONINFOW*);
+	OSVERSIONINFOW vi = {};
+	vi.dwOSVersionInfoSize = sizeof(vi);
+	RtlGetVersionProc rtlGetVersion = reinterpret_cast<RtlGetVersionProc>(
+		::GetProcAddress(::GetModuleHandle(L"ntdll.dll"), "RtlGetVersion"));
+	if (rtlGetVersion != NULL && rtlGetVersion(&vi) == 0)
 	{
-		bNT = (vi.dwPlatformId == VER_PLATFORM_WIN32_NT);
-		if (bNT)
-		{
-			b2kPlus = (vi.dwMajorVersion >= 5);
-			bXPPlus = (vi.dwMajorVersion > 5 || vi.dwMajorVersion == 5 && vi.dwMinorVersion >= 1);
-			bVistaPlus = (vi.dwMajorVersion >= 6);
-		}
+		bNT = true;
+		b2kPlus = (vi.dwMajorVersion >= 5);
+		bXPPlus = (vi.dwMajorVersion > 5 || vi.dwMajorVersion == 5 && vi.dwMinorVersion >= 1);
+		bVistaPlus = (vi.dwMajorVersion >= 6);
 	}
 }
 

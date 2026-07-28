@@ -2137,7 +2137,7 @@ DjVuFile::contains_anno(void)
       iff.close_chunk();
     }
   }
-  G_CATCH(ex)
+  G_CATCH_ALL
   {
     data_pool->clear_stream();
     G_RETHROW;
@@ -2170,7 +2170,7 @@ DjVuFile::contains_text(void)
       iff.close_chunk();
     }
   }
-  G_CATCH(ex)
+  G_CATCH_ALL
   {
     data_pool->clear_stream();
     G_RETHROW;
@@ -2203,7 +2203,7 @@ DjVuFile::contains_meta(void)
       iff.close_chunk();
     }
   }
-  G_CATCH(ex)
+  G_CATCH_ALL
   {
     data_pool->clear_stream();
     G_RETHROW;

@@ -4771,15 +4771,15 @@ BOOL CDjVuView::OnMouseWheel(UINT nFlags, short zDelta, CPoint point)
 			double k = GetZoom()/fCurrentZoom;
 			CPoint ptShifting;
 			if (m_nLayout == SinglePage || m_nLayout == Facing)
-				ptShifting = CPoint((ptCursor.x + scroll.x)*(k - 1.0) + 0.5, (ptCursor.y + scroll.y)*(k - 1.0) + 0.5);
+				ptShifting = CPoint(static_cast<int>((ptCursor.x + scroll.x)*(k - 1.0) + 0.5), static_cast<int>((ptCursor.y + scroll.y)*(k - 1.0) + 0.5));
 			else
-				ptShifting = CPoint((ptCursor.x)*(k - 1.0) + 0.5, (ptCursor.y)*(k - 1.0) + 0.5);
+				ptShifting = CPoint(static_cast<int>((ptCursor.x)*(k - 1.0) + 0.5), static_cast<int>((ptCursor.y)*(k - 1.0) + 0.5));
 
 			OnScrollBy(ptShifting);
 			if (nPage >=0)
 			{
 				if ((m_nLayout == SinglePage || m_nLayout == Facing) && nPage != GetPageFromPoint(ptCursor))
-					OnScrollBy(CPoint(-ptShifting.x, -ptShifting.y));
+					OnScrollBy(CPoint(static_cast<int>(-ptShifting.x), static_cast<int>(-ptShifting.y)));
 
 				CPoint ptResult = ScreenToDjVu(nPage, GetScrollPosition() - m_pages[nPage].ptOffset + ptCursor);
 				if (ptResult != pt && nPage == GetPageFromPoint(ptCursor))
@@ -4787,7 +4787,7 @@ BOOL CDjVuView::OnMouseWheel(UINT nFlags, short zDelta, CPoint point)
 					double m = GetZoom() / GetZoom(ZoomActualSize);
 					int dx = pt.x - ptResult.x;
 					int dy = ptResult.y - pt.y;
-					OnScrollBy(CPoint(dx * m, dy * m));
+					OnScrollBy(CPoint(static_cast<int>(dx * m), static_cast<int>(dy * m)));
 				}
 			}
 		}
@@ -4798,9 +4798,9 @@ BOOL CDjVuView::OnMouseWheel(UINT nFlags, short zDelta, CPoint point)
 			CPoint ptShifting;
 
 			if (m_nLayout == SinglePage || m_nLayout == Facing)
-				ptShifting = CPoint((ptCursor.x + scroll.x)*(k - 1.0) + 0.5, (ptCursor.y + scroll.y)*(k - 1.0) + 0.5);
+				ptShifting = CPoint(static_cast<int>((ptCursor.x + scroll.x)*(k - 1.0) + 0.5), static_cast<int>((ptCursor.y + scroll.y)*(k - 1.0) + 0.5));
 			else
-				ptShifting = CPoint((ptCursor.x)*(k - 1.0) + 0.5, (ptCursor.y)*(k - 1.0) + 0.5);
+				ptShifting = CPoint(static_cast<int>((ptCursor.x)*(k - 1.0) + 0.5), static_cast<int>((ptCursor.y)*(k - 1.0) + 0.5));
 
 			OnScrollBy(ptShifting);
 		}

@@ -211,13 +211,13 @@ CDIB* CRenderThread::Render(Job& job)
 			int nY = rcCrop.bottom + rcCrop.top;
 			double fScaleX = job.displaySettings.bCropPages ? 1.0 * job.size.cx / szPage.cx : 0;
 			double fScaleY = job.displaySettings.bCropPages ? 1.0 * job.size.cy / szPage.cy : 0;
-			CPoint pt = CPoint(nX * fScaleX, nY * fScaleY);
+			CPoint pt = CPoint(static_cast<int>(nX * fScaleX), static_cast<int>(nY * fScaleY));
 
 			pBitmap = Render(pImage, job.size + pt, job.displaySettings, job.nDisplayMode, job.nRotate);
 			if (job.displaySettings.bCropPages && (nX + nY > 1))
 			{		
-				CRect rcCrop2 = CRect(rcCrop.left * fScaleX, rcCrop.top * fScaleY,
-					rcCrop.left * fScaleX + job.size.cx, rcCrop.top * fScaleY + job.size.cy);
+				CRect rcCrop2 = CRect(static_cast<int>(rcCrop.left * fScaleX), static_cast<int>(rcCrop.top * fScaleY),
+					static_cast<int>(rcCrop.left * fScaleX + job.size.cx), static_cast<int>(rcCrop.top * fScaleY + job.size.cy));
 				CDIB* pCropped = pBitmap->Crop(rcCrop2);
 				delete pBitmap;
 				pBitmap = pCropped;

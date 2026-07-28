@@ -555,8 +555,8 @@ bool CDIB::Save(LPCTSTR pszPathName, ImageFormat nFormat) const
 			return false;
 
 		Gdip::BitmapSetResolution(pGdipBitmap,
-				static_cast<int>(m_pBMI->bmiHeader.biXPelsPerMeter*0.0254 + 0.5),
-				static_cast<int>(m_pBMI->bmiHeader.biYPelsPerMeter*0.0254 + 0.5));
+				static_cast<float>(static_cast<int>(m_pBMI->bmiHeader.biXPelsPerMeter*0.0254 + 0.5)),
+				static_cast<float>(static_cast<int>(m_pBMI->bmiHeader.biYPelsPerMeter*0.0254 + 0.5)));
 
 		const wchar_t* szEncoder = L"image/bmp";
 		switch (nFormat)
