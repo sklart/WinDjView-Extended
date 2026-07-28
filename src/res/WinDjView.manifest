@@ -9,8 +9,10 @@
 <description>WinDjView</description> 
 <asmv3:application xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
     <asmv3:windowsSettings>
-        <!-- Prevent Windows from bitmap-scaling the whole interface at high DPI. -->
+        <!-- Older Windows use this system-DPI fallback. -->
         <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+        <!-- Windows 10+ keeps the UI sharp when it moves between DPI-scaled monitors. -->
+        <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2,PerMonitor,System</dpiAwareness>
     </asmv3:windowsSettings>
 </asmv3:application>
 <dependency> 
