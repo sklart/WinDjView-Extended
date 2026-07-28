@@ -2118,24 +2118,31 @@ bool
 DjVuFile::contains_anno(void)
 {
   bool contains=false;
-  const GP<ByteStream> str(data_pool->get_stream());
-  
-  GUTF8String chkid;
-  const GP<IFFByteStream> giff(IFFByteStream::create(str));
-  IFFByteStream &iff=*giff;
-  if (!iff.get_chunk(chkid))
-    G_THROW( ByteStream::EndOfFile );
-  
-  while(iff.get_chunk(chkid))
+  G_TRY
   {
-    if (is_annotation(chkid))
+    const GP<ByteStream> str(data_pool->get_stream());
+    GUTF8String chkid;
+    const GP<IFFByteStream> giff(IFFByteStream::create(str));
+    IFFByteStream &iff=*giff;
+    if (!iff.get_chunk(chkid))
+      G_THROW( ByteStream::EndOfFile );
+    
+    while(iff.get_chunk(chkid))
     {
-      contains=true;
-      break;
+      if (is_annotation(chkid))
+      {
+        contains=true;
+        break;
+      }
+      iff.close_chunk();
     }
-    iff.close_chunk();
   }
-  
+  G_CATCH(ex)
+  {
+    data_pool->clear_stream();
+    G_RETHROW;
+  }
+  G_ENDCATCH;
   data_pool->clear_stream();
   return contains;
 }
@@ -2144,24 +2151,31 @@ bool
 DjVuFile::contains_text(void)
 {
   bool contains=false;
-  const GP<ByteStream> str(data_pool->get_stream());
-  
-  GUTF8String chkid;
-  const GP<IFFByteStream> giff(IFFByteStream::create(str));
-  IFFByteStream &iff=*giff;
-  if (!iff.get_chunk(chkid))
-    G_THROW( ByteStream::EndOfFile );
-  
-  while(iff.get_chunk(chkid))
+  G_TRY
   {
-    if (is_text(chkid))
+    const GP<ByteStream> str(data_pool->get_stream());
+    GUTF8String chkid;
+    const GP<IFFByteStream> giff(IFFByteStream::create(str));
+    IFFByteStream &iff=*giff;
+    if (!iff.get_chunk(chkid))
+      G_THROW( ByteStream::EndOfFile );
+    
+    while(iff.get_chunk(chkid))
     {
-      contains=true;
-      break;
+      if (is_text(chkid))
+      {
+        contains=true;
+        break;
+      }
+      iff.close_chunk();
     }
-    iff.close_chunk();
   }
-  
+  G_CATCH(ex)
+  {
+    data_pool->clear_stream();
+    G_RETHROW;
+  }
+  G_ENDCATCH;
   data_pool->clear_stream();
   return contains;
 }
@@ -2170,24 +2184,31 @@ bool
 DjVuFile::contains_meta(void)
 {
   bool contains=false;
-  const GP<ByteStream> str(data_pool->get_stream());
-  
-  GUTF8String chkid;
-  const GP<IFFByteStream> giff(IFFByteStream::create(str));
-  IFFByteStream &iff=*giff;
-  if (!iff.get_chunk(chkid))
-    G_THROW( ByteStream::EndOfFile );
-  
-  while(iff.get_chunk(chkid))
+  G_TRY
   {
-    if (is_meta(chkid))
+    const GP<ByteStream> str(data_pool->get_stream());
+    GUTF8String chkid;
+    const GP<IFFByteStream> giff(IFFByteStream::create(str));
+    IFFByteStream &iff=*giff;
+    if (!iff.get_chunk(chkid))
+      G_THROW( ByteStream::EndOfFile );
+    
+    while(iff.get_chunk(chkid))
     {
-      contains=true;
-      break;
+      if (is_meta(chkid))
+      {
+        contains=true;
+        break;
+      }
+      iff.close_chunk();
     }
-    iff.close_chunk();
   }
-  
+  G_CATCH(ex)
+  {
+    data_pool->clear_stream();
+    G_RETHROW;
+  }
+  G_ENDCATCH;
   data_pool->clear_stream();
   return contains;
 }
