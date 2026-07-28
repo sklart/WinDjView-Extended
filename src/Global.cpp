@@ -135,11 +135,50 @@ VersionInfo::VersionInfo()
 	: bNT(false), b2kPlus(false), bXPPlus(false), bVistaPlus(false)
 {
 	typedef LONG (WINAPI* RtlGetVersionProc)(OSVERSIONINFOW*);
-	OSVERSIONINFOW vi = {};
+	typedef BOOL (WINAPI* GetVersionExProc)(OSVERSIONINFOW*);
+	OSVERSIONINFOW vi;
+	::ZeroMemory(&vi, sizeof(vi));
 	vi.dwOSVersionInfoSize = sizeof(vi);
-	RtlGetVersionProc rtlGetVersion = reinterpret_cast<RtlGetVersionProc>(
-		::GetProcAddress(::GetModuleHandle(L"ntdll.dll"), "RtlGetVersion"));
+
+	bool gotVersion = false;
+	bool isNT = false;
+	HMODULE hNtdll = ::GetModuleHandle(L"ntdll.dll");
+	RtlGetVersionProc rtlGetVersion = hNtdll != NULL
+		? reinterpret_cast<RtlGetVersionProc>(::GetProcAddress(hNtdll, "RtlGetVersion")) : NULL;
 	if (rtlGetVersion != NULL && rtlGetVersion(&vi) == 0)
+	{
+		gotVersion = true;
+		isNT = true;
+	}
+	else
+	{
+		HMODULE hKernel32 = ::GetModuleHandle(L"kernel32.dll");
+		GetVersionExProc getVersionEx = hKernel32 != NULL
+			? reinterpret_cast<GetVersionExProc>(::GetProcAddress(hKernel32, "GetVersionExW")) : NULL;
+		if (getVersionEx != NULL && getVersionEx(&vi))
+		{
+			gotVersion = true;
+			isNT = (vi.dwPlatformId == VER_PLATFORM_WIN32_NT);
+		}
+		else
+		{
+			typedef BOOL (WINAPI* GetVersionExAProc)(OSVERSIONINFOA*);
+			OSVERSIONINFOA legacyVersion;
+			::ZeroMemory(&legacyVersion, sizeof(legacyVersion));
+			legacyVersion.dwOSVersionInfoSize = sizeof(legacyVersion);
+			GetVersionExAProc getVersionExA = hKernel32 != NULL
+				? reinterpret_cast<GetVersionExAProc>(::GetProcAddress(hKernel32, "GetVersionExA")) : NULL;
+			if (getVersionExA != NULL && getVersionExA(&legacyVersion))
+			{
+				gotVersion = true;
+				isNT = (legacyVersion.dwPlatformId == VER_PLATFORM_WIN32_NT);
+				vi.dwMajorVersion = legacyVersion.dwMajorVersion;
+				vi.dwMinorVersion = legacyVersion.dwMinorVersion;
+			}
+		}
+	}
+
+	if (gotVersion && isNT)
 	{
 		bNT = true;
 		b2kPlus = (vi.dwMajorVersion >= 5);
