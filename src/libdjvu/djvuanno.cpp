@@ -1124,6 +1124,8 @@ DjVuANT::get_metadata(GLParser & parser)
                   if (type == GLObject::LIST)
                     { 
                       const GUTF8String & name=el.get_name();  
+                      if (el.get_list().size() < 1)
+                        continue;
                       GMap<GUTF8String, GUTF8String> map_data;
                       map_data[name]=(el[0])->get_string();
                       mdata.push_back(map_data);
@@ -1185,13 +1187,15 @@ DjVuANT::get_map_areas(GLParser & parser)
       if(name == GMapArea::MAPAREA_TAG)
       {
         G_TRY {
+          if (obj.get_list().size() < 3)
+            G_THROW( ERR_MSG("DjVuAnno.bad_url") );
 	       // Getting the url
           GUTF8String url;
           GUTF8String target=GMapArea::TARGET_SELF;
           GLObject & url_obj=*(obj[0]);
           if (url_obj.get_type()==GLObject::LIST)
           {
-            if (url_obj.get_name()!=GMapArea::URL_TAG)
+            if (url_obj.get_name()!=GMapArea::URL_TAG || url_obj.get_list().size() < 2)
               G_THROW( ERR_MSG("DjVuAnno.bad_url") );
             url=(url_obj[0])->get_string();
             target=(url_obj[1])->get_string();
@@ -1207,6 +1211,14 @@ DjVuANT::get_map_areas(GLParser & parser)
           GP<GMapArea> map_area;
           if (shape->get_type()==GLObject::LIST)
           {
+            if (((shape->get_name()==GMapArea::RECT_TAG ||
+                 shape->get_name()==GMapArea::OVAL_TAG ||
+                 shape->get_name()==GMapArea::TEXT_TAG ||
+                 shape->get_name()==GMapArea::LINE_TAG) &&
+                 shape->get_list().size()!=4) ||
+                (shape->get_name()==GMapArea::POLY_TAG &&
+                 (shape->get_list().size()<6 || shape->get_list().size()&1)))
+              G_THROW( ERR_MSG("DjVuAnno.bad_url") );
             if (shape->get_name()==GMapArea::RECT_TAG)
             {
               DEBUG_MSG("it's a rectangle.\n");
@@ -1282,6 +1294,14 @@ DjVuANT::get_map_areas(GLParser & parser)
               if (el->get_type()==GLObject::LIST)
               {
                 const GUTF8String & name=el->get_name();
+                if ((name==GMapArea::HILITE_TAG ||
+                     name==GMapArea::OPACITY_TAG ||
+                     name==GMapArea::WIDTH_TAG ||
+                     name==GMapArea::LINECLR_TAG ||
+                     name==GMapArea::BACKCLR_TAG ||
+                     name==GMapArea::TEXTCLR_TAG) &&
+                    el->get_list().size()<1)
+                  continue;
                 if (name==GMapArea::BORDER_AVIS_TAG)
                   map_area->border_always_visible=true;
                 else if (name==GMapArea::HILITE_TAG)
