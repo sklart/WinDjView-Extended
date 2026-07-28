@@ -97,13 +97,15 @@ public:
 	Bookmark()
 		: pchildren(new list<Bookmark>()), children(*pchildren), pParent(NULL),
 		  nLinkType(URL), nPage(0), ptOffset(0, 0), bMargin(false), bZoom(false), 
+		  nZoomType(-10), nPrevZoomType(-10), fZoom(100.0), fPrevZoom(100.0),
 		  textStart(-1), textLen(1) {}
 	Bookmark(const Bookmark& bm)
-		: pchildren(new list<Bookmark>()), children(*pchildren) { *this = bm; }
+		: pchildren(new list<Bookmark>()), children(*pchildren), pParent(NULL) { *this = bm; }
 	~Bookmark()
 		{ delete pchildren; }
 	Bookmark& operator=(const Bookmark& bm);
 	void swap(Bookmark& bm);
+	void Reparent(Bookmark* parent);
 
 	GUTF8String strTitle;
 	Bookmark* pParent;

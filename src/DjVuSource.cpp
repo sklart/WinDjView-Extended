@@ -530,10 +530,10 @@ Bookmark& Bookmark::operator=(const Bookmark& bm)
 {
 	if (this != &bm)
 	{
+		Bookmark* const parent = pParent;
 		children = bm.children;
 		strURL = bm.strURL;
 		strTitle = bm.strTitle;
-		pParent = bm.pParent;
 		nLinkType = bm.nLinkType;
 		nPage = bm.nPage;
 		ptOffset = bm.ptOffset;
@@ -545,19 +545,28 @@ Bookmark& Bookmark::operator=(const Bookmark& bm)
 		fZoom = bm.fZoom;
 		nPrevZoomType = bm.nPrevZoomType;
 		fPrevZoom = bm.fPrevZoom;
+		Reparent(parent);
 	}
 
 	return *this;
+}
+
+void Bookmark::Reparent(Bookmark* parent)
+{
+	pParent = parent;
+	for (list<Bookmark>::iterator it = children.begin(); it != children.end(); ++it)
+		it->Reparent(this);
 }
 
 void Bookmark::swap(Bookmark& bm)
 {
 	if (this != &bm)
 	{
+		Bookmark* const thisParent = pParent;
+		Bookmark* const otherParent = bm.pParent;
 		children.swap(bm.children);
 		std::swap(strURL, bm.strURL);
 		std::swap(strTitle, bm.strTitle);
-		std::swap(pParent, bm.pParent);
 		std::swap(nLinkType, bm.nLinkType);
 		std::swap(nPage, bm.nPage);
 		std::swap(ptOffset, bm.ptOffset);
@@ -569,9 +578,10 @@ void Bookmark::swap(Bookmark& bm)
 		std::swap(fZoom, bm.fZoom);
 		std::swap(nPrevZoomType, bm.nPrevZoomType);
 		std::swap(fPrevZoom, bm.fPrevZoom);
+		Reparent(thisParent);
+		bm.Reparent(otherParent);
 	}
 }
-
 GUTF8String Bookmark::GetXML() const
 {
 	GUTF8String result;
@@ -659,6 +669,7 @@ void Bookmark::Load(const XMLNode& node)
 			children.push_back(Bookmark());
 			Bookmark& bookmark = children.back();
 			bookmark.Load(child);
+			bookmark.Reparent(this);
 		}
 	}
 }
@@ -821,6 +832,7 @@ void DocSettings::Load(const XMLNode& node)
 	}
 
 	pageSettings.clear();
+	cropPages.clear();
 	bookmarks.clear();
 
 	list<XMLNode>::const_iterator it;
@@ -848,6 +860,7 @@ void DocSettings::Load(const XMLNode& node)
 					bookmarks.push_back(Bookmark());
 					Bookmark& bookmark = bookmarks.back();
 					bookmark.Load(bmNode);
+					bookmark.Reparent(NULL);
 				}
 			}
 		}

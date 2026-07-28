@@ -129,7 +129,7 @@ void CPrintDlg::DoDataExchange(CDataExchange* pDX)
 
 			int nUnits = theApp.GetAppSettings()->nUnits;
 
-			if (nUnits = CAppSettings::Pixels)
+			if (nUnits == CAppSettings::Pixels)
 			{
 				DWORD dwMeasureSys;
 				if (::GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_IMEASURE | LOCALE_RETURN_NUMBER,

@@ -6890,6 +6890,8 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 		}
 		if (Num == -1)
 		{
+			if (numStr.length() == 0)
+				return false;
 			if (numStr[0] == '+')
 			{
 				Num = numStr.substr(1, numStr.length() - 1).toInt();
@@ -6907,7 +6909,7 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 		}
 
 		if (Num < 1 || Num > m_nPageCount)
-			return true;
+			return false;
 	}
 	int nOffsetPos = cgiLink.search("&showposition=");
 	if (nOffsetPos == -1)
@@ -7706,7 +7708,7 @@ void CDjVuView::GoToSelection(int nPage, int nStartPos, int nEndPos, bool bIsFin
 	AddHistoryPoint();
 
 	Page& page = m_pages[nPage];
-	bool bInfoLoaded;
+	bool bInfoLoaded = false;
 	CWaitCursor* pWaitCursor = NULL;
 
 	ClearSelection();
@@ -9900,13 +9902,16 @@ bool CDjVuView::IsRectCoord(const GUTF8String& strText, list<GRect>& rects, bool
 
 void CDjVuView::SelectRectangles(int nPage, const GUTF8String& strText)
 {
+	if (nPage < 0 || nPage >= m_nPageCount)
+		return;
+
 	list<GRect> rects;
 	if (!IsRectCoord(strText, rects, true))
 		return;
 
 	AddHistoryPoint();
 	Page& page = m_pages[nPage];
-	bool bInfoLoaded;
+	bool bInfoLoaded = false;
 	CWaitCursor* pWaitCursor = NULL;
 
 	ClearSelection();
