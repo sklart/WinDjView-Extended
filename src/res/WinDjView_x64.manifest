@@ -7,6 +7,12 @@
     type="win32" 
 /> 
 <description>WinDjView</description> 
+<asmv3:application xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
+    <asmv3:windowsSettings>
+        <!-- Prevent Windows from bitmap-scaling the whole interface at high DPI. -->
+        <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+    </asmv3:windowsSettings>
+</asmv3:application>
 <dependency> 
     <dependentAssembly> 
         <assemblyIdentity 
