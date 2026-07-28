@@ -101,7 +101,6 @@ using namespace std;
 #define DO_CHANGELOCALE 0
 #define WIN32_MONITOR
 #define NEED_JPEG_DECODER
-#define WIN32_JPEG
 #define LIBDJVU_STATIC
 
 #include "libdjvu/DjVuDocument.h"

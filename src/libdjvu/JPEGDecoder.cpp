@@ -171,7 +171,13 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
 
   (void) jpeg_read_header(&cinfo, TRUE);
 
+  cinfo.out_color_space = cinfo.jpeg_color_space == JCS_GRAYSCALE ? JCS_GRAYSCALE : JCS_RGB;
   jpeg_start_decompress(&cinfo);
+  if (cinfo.output_components != 1 && cinfo.output_components != 3)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG color space" );
+  }
   
   /* We may need to do some setup of our own at this point before reading
    * the data.  After jpeg_start_decompress() we have the correct scaled
