@@ -2117,6 +2117,7 @@ DjVuFile::contains_chunk(const GUTF8String &chunk_name)
 bool
 DjVuFile::contains_anno(void)
 {
+  bool contains=false;
   const GP<ByteStream> str(data_pool->get_stream());
   
   GUTF8String chkid;
@@ -2128,17 +2129,21 @@ DjVuFile::contains_anno(void)
   while(iff.get_chunk(chkid))
   {
     if (is_annotation(chkid))
-      return true;
+    {
+      contains=true;
+      break;
+    }
     iff.close_chunk();
   }
   
   data_pool->clear_stream();
-  return false;
+  return contains;
 }
 
 bool
 DjVuFile::contains_text(void)
 {
+  bool contains=false;
   const GP<ByteStream> str(data_pool->get_stream());
   
   GUTF8String chkid;
@@ -2150,17 +2155,21 @@ DjVuFile::contains_text(void)
   while(iff.get_chunk(chkid))
   {
     if (is_text(chkid))
-      return true;
+    {
+      contains=true;
+      break;
+    }
     iff.close_chunk();
   }
   
   data_pool->clear_stream();
-  return false;
+  return contains;
 }
 
 bool
 DjVuFile::contains_meta(void)
 {
+  bool contains=false;
   const GP<ByteStream> str(data_pool->get_stream());
   
   GUTF8String chkid;
@@ -2172,12 +2181,15 @@ DjVuFile::contains_meta(void)
   while(iff.get_chunk(chkid))
   {
     if (is_meta(chkid))
-      return true;
+    {
+      contains=true;
+      break;
+    }
     iff.close_chunk();
   }
   
   data_pool->clear_stream();
-  return false;
+  return contains;
 }
 
 //*****************************************************************************
