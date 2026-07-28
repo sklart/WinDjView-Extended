@@ -68,6 +68,7 @@
 // with their re-implementation of ByteStreams.
 
 #include <assert.h>
+#include <limits.h>
 #include "IFFByteStream.h"
 
 
@@ -204,7 +205,7 @@ IFFByteStream::get_chunk(GUTF8String &chkid, int *rawoffsetptr, int *rawsizeptr)
   {
     if (ctx && offset == ctx->offEnd)
       return 0;
-    if (ctx && offset+4 > ctx->offEnd)
+    if (ctx && (offset > ctx->offEnd || ctx->offEnd-offset < 4))
       G_THROW( ERR_MSG("IFFByteStream.corrupt_end") );
     bytes = bs->readall( (void*)&buffer[0], 4);
     offset = seekto = offset + bytes;
@@ -229,17 +230,18 @@ IFFByteStream::get_chunk(GUTF8String &chkid, int *rawoffsetptr, int *rawsizeptr)
   }
   
   // Read chunk size
-  if (ctx && offset+4 > ctx->offEnd)
+  if (ctx && (offset > ctx->offEnd || ctx->offEnd-offset < 4))
     G_THROW( ERR_MSG("IFFByteStream.corrupt_end2") );
   bytes = bs->readall( (void*)&buffer[4], 4);
   offset = seekto = offset + bytes;
   if (bytes != 4)
     G_THROW( ByteStream::EndOfFile );
-  long size = ((unsigned char)buffer[4]<<24) |
-              ((unsigned char)buffer[5]<<16) |
-              ((unsigned char)buffer[6]<<8)  |
-              ((unsigned char)buffer[7]);
-  if (ctx && offset+size > ctx->offEnd)
+  unsigned long size = ((unsigned long)(unsigned char)buffer[4]<<24) |
+                       ((unsigned long)(unsigned char)buffer[5]<<16) |
+                       ((unsigned long)(unsigned char)buffer[6]<<8)  |
+                       ((unsigned long)(unsigned char)buffer[7]);
+  if (size > INT_MAX || seekto > INT_MAX-(int)size ||
+      (ctx && (offset > ctx->offEnd || size > (unsigned long)(ctx->offEnd-offset))))
     G_THROW( ERR_MSG("IFFByteStream.corrupt_mangled") );
   
   // Check if composite 
@@ -250,7 +252,7 @@ IFFByteStream::get_chunk(GUTF8String &chkid, int *rawoffsetptr, int *rawsizeptr)
   // Read secondary id of composite chunk
   if (composite)
   {
-    if (ctx && ctx->offEnd<offset+4)
+    if (ctx && (offset > ctx->offEnd || ctx->offEnd-offset < 4))
       G_THROW( ERR_MSG("IFFByteStream.corrupt_header") );
     bytes = bs->readall( (void*)&buffer[4], 4);
     offset += bytes;
@@ -266,7 +268,7 @@ IFFByteStream::get_chunk(GUTF8String &chkid, int *rawoffsetptr, int *rawsizeptr)
   {
     nctx->next = ctx;
     nctx->offStart = seekto;
-    nctx->offEnd = seekto + size;
+    nctx->offEnd = seekto + (int)size;
     if (composite)
     {
       memcpy( (void*)(nctx->idOne), (void*)&buffer[0], 4);
@@ -483,8 +485,8 @@ IFFByteStream::read(void *buffer, size_t size)
   // Ensure that read does not extend beyond chunk
   if (offset > ctx->offEnd)
     G_THROW( ERR_MSG("IFFByteStream.bad_offset") );
-  if (offset + (long)size >  ctx->offEnd)
-    size = (size_t) (ctx->offEnd - offset);
+  if (size > (size_t)(ctx->offEnd - offset))
+    size = (size_t)(ctx->offEnd - offset);
   // Read bytes
   size_t bytes = bs->read(buffer, size);
   offset += bytes;
