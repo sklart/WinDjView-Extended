@@ -38,6 +38,10 @@
 
 #define IDW_DICTIONARIES_BAR (AFX_IDW_CONTROLBAR_FIRST + 10)
 
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
+#endif
+
 
 // CMainFrame
 
@@ -58,6 +62,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_STATUS_BAR, OnUpdateViewStatusBar)
 	ON_COMMAND(ID_TOGGLE_NAV_PANE, OnToggleNavPane)
 	ON_WM_WINDOWPOSCHANGED()
+	ON_MESSAGE(WM_DPICHANGED, OnDpiChanged)
 	ON_CBN_SELCHANGE(IDC_PAGENUM, OnChangePage)
 	ON_CONTROL(CBN_FINISHEDIT, IDC_PAGENUM, OnChangePageEdit)
 	ON_CONTROL(CBN_DROPDOWN, IDC_PAGENUM, OnDropDownPage)
@@ -571,6 +576,19 @@ void CMainFrame::OnWindowPosChanged(WINDOWPOS* lpwndpos)
 		if (pParent == NULL || pParent != NULL && pParent->IsWindowVisible())
 			SendMessageToVisibleDescendants(m_hWnd, WM_SHOWPARENT, bShow);
 	}
+}
+
+LRESULT CMainFrame::OnDpiChanged(WPARAM, LPARAM lParam)
+{
+	const RECT* suggestedRect = reinterpret_cast<const RECT*>(lParam);
+	if (suggestedRect != NULL)
+	{
+		SetWindowPos(NULL, suggestedRect->left, suggestedRect->top,
+			suggestedRect->right - suggestedRect->left,
+			suggestedRect->bottom - suggestedRect->top,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+	}
+	return 0;
 }
 
 void CMainFrame::OnChangePage()
