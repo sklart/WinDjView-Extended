@@ -1119,10 +1119,6 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         anno=ByteStream::create();
       }
       anno->seek(0,SEEK_END);
-      if (anno->tell())
-      {
-        anno->write((void*)"", 1);
-      }
       // Copy data
       anno->copy(achunk);
       desc.format( ERR_MSG("DjVuFile.anno1") );
@@ -1141,10 +1137,6 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         anno = ByteStream::create();
       }
       anno->seek(0,SEEK_END);
-      if (anno->tell() & 1)
-      {
-        anno->write((const void*)"", 1);
-      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(anno));
       IFFByteStream &iffout=*giffout;
@@ -1165,10 +1157,6 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         text = ByteStream::create();
       }
       text->seek(0,SEEK_END);
-      if (text->tell())
-      {
-        text->write((const void*)"", 1);
-      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(text));
       IFFByteStream &iffout=*giffout;
@@ -1189,10 +1177,6 @@ DjVuFile::decode_chunk( const GUTF8String &id, const GP<ByteStream> &gbs,
         meta = ByteStream::create();
       }
       meta->seek(0,SEEK_END);
-      if (meta->tell())
-      {
-        meta->write((const void*)"", 1);
-      }
       // Recreate chunk header
       const GP<IFFByteStream> giffout(IFFByteStream::create(meta));
       IFFByteStream &iffout=*giffout;
