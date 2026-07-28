@@ -297,7 +297,7 @@ public:
 
 	GUTF8String GetDocMetaData();
 	GUTF8String GetPageMetaData(int nPage);
-	bool IsDocMetaData(GMap<GUTF8String, GUTF8String>* data);
+	bool IsDocMetaData(const GMap<GUTF8String, GUTF8String>* data);
 	void SetCropRect(int nPage, int nRotate, CRect& rcCrop);
 	void MoveSource(int nPage, CPoint& ptMove);
 	void MoveUserSource(int nPage, bool bCrop = true);

@@ -2008,7 +2008,7 @@ GUTF8String DjVuSource::GetDocMetaData()
 	return strDocMetadata;
 }
 
-bool DjVuSource::IsDocMetaData(GMap<GUTF8String, GUTF8String>* data)
+bool DjVuSource::IsDocMetaData(const GMap<GUTF8String, GUTF8String>* data)
 {
 	if (m_pDocMetadata.size() > 0)
 	{
