@@ -1273,25 +1273,22 @@ MemoryMapByteStream::~MemoryMapByteStream()
 ByteStream::Wrapper::~Wrapper() {}
 
 
-GP<ByteStream> 
+GP<ByteStream>
 ByteStream::get_stdin(char const *mode)
 {
-  static GP<ByteStream> gp = ByteStream::create(0,mode,false);
-  return gp;
+  return 0;
 }
 
-GP<ByteStream> 
+GP<ByteStream>
 ByteStream::get_stdout(char const *mode)
 {
-  static GP<ByteStream> gp = ByteStream::create(1,mode,false);
-  return gp;
+  return 0;
 }
 
-GP<ByteStream> 
+GP<ByteStream>
 ByteStream::get_stderr(char const *mode)
 {
-  static GP<ByteStream> gp = ByteStream::create(2,mode,false);
-  return gp;
+  return 0;
 }
 
 

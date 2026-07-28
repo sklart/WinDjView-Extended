@@ -1240,7 +1240,7 @@ int
 GBitmap::encode(unsigned char *&pruns,GPBuffer<unsigned char> &gpruns) const
 {
   // uncompress rle information
-  if (nrows==0 || ncolumns==0)
+  if (nrows==0 || ncolumns==0 || (!bytes && !rle))
   {
     gpruns.resize(0);
     return 0;
