@@ -303,17 +303,21 @@ DjVmDir::decode(const GP<ByteStream> &gstr)
       strings.resize(strings_size+3);
       memset((char*) strings+strings_size, 0, 4);
       
-      // Copy names into the files
-      const char * ptr=strings;
+      // Copy names into the files.  The padding above protects string
+      // construction, but must not make a truncated names block look valid.
+      const char * const strings_end=(const char*)strings+strings_size;
+      const char * ptr=(const char*)strings;
       for(pos=files_list;pos;++pos)
       {
          GP<File> file=files_list[pos];
-         if (ptr >= (const char*)strings + strings_size)
+         if (ptr >= strings_end || !memchr(ptr, 0, strings_end-ptr))
            G_THROW( ByteStream::EndOfFile );
          file->id=ptr;
          ptr+=file->id.length()+1;
          if (file->flags & File::HAS_NAME)
          {
+           if (ptr >= strings_end || !memchr(ptr, 0, strings_end-ptr))
+             G_THROW( ByteStream::EndOfFile );
            file->name=ptr;
            ptr+=file->name.length()+1;
          }
@@ -323,6 +327,8 @@ DjVmDir::decode(const GP<ByteStream> &gstr)
          }
          if (file->flags & File::HAS_TITLE)
          {
+           if (ptr >= strings_end || !memchr(ptr, 0, strings_end-ptr))
+             G_THROW( ByteStream::EndOfFile );
            file->title=ptr;
            ptr+=file->title.length()+1;
          }
