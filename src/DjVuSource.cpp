@@ -1266,12 +1266,17 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 		}
 		m_eventLock.Unlock();
 
-		// Temporarily increase priority of the decoding thread if needed
-		HANDLE hOurThread = ::GetCurrentThread();
-		int nOurPriority = ::GetThreadPriority(hOurThread);
-		if (::GetThreadPriority(data.hDecodingThread) < nOurPriority)
-			::SetThreadPriority(data.hDecodingThread, nOurPriority);
-
+		// Temporarily increase priority only when a real thread handle is
+		// available.  INVALID_HANDLE_VALUE means DuplicateHandle failed.
+		if (data.hDecodingThread != INVALID_HANDLE_VALUE)
+		{
+			const int nOurPriority = ::GetThreadPriority(::GetCurrentThread());
+			const int nDecodingPriority = ::GetThreadPriority(data.hDecodingThread);
+			if (nOurPriority != THREAD_PRIORITY_ERROR_RETURN &&
+				nDecodingPriority != THREAD_PRIORITY_ERROR_RETURN &&
+				nDecodingPriority < nOurPriority)
+				::SetThreadPriority(data.hDecodingThread, nOurPriority);
+		}
 		data.requests.push_back(&request);
 
 		if (observer != NULL)
@@ -1290,9 +1295,16 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 		return pImage;
 	}
 
-	data.hDecodingThread = ::GetCurrentThread();
-	data.nOrigThreadPriority = ::GetThreadPriority(data.hDecodingThread);
-
+	HANDLE hDecodingThread = NULL;
+	if (!::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentThread(),
+		::GetCurrentProcess(), &hDecodingThread,
+		THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION, FALSE, 0))
+	{
+		hDecodingThread = INVALID_HANDLE_VALUE;
+	}
+	data.hDecodingThread = hDecodingThread;
+	data.nOrigThreadPriority = hDecodingThread != INVALID_HANDLE_VALUE ?
+		::GetThreadPriority(hDecodingThread) : THREAD_PRIORITY_ERROR_RETURN;
 	m_lock.Unlock();
 
 	try
@@ -1349,8 +1361,12 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 		::SetEvent(data.requests[i]->hEvent);
 	}
 
-	ASSERT(data.hDecodingThread == ::GetCurrentThread());
-	::SetThreadPriority(data.hDecodingThread, data.nOrigThreadPriority);
+	if (data.hDecodingThread != INVALID_HANDLE_VALUE)
+	{
+		if (data.nOrigThreadPriority != THREAD_PRIORITY_ERROR_RETURN)
+			::SetThreadPriority(data.hDecodingThread, data.nOrigThreadPriority);
+		::CloseHandle(data.hDecodingThread);
+	}
 	data.hDecodingThread = NULL;
 	data.requests.clear();
 	m_lock.Unlock();

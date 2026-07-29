@@ -316,7 +316,7 @@ protected:
 
 	struct PageData : public Observable
 	{
-		PageData() : hDecodingThread(NULL) {}
+		PageData() : hDecodingThread(NULL), nOrigThreadPriority(THREAD_PRIORITY_NORMAL) {}
 
 		GP<DjVuImage> pImage;
 		PageInfo info;
