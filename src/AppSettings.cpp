@@ -89,9 +89,9 @@ CAppSettings::CAppSettings()
 
 	nUnits = Centimeters;
 
-	DWORD dwMeasureSys;
+	DWORD dwMeasureSys = 0;
 	if (::GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_IMEASURE | LOCALE_RETURN_NUMBER,
-			(LPTSTR) &dwMeasureSys, sizeof(DWORD)))
+			(LPTSTR) &dwMeasureSys, sizeof(dwMeasureSys) / sizeof(TCHAR)))
 		nUnits = (dwMeasureSys == 1 ? Inches : Centimeters);
 
 	nThumbnailSize = 2;

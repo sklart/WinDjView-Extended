@@ -128,13 +128,15 @@ void CPrintDlg::DoDataExchange(CDataExchange* pDX)
 				swap(szPaper.cx, szPaper.cy);
 
 			int nUnits = theApp.GetAppSettings()->nUnits;
+			if (nUnits < CAppSettings::Centimeters || nUnits > CAppSettings::Pixels)
+				nUnits = CAppSettings::Centimeters;
 
 			if (nUnits == CAppSettings::Pixels)
 			{
-				DWORD dwMeasureSys;
+				DWORD dwMeasureSys = 0;
 				if (::GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_IMEASURE | LOCALE_RETURN_NUMBER,
-						(LPTSTR) &dwMeasureSys, sizeof(DWORD)))
-				nUnits = (dwMeasureSys == 1 ? CAppSettings::Inches : CAppSettings::Centimeters);
+						(LPTSTR) &dwMeasureSys, sizeof(dwMeasureSys) / sizeof(TCHAR)))
+					nUnits = (dwMeasureSys == 1 ? CAppSettings::Inches : CAppSettings::Centimeters);
 			}
 
 			double fUnits = CAppSettings::unitsPerInch[nUnits] / 254.0;
@@ -223,10 +225,13 @@ BOOL CPrintDlg::OnInitDialog()
 	{
 		DWORD dwCount = 0;
 		if (!thePrinterAPI.pGetDefaultPrinter(NULL, &dwCount) 
-				&& GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+				&& GetLastError() == ERROR_INSUFFICIENT_BUFFER && dwCount > 0)
 		{
-			thePrinterAPI.pGetDefaultPrinter(strDefault.GetBufferSetLength(dwCount), &dwCount);
-			strDefault.ReleaseBuffer();
+			LPTSTR pszDefault = strDefault.GetBufferSetLength(dwCount);
+			if (thePrinterAPI.pGetDefaultPrinter(pszDefault, &dwCount))
+				strDefault.ReleaseBuffer();
+			else
+				strDefault.ReleaseBuffer(0);
 		}
 	}
 	else
@@ -247,13 +252,20 @@ BOOL CPrintDlg::OnInitDialog()
 		::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
 					NULL, 4, NULL, 0, &cbNeeded, &nPrinters);
 
-		vector<BYTE> buf(cbNeeded + 1);
-		::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
-			NULL, 4, &buf[0], cbNeeded, &cbNeeded, &nPrinters);
-
-		PRINTER_INFO_4* pPrinter = reinterpret_cast<PRINTER_INFO_4*>(&buf[0]);
-		for (size_t i = 0; i < nPrinters; ++i, ++pPrinter)
-			m_cboPrinter.AddString(pPrinter->pPrinterName);
+		if (cbNeeded > 0)
+		{
+			vector<BYTE> buf(cbNeeded);
+			if (::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
+					NULL, 4, &buf[0], cbNeeded, &cbNeeded, &nPrinters))
+			{
+				PRINTER_INFO_4* pPrinter = reinterpret_cast<PRINTER_INFO_4*>(&buf[0]);
+				for (size_t i = 0; i < nPrinters; ++i, ++pPrinter)
+				{
+					if (pPrinter->pPrinterName != NULL)
+						m_cboPrinter.AddString(pPrinter->pPrinterName);
+				}
+			}
+		}
 	}
 	else
 	{
@@ -261,13 +273,20 @@ BOOL CPrintDlg::OnInitDialog()
 		::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
 				NULL, 5, NULL, 0, &cbNeeded, &nPrinters);
 
-		vector<BYTE> buf(cbNeeded + 1);
-		::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
-			NULL, 5, &buf[0], cbNeeded, &cbNeeded, &nPrinters);
-
-		PRINTER_INFO_5* pPrinter = reinterpret_cast<PRINTER_INFO_5*>(&buf[0]);
-		for (size_t i = 0; i < nPrinters; ++i, ++pPrinter)
-			m_cboPrinter.AddString(pPrinter->pPrinterName);
+		if (cbNeeded > 0)
+		{
+			vector<BYTE> buf(cbNeeded);
+			if (::EnumPrinters(PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS,
+					NULL, 5, &buf[0], cbNeeded, &cbNeeded, &nPrinters))
+			{
+				PRINTER_INFO_5* pPrinter = reinterpret_cast<PRINTER_INFO_5*>(&buf[0]);
+				for (size_t i = 0; i < nPrinters; ++i, ++pPrinter)
+				{
+					if (pPrinter->pPrinterName != NULL)
+						m_cboPrinter.AddString(pPrinter->pPrinterName);
+				}
+			}
+		}
 	}
 
 	for (int i = 0; i < m_cboPrinter.GetCount(); ++i)
@@ -471,15 +490,20 @@ void CPrintDlg::OnPaint()
 			{
 				int nPhysicalWidth = m_pPrinter->nPhysicalWidth;
 				int nPhysicalHeight = m_pPrinter->nPhysicalHeight;
-				int nOffsetLeft = m_pPrinter->nOffsetLeft;
-				int nOffsetTop = m_pPrinter->nOffsetTop;
-				int nOffsetRight = nPhysicalWidth - nOffsetLeft - m_pPrinter->nUserWidth;
-				int nOffsetBottom = nPhysicalHeight - nOffsetTop - m_pPrinter->nUserHeight;
+				if (nPhysicalWidth > 0 && nPhysicalHeight > 0)
+				{
+					int nOffsetLeft = max(0, min(m_pPrinter->nOffsetLeft, nPhysicalWidth));
+					int nOffsetTop = max(0, min(m_pPrinter->nOffsetTop, nPhysicalHeight));
+					int nUserWidth = max(0, min(m_pPrinter->nUserWidth, nPhysicalWidth - nOffsetLeft));
+					int nUserHeight = max(0, min(m_pPrinter->nUserHeight, nPhysicalHeight - nOffsetTop));
+					int nOffsetRight = nPhysicalWidth - nOffsetLeft - nUserWidth;
+					int nOffsetBottom = nPhysicalHeight - nOffsetTop - nUserHeight;
 
-				rcPage.DeflateRect(nOffsetLeft * szPage.cx / nPhysicalWidth,
-					nOffsetTop * szPage.cy / nPhysicalHeight,
-					nOffsetRight * szPage.cx / nPhysicalWidth,
-					nOffsetBottom * szPage.cy / nPhysicalHeight);
+					rcPage.DeflateRect(nOffsetLeft * szPage.cx / nPhysicalWidth,
+						nOffsetTop * szPage.cy / nPhysicalHeight,
+						nOffsetRight * szPage.cx / nPhysicalWidth,
+						nOffsetBottom * szPage.cy / nPhysicalHeight);
+				}
 			}
 
 			if (IsPrintSelection())
@@ -714,56 +738,73 @@ void CPrintDlg::OnChangePrinter()
 
 void CPrintDlg::LoadPaperTypes()
 {
-	int nPapers = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
-		DC_PAPERNAMES, NULL, m_pDevMode);
-	CString strPaperNames;
-	::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
-		DC_PAPERNAMES, strPaperNames.GetBufferSetLength(nPapers*64), m_pDevMode);
+	m_cboPaper.ResetContent();
+	m_paperSizes.clear();
 
+	if (m_pPrinter == NULL || m_pDevMode == NULL)
+		return;
+
+	int nPaperNames = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
+		DC_PAPERNAMES, NULL, m_pDevMode);
 	int nSizeNames = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
 		DC_PAPERS, NULL, m_pDevMode);
-	vector<WORD> size_names(nSizeNames);
-	::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
-		DC_PAPERS, (LPTSTR)&size_names[0], m_pDevMode);
-
 	int nSizes = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
 		DC_PAPERSIZE, NULL, m_pDevMode);
-	vector<POINT> sizes(nSizes);
-	::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
-		DC_PAPERSIZE, (LPTSTR)&sizes[0], m_pDevMode);
+	if (nPaperNames <= 0 || nSizeNames <= 0 || nSizes <= 0 || nPaperNames > INT_MAX / 64)
+		return;
 
-	// Retain selected paper size
+	CString strPaperNames;
+	LPTSTR pszPaperNames = strPaperNames.GetBufferSetLength(nPaperNames * 64);
+	int nNamesRead = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
+		DC_PAPERNAMES, pszPaperNames, m_pDevMode);
+	strPaperNames.ReleaseBuffer(nNamesRead > 0 ? nPaperNames * 64 : 0);
+	if (nNamesRead <= 0)
+		return;
+
+	vector<WORD> sizeNames(nSizeNames);
+	int nCodesRead = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
+		DC_PAPERS, (LPTSTR)&sizeNames[0], m_pDevMode);
+	if (nCodesRead <= 0)
+		return;
+
+	vector<POINT> sizes(nSizes);
+	int nSizesRead = ::DeviceCapabilities(m_pPrinter->strPrinterName, m_pPrinter->strPortName,
+		DC_PAPERSIZE, (LPTSTR)&sizes[0], m_pDevMode);
+	if (nSizesRead <= 0)
+		return;
+
+	int nCount = min(nPaperNames, min(nSizeNames, min(nSizes, min(nNamesRead, min(nCodesRead, nSizesRead)))));
+
+	// Retain selected paper size.
 	int i;
-	for (i = 0; i < nPapers && i < nSizeNames && i < nSizes; ++i)
+	for (i = 0; i < nCount; ++i)
 	{
-		if (size_names[i] == m_settings.nPaperCode)
+		if (sizeNames[i] == m_settings.nPaperCode)
 		{
 			m_pDevMode->dmPaperSize = m_settings.nPaperCode;
 			break;
 		}
 	}
 
-	m_cboPaper.ResetContent();
-	m_paperSizes.clear();
 	TCHAR szPaperName[65];
-	for (i = 0; i < nPapers && i < nSizeNames && i < nSizes; ++i)
+	for (i = 0; i < nCount; ++i)
 	{
 		ZeroMemory(szPaperName, sizeof(szPaperName));
-		_tcsncpy(szPaperName, (LPCTSTR)strPaperNames + i*64, 64);
+		_tcsncpy(szPaperName, (LPCTSTR)strPaperNames + i * 64, 64);
 
-		if (size_names[i] != DMPAPER_USER)
+		if (sizeNames[i] != DMPAPER_USER)
 		{
 			int nItem = m_cboPaper.AddString(szPaperName);
-			m_cboPaper.SetItemData(nItem, size_names[i]);
+			m_cboPaper.SetItemData(nItem, sizeNames[i]);
 
-			if (size_names[i] == m_pDevMode->dmPaperSize)
+			if (sizeNames[i] == m_pDevMode->dmPaperSize)
 				m_cboPaper.SetCurSel(nItem);
 
-			m_paperSizes.push_back(Paper(szPaperName, size_names[i], sizes[i]));
+			m_paperSizes.push_back(Paper(szPaperName, sizeNames[i], sizes[i]));
 		}
 	}
 
-	if (m_cboPaper.GetCurSel() == -1)
+	if (m_cboPaper.GetCurSel() == -1 && m_cboPaper.GetCount() > 0)
 		m_cboPaper.SetCurSel(0);
 }
 
@@ -928,6 +969,10 @@ bool CPrintDlg::ParseRange()
 	strPages.TrimLeft();
 	strPages.TrimRight();
 
+	const int nPageCount = m_pSource->GetPageCount();
+	if (nPageCount <= 0)
+		return false;
+
 	int i = 0;
 	while (i < strPages.GetLength())
 	{
@@ -939,7 +984,12 @@ bool CPrintDlg::ParseRange()
 
 		int num = 0;
 		while (i < strPages.GetLength() && strPages[i] >= '0' && strPages[i] <= '9')
-			num = 10*num + strPages[i++] - '0';
+		{
+			int digit = strPages[i++] - '0';
+			if (num > (INT_MAX - digit) / 10)
+				return false;
+			num = 10 * num + digit;
+		}
 		int num2 = num;
 
 		while (i < strPages.GetLength() && strPages[i] <= ' ')
@@ -957,7 +1007,12 @@ bool CPrintDlg::ParseRange()
 
 				num2 = 0;
 				while (i < strPages.GetLength() && strPages[i] >= '0' && strPages[i] <= '9')
-					num2 = 10*num2 + strPages[i++] - '0';
+				{
+					int digit = strPages[i++] - '0';
+					if (num2 > (INT_MAX - digit) / 10)
+						return false;
+					num2 = 10 * num2 + digit;
+				}
 
 				while (i < strPages.GetLength() && strPages[i] <= ' ')
 					++i;
@@ -984,6 +1039,14 @@ bool CPrintDlg::ParseRange()
 				return false;
 		}
 
+		if (num < 1 || num > nPageCount || num2 < 1 || num2 > nPageCount)
+			return false;
+
+		int nRangeSize = (num <= num2 ? num2 - num : num - num2) + 1;
+		if (m_pages.size() > (size_t)nPageCount ||
+		(size_t)nRangeSize > (size_t)nPageCount - m_pages.size())
+			return false;
+
 		if (num <= num2)
 		{
 			for (int j = num; j <= num2; ++j)
@@ -996,7 +1059,7 @@ bool CPrintDlg::ParseRange()
 		}
 	}
 
-	return true;
+	return !m_pages.empty();
 }
 
 LPDEVMODE CPrintDlg::GetCachedDevMode(const CString& strPrinter)
