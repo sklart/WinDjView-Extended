@@ -88,7 +88,7 @@ public:
 	void GetTextWithoutHyphen(GUTF8String& text);
 	size_t FindHyphen(wstring& wtext, size_t off);
 	bool IsWholeWordsOnly(GUTF8String& text, int nStart, int nEnd);
-	void SelectPage(int nPage, CWaitCursor* pWaitCursor);
+	void SelectPage(int nPage, CWaitCursor*& pWaitCursor);
 	bool PtInFindResult(CPoint& point);
 	void ExpandSelection(Bookmark& bkm, DjVuTXT* pText);
 	bool HasFindResultInPage();

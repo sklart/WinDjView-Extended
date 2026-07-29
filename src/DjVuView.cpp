@@ -9180,7 +9180,7 @@ size_t CDjVuView::FindHyphen(wstring& wtext, size_t off)
 	return nHyphen < nHyphen2 ? nHyphen : nHyphen2;
 }
 
-void CDjVuView::SelectPage (int nPage, CWaitCursor* pWaitCursor)
+void CDjVuView::SelectPage (int nPage, CWaitCursor*& pWaitCursor)
 {
 	bool bInfoLoaded = false;
 	SelectTextRange(nPage, 0, -1, bInfoLoaded, pWaitCursor);
@@ -9190,16 +9190,18 @@ void CDjVuView::OnSelectPage()
 {
 	ClearSelection();
 	CWaitCursor* pWaitCursor = NULL;
-	SelectPage (m_nPage, pWaitCursor);
+	SelectPage(m_nPage, pWaitCursor);
+	delete pWaitCursor;
 }
 
 
 void CDjVuView::OnSelectAll()
 {
 	ClearSelection();
-	CWaitCursor* pWaitCursor = new CWaitCursor();
+	CWaitCursor* pWaitCursor = NULL;
 	for (int nPage = 0; nPage < m_nPageCount; ++nPage) 
-		SelectPage (nPage, pWaitCursor);
+		SelectPage(nPage, pWaitCursor);
+	delete pWaitCursor;
 }
 
 void CDjVuView::OnUpdateSelectAll(CCmdUI* pCmdUI)
