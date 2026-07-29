@@ -82,7 +82,7 @@ BOOL CSettingsDictPage::OnInitDialog()
 		{
 			DictionaryInfo* pInfo = theApp.GetDictionaryInfo(nLang, nDict);
 			int nItem = m_list.InsertItem(m_list.GetItemCount(), pInfo->strTitle);
-			m_list.SetItemData(nItem, reinterpret_cast<DWORD>(pInfo));
+			m_list.SetItemData(nItem, reinterpret_cast<DWORD_PTR>(pInfo));
 		}
 	}
 
@@ -102,7 +102,7 @@ void CSettingsDictPage::OnUninstall()
 		return;
 
 	int nItem = m_list.GetNextSelectedItem(pos);
-	DictionaryInfo* pInfo = reinterpret_cast<DictionaryInfo*>(m_list.GetItemData(nItem));
+	DictionaryInfo* pInfo = reinterpret_cast<DictionaryInfo*>(static_cast<DWORD_PTR>(m_list.GetItemData(nItem)));
 
 	if (AfxMessageBox(FormatString(IDS_UNINSTALL_DICT, pInfo->strTitle),
 			MB_ICONQUESTION | MB_YESNO) == IDYES)

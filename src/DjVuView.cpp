@@ -7192,8 +7192,8 @@ void CDjVuView::GoToURL(const GUTF8String& url, bool bAddHistoryPoint)
 	}
 
 	// Open an explicitly allowed external link.
-	DWORD dwResult = (DWORD)::ShellExecute(NULL, _T("open"), MakeCString(url), NULL, NULL, SW_SHOW);
-	if (dwResult <= 32) // Failure
+	const INT_PTR nResult = reinterpret_cast<INT_PTR>(::ShellExecute(NULL, _T("open"), MakeCString(url), NULL, NULL, SW_SHOW));
+	if (nResult <= 32) // Failure
 	{
 		AfxMessageBox(LoadString(IDS_FAILED_TO_OPEN) + MakeCString(url));
 	}

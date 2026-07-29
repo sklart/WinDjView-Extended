@@ -22,6 +22,7 @@ RSC_WIN64 =
 
 INTDIR = .\Release$(DIR_SUFFIX)
 LIBDJVU = libdjvu$(LIB_SUFFIX).lib
+JPEGLIB = third_party\jpeg-6b\jpeg$(LIB_SUFFIX).lib
 
 CPP_FLAGS = $(CPP_FLAGS) /D "_UNICODE" /D "UNICODE"
 LINK_FLAGS = $(LINK_FLAGS) /entry:"wWinMainCRTStartup"
@@ -36,13 +37,16 @@ CPP_PCH_CREATE = /Yc"stdafx.h"
 CPP_FLAGS = $(CPP_FLAGS) /nologo /c /MT /W3 /EHsc /O2 /GL /GR- \
             /D "WIN32" $(WIN64) /D "NDEBUG" /D "_WINDOWS" /Fp$(PCH) /Fo"$(INTDIR)/"
 
-LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "third_party\jpeg-6b\jpeg.lib" msimg32.lib version.lib shlwapi.lib \
+LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "$(JPEGLIB)" msimg32.lib version.lib shlwapi.lib \
              /nologo /subsystem:windows /incremental:no /machine:$(MACHINE) \
              /nodefaultlib:"msvcrt.lib" /ltcg /out:$(OUT)
 
 RSC_FLAGS = /l 0x409 /fo"$(INTDIR)\WinDjView.res" $(RSC_FLAGS) /d "NDEBUG" /d "WIN32" $(RSC_WIN64)
 
-all: $(OUT)
+all: $(JPEGLIB) $(OUT)
+
+$(JPEGLIB):
+	@cd third_party\jpeg-6b && $(MAKE) /nologo /f makefile.wdj X64=$(X64)
 
 rebuild: clean all
 
