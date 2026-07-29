@@ -8598,14 +8598,15 @@ void CDjVuView::OnDeleteAnnotationPage()
 
 		if (it != m_pSource->GetSettings()->pageSettings.end())
 		{
-			PageSettings& pageSettings = (*it).second;
-			list<Annotation>::reverse_iterator rit = pageSettings.anno.rbegin();
-			int size = pageSettings.anno.size();
-			for (int i = 0; i < size; ++i)
+			while (true)
 			{
-				Annotation& anno = *rit;
-				InvalidateAnno(&anno, nPage);
-				m_pSource->GetSettings()->DeleteAnnotation(&anno, nPage);
+				map<int, PageSettings>::iterator pageIt = m_pSource->GetSettings()->pageSettings.find(nPage);
+				if (pageIt == m_pSource->GetSettings()->pageSettings.end() || pageIt->second.anno.empty())
+					break;
+
+				Annotation* pAnno = &pageIt->second.anno.back();
+				InvalidateAnno(pAnno, nPage);
+				m_pSource->GetSettings()->DeleteAnnotation(pAnno, nPage);
 			}
 			InvalidateViewport();
 			UpdateWindow();
@@ -8639,14 +8640,15 @@ void CDjVuView::OnDeleteAnnotationAll()
 
 			if (it != m_pSource->GetSettings()->pageSettings.end())
 			{
-				PageSettings& pageSettings = (*it).second;
-				list<Annotation>::reverse_iterator rit = pageSettings.anno.rbegin();
-				int size = pageSettings.anno.size();
-				for (int i = 0; i < size; ++i)
+				while (true)
 				{
-					Annotation& anno = *rit;
-					InvalidateAnno(&anno, nPage);
-					m_pSource->GetSettings()->DeleteAnnotation(&anno, nPage);
+					map<int, PageSettings>::iterator pageIt = m_pSource->GetSettings()->pageSettings.find(nPage);
+					if (pageIt == m_pSource->GetSettings()->pageSettings.end() || pageIt->second.anno.empty())
+						break;
+
+					Annotation* pAnno = &pageIt->second.anno.back();
+					InvalidateAnno(pAnno, nPage);
+					m_pSource->GetSettings()->DeleteAnnotation(pAnno, nPage);
 				}
 			}
 		}
@@ -8663,7 +8665,7 @@ void CDjVuView::OnEditAnnotation()
 
 	CAnnotationDlg dlg(IDS_EDIT_ANNOTATION);
 
-	int nRectPos = 0;
+	size_t nRectPos = 0;
 	dlg.m_bEnableBookmark = false;
 	dlg.m_nBorderType = m_pClickedAnno->nBorderType;
 	dlg.m_crBorder = m_pClickedAnno->crBorder;
@@ -9724,8 +9726,8 @@ GUTF8String CDjVuView::TrimNonChar(const GUTF8String& text, bool bTrimStart)
 	{
 		wstring wstr;
 		MakeWString(text, wstr);
-		int start = 0;
-		int end = wstr.length() - 1;
+		size_t start = 0;
+		size_t end = wstr.length() - 1;
 		if (bTrimStart)
 			for ( ; start < end && !iswalpha(wstr[start]); ++start);
 		for ( ; end > start && !iswalpha(wstr[end]); --end);
@@ -9746,8 +9748,8 @@ GUTF8String CDjVuView::DelNonCharOrDigit(const GUTF8String& text)
 	{
 		wstring wstr, wstr2;
 		MakeWString(text, wstr);
-		int len = wstr.length();
-		for (int start = 0 ; start < len; ++start)
+		size_t len = wstr.length();
+		for (size_t start = 0 ; start < len; ++start)
 		{
 			if (iswalpha(wstr[start]) || iswdigit(wstr[start]))
 				wstr2 += wstr[start];
@@ -9769,8 +9771,8 @@ GUTF8String CDjVuView::TrimEnding(const GUTF8String& text, bool bOnlySpace)
 	{
 		wstring wtext;
 		MakeWString(text,wtext);
-		int nLastPos = wtext.length() - 1;
-		int nBeforeLast = nLastPos - 1;
+		size_t nLastPos = wtext.length() - 1;
+		size_t nBeforeLast = nLastPos - 1;
 		if (wcschr(L"ÀÎÜÈÛ", wtext[nLastPos]) != NULL)
 		{
 			strResult = MakeUTF8String(wtext.substr(0, nLastPos));
@@ -9781,12 +9783,12 @@ GUTF8String CDjVuView::TrimEnding(const GUTF8String& text, bool bOnlySpace)
 		}
 		else if (wcschr(L"ß", wtext[nLastPos]) != NULL)
 		{
-			int n = wcschr(L"Àß", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
+			size_t n = wcschr(L"Àß", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
 			strResult = MakeUTF8String(wtext.substr(0, n));
 		}
 		else if (wcschr(L"Å", wtext[nLastPos]) != NULL)
 		{
-			int n = wcschr(L"ÎÅÈÛ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
+			size_t n = wcschr(L"ÎÅÈÛ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
 			strResult = MakeUTF8String(wtext.substr(0, n));
 		}
 	}

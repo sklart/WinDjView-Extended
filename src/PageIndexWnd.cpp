@@ -408,8 +408,8 @@ void CPageIndexWnd::OnChangeText()
 	//новый код
 	if (left > 0 && left < (static_cast<int>(m_entries/*m_sorted*/.size()) - 1))
 	{
-		int textsize =  text.length();
-		if ((int)m_entries/*m_sorted*/[left + 1].strFirst.length() > textsize)
+		size_t textsize = text.length();
+		if (m_entries/*m_sorted*/[left + 1].strFirst.length() > textsize)
 		{
 			wstring cuttext = m_entries/*m_sorted*/[left + 1].strFirst;
 			cuttext.resize(textsize);
