@@ -6646,12 +6646,17 @@ BOOL CDjVuView::PreTranslateMessage(MSG* pMsg)
 
 void CDjVuView::GoToBookmark(const Bookmark& bookmark, bool bAddHistoryPoint)
 {
+	if ((bookmark.nLinkType == Bookmark::Page || bookmark.nLinkType == Bookmark::View ||
+		bookmark.nLinkType == Bookmark::Text) &&
+		(bookmark.nPage < 0 || bookmark.nPage >= m_nPageCount))
+		return;
+
 	int nPage = -1;
 	if (theApp.GetAppSettings()->bFindBookmarkTitle && 
 		(theApp.GetAppSettings()->bDisablePositioning || !HasBookmarkPositioning(bookmark)))
 	{
 		GUTF8String url = bookmark.strURL;
-		if (url[0] == '?')
+		if (url.length() > 0 && url[0] == '?')
 		{
 			int X = -1; int Y = -1; 
 			if (ParseCGI(url.substr(1, -1), nPage, X, Y) && nPage >= 0)
@@ -9669,9 +9674,9 @@ bool CDjVuView::HasBookmarkPositioning(const Bookmark& bookmark)
 	else if (bookmark.nLinkType == Bookmark::URL)
 	{
 		GUTF8String url = bookmark.strURL;
-		if (url[0] == '#')
+		if (url.length() > 0 && url[0] == '#')
 			bResult = bookmark.ptOffset.y > 0;
-		else if (url[0] == '?')
+		else if (url.length() > 0 && url[0] == '?')
 		{
 			int X = -1; int Y = -1; int nPage = -1; 
 			if (ParseCGI(url.substr(1, -1), nPage, X, Y) && nPage >= 0)
