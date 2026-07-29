@@ -8,21 +8,33 @@ permissions:
   contents: read
 
 jobs:
-  release:
-    name: Release ${{ matrix.name }}
+  build:
+    name: ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Win32
+          - configuration: Release
+            platform: Win32
             arch: x86
             nmake_args: ''
             output: src\Release\WinDjView.exe
-          - name: x64
+          - configuration: Release
+            platform: x64
             arch: x64
             nmake_args: X64=1
             output: src\Release_x64\WinDjView.exe
+          - configuration: Debug
+            platform: Win32
+            arch: x86
+            nmake_args: DEBUG=1
+            output: src\Debug\WinDjView.exe
+          - configuration: Debug
+            platform: x64
+            arch: x64
+            nmake_args: X64=1 DEBUG=1
+            output: src\Debug_x64\WinDjView.exe
 
     steps:
       - name: Check out source
@@ -50,6 +62,6 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: WinDjView-Release-${{ matrix.name }}
+          name: WinDjView-${{ matrix.configuration }}-${{ matrix.platform }}
           path: ${{ matrix.output }}
           if-no-files-found: error

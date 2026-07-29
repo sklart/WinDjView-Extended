@@ -21,5 +21,5 @@
 
 ### Build
 
-- Added reproducible Release x64 NMAKE support, including a source build of
-  IJG JPEG 6b, and CI for Release Win32/x64.
+- Added reproducible Debug/Release x86/x64 NMAKE support, including a source build of
+  IJG JPEG 6b, and CI for all four build configurations.

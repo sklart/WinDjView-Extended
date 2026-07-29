@@ -14,9 +14,17 @@ SUFFIX =
 WINTYPE = /D"WIN32"
 !ENDIF
 
+!IFDEF DEBUG
+DEBUG_SUFFIX = d
+INTDIR = .\Objs$(DEBUG_SUFFIX)$(SUFFIX)
+OUT = jpeg$(DEBUG_SUFFIX)$(SUFFIX).lib
+OPTS = /nologo /c /MTd /Od /Zi /W3 /D"_DEBUG" $(WINTYPE) /Fo"$(INTDIR)\\"
+!ELSE
+DEBUG_SUFFIX =
 INTDIR = .\Objs$(SUFFIX)
 OUT = jpeg$(SUFFIX).lib
 OPTS = /nologo /c /MT /O2 /GL /W3 /D"NDEBUG" $(WINTYPE) /Fo"$(INTDIR)\\"
+!ENDIF
 
 OBJS = "$(INTDIR)\jcapimin.obj" \
        "$(INTDIR)\jcapistd.obj" \

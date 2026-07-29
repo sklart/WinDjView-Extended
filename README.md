@@ -19,13 +19,13 @@ also GPL-2.0-or-later; see its source notices and
 
 ## Building
 
-Verified NMAKE builds are available for Release Win32 and Release x64 with
+Verified NMAKE builds are available for Debug and Release, Win32 and x64, with
 Visual Studio C++ and MFC. Exact commands, prerequisites, and current Debug /
 Windows 7 limitations are in [BUILDING.md](BUILDING.md).
 
 ## Continuous integration
 
-GitHub Actions builds Release Win32 and Release x64 for every push and pull
+GitHub Actions builds Debug and Release for Win32 and x64 on every push and pull
 request, verifies the executable, and publishes it as a workflow artifact.
 
 ## Project notes

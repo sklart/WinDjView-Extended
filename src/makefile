@@ -12,17 +12,35 @@ LIB_SUFFIX = 64
 MACHINE = X64
 WIN64 = /D "WIN64"
 RSC_WIN64 = /d "WIN64"
+JPEG_X64_ARG = X64=1
 !ELSE
 DIR_SUFFIX =
 LIB_SUFFIX =
 MACHINE = X86
 WIN64 =
 RSC_WIN64 =
+JPEG_X64_ARG =
 !ENDIF
 
-INTDIR = .\Release$(DIR_SUFFIX)
-LIBDJVU = libdjvu$(LIB_SUFFIX).lib
-JPEGLIB = third_party\jpeg-6b\jpeg$(LIB_SUFFIX).lib
+!IFDEF DEBUG
+CONFIG = Debug
+DEBUG_SUFFIX = d
+CPP_MODE_FLAGS = /MTd /W3 /EHsc /Od /Zi /GR- /D "_DEBUG"
+LINK_MODE_FLAGS = /incremental /debug /nodefaultlib:"msvcrtd.lib"
+RSC_MODE_FLAGS = /d "_DEBUG"
+JPEG_DEBUG_ARG = DEBUG=1
+!ELSE
+CONFIG = Release
+DEBUG_SUFFIX =
+CPP_MODE_FLAGS = /MT /W3 /EHsc /O2 /GL /GR- /D "NDEBUG"
+LINK_MODE_FLAGS = /incremental:no /nodefaultlib:"msvcrt.lib" /ltcg
+RSC_MODE_FLAGS = /d "NDEBUG"
+JPEG_DEBUG_ARG =
+!ENDIF
+
+INTDIR = .\$(CONFIG)$(DIR_SUFFIX)
+LIBDJVU = libdjvu$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
+JPEGLIB = third_party\jpeg-6b\jpeg$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
 
 CPP_FLAGS = $(CPP_FLAGS) /D "_UNICODE" /D "UNICODE"
 LINK_FLAGS = $(LINK_FLAGS) /entry:"wWinMainCRTStartup"
@@ -34,19 +52,18 @@ PCH = "$(INTDIR)\WinDjView.pch"
 CPP_PCH = /Yu"stdafx.h"
 CPP_PCH_CREATE = /Yc"stdafx.h"
 
-CPP_FLAGS = $(CPP_FLAGS) /nologo /c /MT /W3 /EHsc /O2 /GL /GR- \
-            /D "WIN32" $(WIN64) /D "NDEBUG" /D "_WINDOWS" /Fp$(PCH) /Fo"$(INTDIR)/"
+CPP_FLAGS = $(CPP_FLAGS) /nologo /c $(CPP_MODE_FLAGS) \
+            /D "WIN32" $(WIN64) /D "_WINDOWS" /Fp$(PCH) /Fo"$(INTDIR)/"
 
 LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "$(JPEGLIB)" msimg32.lib version.lib shlwapi.lib \
-             /nologo /subsystem:windows /incremental:no /machine:$(MACHINE) \
-             /nodefaultlib:"msvcrt.lib" /ltcg /out:$(OUT)
+             /nologo /subsystem:windows /machine:$(MACHINE) \
+             $(LINK_MODE_FLAGS) /out:$(OUT)
 
-RSC_FLAGS = /l 0x409 /fo"$(INTDIR)\WinDjView.res" $(RSC_FLAGS) /d "NDEBUG" /d "WIN32" $(RSC_WIN64)
-
+RSC_FLAGS = /l 0x409 /fo"$(INTDIR)\WinDjView.res" $(RSC_FLAGS) $(RSC_MODE_FLAGS) /d "WIN32" $(RSC_WIN64)
 all: $(JPEGLIB) $(OUT)
 
 $(JPEGLIB):
-	@cd third_party\jpeg-6b && $(MAKE) /nologo /f makefile.wdj X64=$(X64)
+	@cd third_party\jpeg-6b && $(MAKE) /nologo /f makefile.wdj $(JPEG_X64_ARG) $(JPEG_DEBUG_ARG)
 
 rebuild: clean all
 

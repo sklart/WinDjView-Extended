@@ -36,10 +36,23 @@ nmake /nologo /f makefile X64=1
 Output: `src\Release_x64\WinDjView.exe`. The build also creates the x64
 variant of the bundled IJG JPEG 6b static library from source.
 
-## Debug and Windows 7
+## Debug Win32 and x64
 
-Debug configurations in the historical VS2008 project have not yet been
-ported to the NMAKE build and are not claimed as verified. The Release build
-keeps the application's Windows 7-era API target; runtime validation on a
-clean Windows 7 system remains a separate manual test because the local build
-uses a modern Visual Studio runtime/toolset.
+Pass `DEBUG=1` to both makefiles. Add `X64=1` for x64:
+
+```bat
+cd src\libdjvu
+nmake /nologo /f makefile DEBUG=1
+cd ..
+nmake /nologo /f makefile DEBUG=1
+```
+
+The outputs are `src\Debug\WinDjView.exe` and
+`src\Debug_x64\WinDjView.exe`. Debug builds use separate static
+`libdjvud*.lib` and `jpegd*.lib` artifacts.
+
+## Windows 7
+
+The build keeps the application's Windows 7-era API target; runtime validation
+on a clean Windows 7 system remains a separate manual test because the local
+build uses a modern Visual Studio runtime/toolset.
