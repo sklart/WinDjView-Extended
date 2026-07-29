@@ -1152,7 +1152,9 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 {
 	TCHAR pszName[MAX_PATH] = { 0 };
 	LPTSTR pszFileName;
-	GetFullPathName(strFileName, MAX_PATH, pszName, &pszFileName);
+	DWORD nPathLength = GetFullPathName(strFileName, MAX_PATH, pszName, &pszFileName);
+	if (nPathLength == 0 || nPathLength >= MAX_PATH)
+		return NULL;
 
 	openDocumentsLock.Lock();
 	map<CString, DjVuSource*>::iterator itSource = openDocuments.find(pszName);
@@ -1166,7 +1168,10 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 
 	CFile file;
 	if (!file.Open(pszName, CFile::modeRead | CFile::shareDenyWrite))
+	{
+		openDocumentsLock.Unlock();
 		return NULL;
+	}
 
 	int nLength = static_cast<int>(min(file.GetLength(), 0x40000));
 	LPBYTE pBuf = new BYTE[nLength];
@@ -1185,11 +1190,13 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	}
 	catch (GException&)
 	{
+		openDocumentsLock.Unlock();
 		return NULL;
 	}
 
 	if (pDoc->get_pages_num() == 0)
 	{
+		openDocumentsLock.Unlock();
 		return NULL;
 	}
 
