@@ -7041,6 +7041,18 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 }
 
 
+static bool IsAllowedExternalLink(const CString& url)
+{
+	const int separator = url.Find(_T(':'));
+	if (separator <= 0)
+		return false;
+
+	const CString scheme = url.Left(separator);
+	return scheme.CompareNoCase(_T("http")) == 0 ||
+		scheme.CompareNoCase(_T("https")) == 0 ||
+		scheme.CompareNoCase(_T("mailto")) == 0;
+}
+
 void CDjVuView::GoToURL(const GUTF8String& url, bool bAddHistoryPoint)
 {
 	if (url.length() == 0)
@@ -7171,7 +7183,15 @@ void CDjVuView::GoToURL(const GUTF8String& url, bool bAddHistoryPoint)
 		return;
 	}
 
-	// Open a web link
+	// Do not invoke handlers for local files or arbitrary protocols supplied
+	// by a document.  Internal DjVu links have already returned above.
+	if (!IsAllowedExternalLink(MakeCString(url)))
+	{
+		AfxMessageBox(LoadString(IDS_FAILED_TO_OPEN) + MakeCString(url));
+		return;
+	}
+
+	// Open an explicitly allowed external link.
 	DWORD dwResult = (DWORD)::ShellExecute(NULL, _T("open"), MakeCString(url), NULL, NULL, SW_SHOW);
 	if (dwResult <= 32) // Failure
 	{
