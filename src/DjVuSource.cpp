@@ -1157,20 +1157,18 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	if (nPathLength == 0 || nPathLength >= MAX_PATH)
 		return NULL;
 
-	openDocumentsLock.Lock();
+	CSingleLock lock(&openDocumentsLock, TRUE);
 	map<CString, DjVuSource*>::iterator itSource = openDocuments.find(pszName);
 	if (itSource != openDocuments.end())
 	{
 		DjVuSource* pSource = (*itSource).second;
 		pSource->AddRef();
-		openDocumentsLock.Unlock();
 		return pSource;
 	}
 
 	CFile file;
 	if (!file.Open(pszName, CFile::modeRead | CFile::shareDenyWrite))
 	{
-		openDocumentsLock.Unlock();
 		return NULL;
 	}
 
@@ -1191,13 +1189,11 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	}
 	catch (GException&)
 	{
-		openDocumentsLock.Unlock();
 		return NULL;
 	}
 
 	if (pDoc->get_pages_num() == 0)
 	{
-		openDocumentsLock.Unlock();
 		return NULL;
 	}
 
@@ -1224,7 +1220,6 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 
 	DjVuSource* pSource = new DjVuSource(pszName, pDoc, pSettings);
 	openDocuments.insert(make_pair(CString(pszName), pSource));
-	openDocumentsLock.Unlock();
 
 	return pSource;
 }
