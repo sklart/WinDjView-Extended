@@ -2,7 +2,7 @@
 
 The original solution is a Visual Studio 2008 `.sln` with `.vcproj` projects.
 Current MSBuild cannot load those project files, so the supported build path is
-the checked-in NMAKE files.
+the checked-in NMAKE files. `WinDjView.Modern.sln` is a VS2022 Makefile-project wrapper for that supported build path.
 
 On the local Visual Studio 18 Enterprise installation, the following commands
 were run successfully on 2026-07-29:

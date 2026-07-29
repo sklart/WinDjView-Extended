@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"><UniqueIdentifier>{E5E6D201-57FE-4FE1-A9FB-F11FB6F30D9A}</UniqueIdentifier><Extensions>cpp;c;cxx</Extensions></Filter>
+    <Filter Include="Header Files"><UniqueIdentifier>{746A7AF5-7AC2-49F8-B29A-EE501808F7F7}</UniqueIdentifier><Extensions>h;hpp;hxx</Extensions></Filter>
+    <Filter Include="Resource Files"><UniqueIdentifier>{B1B3DDEC-E8FC-4557-9FEB-265C024950E9}</UniqueIdentifier><Extensions>rc;ico;bmp;cur</Extensions></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="WinDjView.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="DjVuView.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="DjVuSource.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="WinDjView.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="DjVuView.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="DjVuSource.h"><Filter>Header Files</Filter></ClInclude>
+    <ResourceCompile Include="WinDjView.rc"><Filter>Resource Files</Filter></ResourceCompile>
+  </ItemGroup>
+</Project>

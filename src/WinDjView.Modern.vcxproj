@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32"><Configuration>Debug</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{A3FE9A89-481D-4A6C-AB7F-C6A23D316627}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+    <RootNamespace>WinDjView</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration"><ConfigurationType>Makefile</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration"><ConfigurationType>Makefile</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>Makefile</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>Makefile</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'"><BuildArchitecture>x86</BuildArchitecture>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile DEBUG=1</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild DEBUG=1</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean DEBUG=1</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)Debug\WinDjView.exe</NMakeOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><BuildArchitecture>x86</BuildArchitecture>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)Release\WinDjView.exe</NMakeOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><BuildArchitecture>x64</BuildArchitecture>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile X64=1 DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile X64=1 DEBUG=1</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild X64=1 DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild X64=1 DEBUG=1</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean X64=1 DEBUG=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean X64=1 DEBUG=1</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)Debug_x64\WinDjView.exe</NMakeOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><BuildArchitecture>x64</BuildArchitecture>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile X64=1</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild X64=1</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean X64=1</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)Release_x64\WinDjView.exe</NMakeOutput>
+  </PropertyGroup>
+  <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><ConformanceMode>true</ConformanceMode><SDLCheck>true</SDLCheck></ClCompile></ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="WinDjView.cpp" />
+    <ClCompile Include="DjVuView.cpp" />
+    <ClCompile Include="DjVuSource.cpp" />
+    <ClInclude Include="WinDjView.h" />
+    <ClInclude Include="DjVuView.h" />
+    <ClInclude Include="DjVuSource.h" />
+    <ResourceCompile Include="WinDjView.rc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

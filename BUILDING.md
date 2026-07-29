@@ -11,6 +11,20 @@ Install Visual Studio 2022 or newer with **Desktop development with C++** and
 MFC. Run commands in a Developer Command Prompt or initialise the environment
 with `VsDevCmd.bat`.
 
+## Visual Studio 2022 solution
+
+`WinDjView.Modern.sln` opens the NMAKE build through a modern VS2022 Makefile
+project and exposes Debug/Release for Win32/x64. The historical
+`src\WinDjView.sln` and `.vcproj` files are preserved unchanged.
+
+The modern solution was verified with:
+
+```bat
+"C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" WinDjView.Modern.sln /m /t:Rebuild /p:Configuration=Release;Platform=Win32
+```
+
+The project initializes `VsDevCmd.bat` itself, including the MFC include paths,
+so it can be built from MSBuild without manually opening a Developer Console.
 ## Release Win32
 
 ```bat

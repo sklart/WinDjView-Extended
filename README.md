@@ -20,7 +20,7 @@ also GPL-2.0-or-later; see its source notices and
 ## Building
 
 Verified NMAKE builds are available for Debug and Release, Win32 and x64, with
-Visual Studio C++ and MFC. Exact commands, prerequisites, and current Debug /
+Visual Studio C++ and MFC. A modern Makefile project is available in`r`n`WinDjView.Modern.sln`. Exact commands, prerequisites, and current Debug /
 Windows 7 limitations are in [BUILDING.md](BUILDING.md).
 
 ## Continuous integration
