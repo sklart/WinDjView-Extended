@@ -68,7 +68,7 @@ public:
 class XMLParser
 {
 public:
-	XMLParser() : m_bValid(false), in(NULL) {}
+	XMLParser() : m_bValid(false), in(NULL), m_depth(0), m_nodeCount(0) {}
 
 	bool Parse(istream& in_);
 	XMLNode* GetRoot() { return m_bValid ? &m_root : NULL; }
@@ -80,6 +80,8 @@ private:
 	istream* in;
 	int ch;
 	int cur;
+	size_t m_depth;
+	size_t m_nodeCount;
 
 	int nextChar();
 	int readReference();

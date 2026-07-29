@@ -280,6 +280,10 @@ const int errInvalidComment = 13;
 const int errInvalidTag = 14;
 const int errInvalidPI = 15;
 const int errInvalidAttrValue = 16;
+const int errResourceLimit = 17;
+
+const size_t kMaxXMLDepth = 64;
+const size_t kMaxXMLNodes = 100000;
 
 bool XMLParser::Parse(istream& in_)
 {
@@ -288,6 +292,9 @@ bool XMLParser::Parse(istream& in_)
 	m_root.text = L"";
 	m_root.attributes.clear();
 	m_root.childElements.clear();
+	pushed.clear();
+	m_depth = 0;
+	m_nodeCount = 1;
 
 	ch = in->rdbuf()->sbumpc();
 	try
@@ -599,6 +606,9 @@ bool XMLParser::skipComment()
 
 void XMLParser::readTag(XMLNode& node)
 {
+	if (++m_depth > kMaxXMLDepth)
+		throw errResourceLimit;
+
 	if (cur != '<')
 		throw errTagExpected;
 
@@ -657,6 +667,8 @@ void XMLParser::readTag(XMLNode& node)
 	{
 		throw errInvalidTag;
 	}
+
+	--m_depth;
 }
 
 void XMLParser::readContents(XMLNode& node)
@@ -677,6 +689,8 @@ void XMLParser::readContents(XMLNode& node)
 			}
 
 			pushBack('<');
+			if (++m_nodeCount > kMaxXMLNodes)
+				throw errResourceLimit;
 			node.childElements.push_back(XMLNode(XMLNode::TAG));
 			XMLNode& childNode = node.childElements.back();
 			readTag(childNode);
