@@ -1130,6 +1130,8 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 		return rcResult;
 
 	CSize szImage(pImage->get_width(), pImage->get_height());
+	if (szImage.cx <= 0 || szImage.cy <= 0 || szImage.cx > (INT_MAX - 3) / 3)
+		return rcResult;
 
 	rcResult = CRect(CPoint(0, 0), szImage);
 	GRect rect(0, 0, szImage.cx, szImage.cy);
@@ -1141,13 +1143,21 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 	if (pImage->is_legal_photo() || pImage->is_legal_compound())
 	{
 		GP<GPixmap> pm = pImage->get_pixmap(rect, rect);
+		if (pm == NULL)
+			return rcResult;
 		pBmpPage = RenderPixmap(*pm, CDisplaySettings());
+		if (pBmpPage == NULL)
+			return rcResult;
 		ASSERT(pBmpPage->GetBitsPerPixel() == 24);
 	}
 	else if (pImage->is_legal_bilevel())
 	{
 		GP<GBitmap> bm = pImage->get_bitmap(rect, rect, 4);
+		if (bm == NULL)
+			return rcResult;
 		pBmpPage = RenderBitmap(*bm, CDisplaySettings());
+		if (pBmpPage == NULL)
+			return rcResult;
 
 		nPixelSize = 1;
 
@@ -1175,6 +1185,12 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 		return rcResult;
 
 	LPBYTE pBits = pBmpPage->GetBits();
+	if (pBits == NULL)
+	{
+		delete pBmpPage;
+		return rcResult;
+	}
+
 	int nRowLength = szImage.cx*nPixelSize;
 	while ((nRowLength % 4) != 0)
 		++nRowLength;
@@ -1190,7 +1206,7 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 
 		if (pPixel < pEndPixel)
 		{
-			int nPixel = (pPixel - pBits - rcResult.top*nRowLength)/nPixelSize;
+			int nPixel = static_cast<int>((pPixel - pBits - rcResult.top*nRowLength)/nPixelSize);
 			rcResult.left = nPixel;
 			rcResult.right = nPixel + 1;
 			break;
@@ -1208,7 +1224,7 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 
 		if (pPixel < pEndPixel)
 		{
-			int nPixel = (pPixel - pBits - (rcResult.bottom - 1)*nRowLength)/nPixelSize;
+			int nPixel = static_cast<int>((pPixel - pBits - (rcResult.bottom - 1)*nRowLength)/nPixelSize);
 			rcResult.left = min(rcResult.left, nPixel);
 			rcResult.right = max(rcResult.right, nPixel + 1);
 			break;
@@ -1225,7 +1241,7 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 		while (pPixel < pEndPixel && *pPixel == nWhite)
 			++pPixel;
 
-		int nPixel = (pPixel - pBits - y*nRowLength)/nPixelSize;
+		int nPixel = static_cast<int>((pPixel - pBits - y*nRowLength)/nPixelSize);
 		rcResult.left = min(rcResult.left, nPixel);
 	}
 
@@ -1238,7 +1254,7 @@ CRect FindContentRect(GP<DjVuImage> pImage)
 		while (pPixel >= pEndPixel && *pPixel == nWhite)
 			--pPixel;
 
-		int nPixel = (pPixel - pBits - y*nRowLength)/nPixelSize;
+		int nPixel = static_cast<int>((pPixel - pBits - y*nRowLength)/nPixelSize);
 		rcResult.right = max(rcResult.right, nPixel + 1);
 	}
 
