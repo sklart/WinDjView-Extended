@@ -25,7 +25,7 @@ JPEG_X64_ARG =
 !IFDEF DEBUG
 CONFIG = Debug
 DEBUG_SUFFIX = d
-CPP_MODE_FLAGS = /MTd /W3 /EHsc /Od /Zi /GR- /D "_DEBUG"
+CPP_MODE_FLAGS = /MTd /W3 /EHsc /Od /Z7 /GR- /D "_DEBUG"
 LINK_MODE_FLAGS = /incremental /debug /nodefaultlib:"msvcrtd.lib"
 RSC_MODE_FLAGS = /d "_DEBUG"
 JPEG_DEBUG_ARG = DEBUG=1
