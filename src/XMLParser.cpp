@@ -66,6 +66,7 @@ XMLNode& XMLNode::operator=(const XMLNode& node)
 	if (&node != this)
 	{
 		childElements = node.childElements;
+		nType = node.nType;
 		tagName = node.tagName;
 		text = node.text;
 		attributes = node.attributes;
