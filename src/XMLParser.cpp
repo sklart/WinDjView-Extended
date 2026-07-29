@@ -22,6 +22,10 @@
 #include <istream>
 #include <streambuf>
 #include <string>
+#include <errno.h>
+#include <limits.h>
+#include <float.h>
+#include <stdlib.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -59,6 +63,51 @@ inline void AppendChar(wstring& s, int c)
 		s.insert(s.end(), static_cast<wchar_t>(c1));
 		s.insert(s.end(), static_cast<wchar_t>(c2));
 	}
+}
+
+static bool ParseLongValue(const wstring& text, int base, long& value)
+{
+	if (text.empty())
+		return false;
+
+	errno = 0;
+	wchar_t* end = NULL;
+	const long result = wcstol(text.c_str(), &end, base);
+	if (errno == ERANGE || end == text.c_str() || *end != L'\0')
+		return false;
+
+	value = result;
+	return true;
+}
+
+static bool ParseUnsignedValue(const wstring& text, int base, unsigned long& value)
+{
+	if (text.empty() || text[0] == L'-')
+		return false;
+
+	errno = 0;
+	wchar_t* end = NULL;
+	const unsigned long result = wcstoul(text.c_str(), &end, base);
+	if (errno == ERANGE || end == text.c_str() || *end != L'\0')
+		return false;
+
+	value = result;
+	return true;
+}
+
+static bool ParseDoubleValue(const wstring& text, double& value)
+{
+	if (text.empty())
+		return false;
+
+	errno = 0;
+	wchar_t* end = NULL;
+	const double result = wcstod(text.c_str(), &end);
+	if (errno == ERANGE || end == text.c_str() || *end != L'\0' || !_finite(result))
+		return false;
+
+	value = result;
+	return true;
 }
 
 XMLNode& XMLNode::operator=(const XMLNode& node)
@@ -145,11 +194,11 @@ bool XMLNode::GetIntAttribute(const CString& name, int& value) const
 	if (attr == NULL)
 		return false;
 
-	int val;
-	if (swscanf(attr->c_str(), L"%d", &val) != 1)
+	long val;
+	if (!ParseLongValue(*attr, 10, val) || val < INT_MIN || val > INT_MAX)
 		return false;
 
-	value = val;
+	value = (int)val;
 	return true;
 }
 
@@ -160,7 +209,7 @@ bool XMLNode::GetLongAttribute(const CString& name, long& value) const
 		return false;
 
 	long val;
-	if (swscanf(attr->c_str(), L"%d", &val) != 1)
+	if (!ParseLongValue(*attr, 10, val))
 		return false;
 
 	value = val;
@@ -173,11 +222,11 @@ bool XMLNode::GetHexAttribute(const CString& name, DWORD& value) const
 	if (attr == NULL)
 		return false;
 
-	DWORD val;
-	if (swscanf(attr->c_str(), L"%x", &val) != 1)
+	unsigned long val;
+	if (!ParseUnsignedValue(*attr, 16, val))
 		return false;
 
-	value = val;
+	value = (DWORD)val;
 	return true;
 }
 
@@ -188,7 +237,7 @@ bool XMLNode::GetDoubleAttribute(const CString& name, double& value) const
 		return false;
 
 	double val;
-	if (swscanf(attr->c_str(), L"%lf", &val) != 1)
+	if (!ParseDoubleValue(*attr, val))
 		return false;
 
 	value = val;
@@ -201,11 +250,14 @@ bool XMLNode::GetColorAttribute(const CString& name, COLORREF& value) const
 	if (attr == NULL)
 		return false;
 
-	COLORREF val;
-	if (swscanf(attr->c_str(), L"#%x", &val) != 1)
+	if (attr->length() < 2 || (*attr)[0] != L'#')
 		return false;
 
-	value = val;
+	unsigned long val;
+	if (!ParseUnsignedValue(attr->substr(1), 16, val) || val > 0xFFFFFF)
+		return false;
+
+	value = (COLORREF)val;
 	return true;
 }
 
@@ -450,15 +502,15 @@ int XMLParser::readReference()
 			throw errInvalidEntityRef;
 		nextChar();
 
-		if (strncmp(buf, "lt", length) == 0)
+		if (length == 2 && memcmp(buf, "lt", 2) == 0)
 			return '<';
-		else if (strncmp(buf, "gt", length) == 0)
+		else if (length == 2 && memcmp(buf, "gt", 2) == 0)
 			return '>';
-		else if (strncmp(buf, "amp", length) == 0)
+		else if (length == 3 && memcmp(buf, "amp", 3) == 0)
 			return '&';
-		else if (strncmp(buf, "quot", length) == 0)
+		else if (length == 4 && memcmp(buf, "quot", 4) == 0)
 			return '\"';
-		else if (strncmp(buf, "apos", length) == 0)
+		else if (length == 4 && memcmp(buf, "apos", 4) == 0)
 			return '\'';
 		else
 			throw errInvalidEntityRef;
@@ -477,8 +529,11 @@ bool XMLParser::skipString(const char* s)
 	{
 		if (cur != *p)
 		{
-			for (const char* r = p - 1; r >= s; --r)
+			for (const char* r = p; r != s; )
+			{
+				--r;
 				pushBack(*r);
+			}
 			return false;
 		}
 
