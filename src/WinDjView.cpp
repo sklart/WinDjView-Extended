@@ -819,6 +819,39 @@ bool CDjViewApp::EnumProfileKeys(LPCTSTR pszSection, vector<CString>& keys)
 	return true;
 }
 
+static const ULONGLONG kMaxSettingsFileSize = 16ULL * 1024 * 1024;
+
+static bool ReadSettingsFile(const CString& fileName, string& data)
+{
+	CFile file;
+	try
+	{
+		if (!file.Open(fileName, CFile::modeRead | CFile::shareDenyWrite))
+			return false;
+
+		const ULONGLONG length = file.GetLength();
+		if (length == 0 || length > kMaxSettingsFileSize)
+		{
+			file.Close();
+			return false;
+		}
+
+		vector<char> buffer((size_t)length);
+		const UINT bytesRead = file.Read(&buffer[0], (UINT)length);
+		file.Close();
+		if (bytesRead != (UINT)length)
+			return false;
+
+		data.assign(buffer.begin(), buffer.end());
+		return true;
+	}
+	catch (CFileException* exception)
+	{
+		exception->Delete();
+		return false;
+	}
+}
+
 bool CDjViewApp::LoadDocSettings(const CString& strKey, DocSettings* pSettings)
 {
 	if (m_appSettings.bDocsSettingsIntoRegistry)
@@ -832,7 +865,7 @@ bool CDjViewApp::LoadDocSettingsFromFiles(const CString& strKey, DocSettings* pS
 	CString strPathName, strFileName, strTemp;
 	GetModuleFileName(NULL, strTemp.GetBuffer(_MAX_PATH), _MAX_PATH);
 	strTemp.ReleaseBuffer(strTemp.ReverseFind('\\') + 1);
-	strPathName = _tcsdup(strTemp) + MakeCString(s_pszDocumentsSection) + _T("\\");
+	strPathName = strTemp + MakeCString(s_pszDocumentsSection) + _T("\\");
 	strFileName = strPathName + strKey;
 
 	if (!PathIsDirectory(strPathName))
@@ -840,17 +873,10 @@ bool CDjViewApp::LoadDocSettingsFromFiles(const CString& strKey, DocSettings* pS
 
 	if (PathFileExists(strFileName))
 	{
-		CFile file;
-		if (!file.Open(strFileName, CFile::modeRead | CFile::shareDenyWrite))
-		{
+		string str;
+		if (!ReadSettingsFile(strFileName, str))
 			return false;
-		}
-		int nLength = static_cast<int>(file.GetLength());
-		vector<char> data(nLength);
-		file.Read(&data[0], nLength);
-		file.Close();
 
-		string str(data.begin(), data.end());
 		stringstream in(str);
 		XMLParser parser;
 		if (!parser.Parse(in))
@@ -881,18 +907,11 @@ bool CDjViewApp::LoadDocSettingsFromFiles(const CString& strKey, DocSettings* pS
 	{
 		do
 		{
-			CFile file;
 			strFileName = strPathName + fd.cFileName;
-			if (!file.Open(strFileName, CFile::modeRead | CFile::shareDenyWrite))
-			{
+			string str;
+			if (!ReadSettingsFile(strFileName, str))
 				continue;
-			}
-			int nLength = static_cast<int>(file.GetLength());
-			vector<char> data(nLength);
-			file.Read(&data[0], nLength);
-			file.Close();
 
-			string str(data.begin(), data.end());
 			stringstream in(str);
 			XMLParser parser;
 
@@ -1116,7 +1135,7 @@ BOOL CDjViewApp::WriteProfileDocsSettings(LPCTSTR pszSection, const GUTF8String&
 	CString strPathName, strFileName, strTemp;
 	GetModuleFileName(NULL, strTemp.GetBuffer(_MAX_PATH), _MAX_PATH);
 	strTemp.ReleaseBuffer(strTemp.ReverseFind('\\') + 1);
-	strPathName = _tcsdup(strTemp) + MakeCString(s_pszDocumentsSection) + _T("\\");
+	strPathName = strTemp + MakeCString(s_pszDocumentsSection) + _T("\\");
 	strFileName = strPathName + pszSection;
 
 	if (!PathIsDirectory(strPathName) && !CreateDirectory(strPathName, NULL))
@@ -1754,18 +1773,13 @@ void CDjViewApp::OnFileOpenSession()
 void CDjViewApp::OpenSession(CString& lpszFileName)
 {
 	CWaitCursor wait;
-	CFile file;
-	if (!file.Open(lpszFileName, CFile::modeRead | CFile::shareDenyWrite))
+	string str;
+	if (!ReadSettingsFile(lpszFileName, str))
 	{
 		AfxMessageBox(IDS_CANNOT_OPEN_SESSION, MB_OK | MB_ICONEXCLAMATION);
 		return;
 	}
-	int nLength = static_cast<int>(file.GetLength());
-	vector<char> data(nLength);
-	file.Read(&data[0], nLength);
-	file.Close();
 
-	string str(data.begin(), data.end());
 	stringstream in(str);
 	XMLParser parser;
 	if (!parser.Parse(in))
