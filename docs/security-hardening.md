@@ -11,3 +11,4 @@ viewer. Settings input is size-limited before parsing.
 
 Fuzzing with a dedicated malformed-DjVu corpus and runtime testing on target
 Windows versions remain follow-up work.
+Tree-node deletion now releases detached nodes and clears bookmark reverse links before UI destruction, preventing both repeated-delete leaks and dangling bookmark handles.

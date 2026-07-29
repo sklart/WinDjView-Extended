@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Corrected bookmark ownership, empty contents handling, annotation deletion,
+- Corrected bookmark ownership, tree-node deletion, empty contents handling, annotation deletion,
   settings reload, document path validation, and several x64 pointer/index
   conversions.
 - Restored the wait cursor after selection operations and fixed printing-unit

@@ -380,6 +380,13 @@ bool CMyTreeView::DeleteItem(HTREEITEM hItem)
 
 	if (m_pSelection == pNode)
 		m_pSelection = NULL;
+	if (m_pHoverNode == pNode)
+	{
+		m_pHoverNode = NULL;
+		m_bMouseInTooltip = false;
+		++m_toolTip.m_nNextCode;
+		m_toolTip.Hide();
+	}
 
 	NMTREEVIEW nmtv;
 	InitNotification(nmtv, TVN_DELETEITEM);
@@ -389,6 +396,9 @@ bool CMyTreeView::DeleteItem(HTREEITEM hItem)
 	nmtv.itemOld.lParam = (LPARAM) pNode->dwUserData;
 
 	GetParent()->SendMessage(WM_NOTIFY, GetDlgCtrlID(), (LPARAM) &nmtv);
+
+	pNode->pNext = NULL;
+	delete pNode;
 
 	if (!m_bBatchUpdate)
 		RecalcLayout();

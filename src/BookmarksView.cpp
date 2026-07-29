@@ -754,14 +754,31 @@ void CBookmarksView::DeleteBookmark(TreeNode* pNode)
 
 	if (AfxMessageBox(IDS_PROMPT_BOOKMARK_DELETE, MB_ICONEXCLAMATION | MB_YESNO) == IDYES)
 	{
-		m_pSource->GetSettings()->DeleteBookmark(pInfo->pBookmark);
-		DeleteItem((HTREEITEM) pNode);
-
-		pInfo->pBookmark = NULL;
-		pInfo->strURL.empty();
+		if (m_pSource->GetSettings()->DeleteBookmark(pInfo->pBookmark))
+		{
+			ClearBookmarkInfo(pNode);
+			DeleteItem((HTREEITEM) pNode);
+		}
 	}
 
 	SetFocus();
+}
+
+void CBookmarksView::ClearBookmarkInfo(TreeNode* pNode)
+{
+	if (pNode == NULL)
+		return;
+
+	for (TreeNode* pChild = pNode->pChild; pChild != NULL; pChild = pChild->pNext)
+		ClearBookmarkInfo(pChild);
+
+	BookmarkInfo* pInfo = reinterpret_cast<BookmarkInfo*>(pNode->dwUserData);
+	if (pInfo != NULL)
+	{
+		pInfo->pBookmark = NULL;
+		pInfo->strURL.empty();
+		pInfo->hIt = NULL;
+	}
 }
 
 int CBookmarksView::GetBookmarksCount()
@@ -786,23 +803,14 @@ void CBookmarksView::DeleteAllBookmarks()
 {
 	if (AfxMessageBox(IDS_PROMPT_BOOKMARK_DELETE_ALL, MB_ICONEXCLAMATION | MB_YESNO) == IDYES)
 	{
-		list<BookmarkInfo>::iterator it;
-		for (it = m_links.begin(); it != m_links.end(); ++it)
-		{
-			TreeNode* pNode = reinterpret_cast<TreeNode*>(it->hIt);
+		for (TreeNode* pNode = m_pRoot->pChild; pNode != NULL; pNode = pNode->pNext)
+			ClearBookmarkInfo(pNode);
+		DeleteAllItems();
+		m_links.clear();
 
-			if (pNode == NULL)
-				continue;
-
-			BookmarkInfo* pInfo = (BookmarkInfo*) pNode->dwUserData;
-			if (pInfo->pBookmark == NULL)
-				continue;
-			m_pSource->GetSettings()->DeleteBookmark(pInfo->pBookmark);
-			DeleteItem((HTREEITEM) pNode);
-
-			pInfo->pBookmark = NULL;
-			pInfo->strURL.empty();
-		}
+		list<Bookmark>& bookmarks = m_pSource->GetSettings()->bookmarks;
+		while (!bookmarks.empty())
+			m_pSource->GetSettings()->DeleteBookmark(&bookmarks.back());
 	}
 
 	SetFocus();

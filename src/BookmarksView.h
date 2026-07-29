@@ -57,6 +57,7 @@ protected:
 
 	HTREEITEM AddBookmark(Bookmark& bookmark, HTREEITEM hParent);
 	void DeleteBookmark(TreeNode* pNode);
+	void ClearBookmarkInfo(TreeNode* pNode);
 	void RenameBookmark(TreeNode* pNode);
 	void SetBookmarkDestination(TreeNode* pNode);
 	void MoveBookmark(TreeNode* pNode, bool bUp);
