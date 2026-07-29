@@ -6651,6 +6651,10 @@ void CDjVuView::GoToBookmark(const Bookmark& bookmark, bool bAddHistoryPoint)
 		(bookmark.nPage < 0 || bookmark.nPage >= m_nPageCount))
 		return;
 
+	if (bookmark.nLinkType == Bookmark::Text &&
+		(bookmark.textStart < 0 || bookmark.textLen < 0 ||
+		bookmark.textStart > INT_MAX - bookmark.textLen))
+		return;
 	int nPage = -1;
 	if (theApp.GetAppSettings()->bFindBookmarkTitle && 
 		(theApp.GetAppSettings()->bDisablePositioning || !HasBookmarkPositioning(bookmark)))
@@ -6659,7 +6663,7 @@ void CDjVuView::GoToBookmark(const Bookmark& bookmark, bool bAddHistoryPoint)
 		if (url.length() > 0 && url[0] == '?')
 		{
 			int X = -1; int Y = -1; 
-			if (ParseCGI(url.substr(1, -1), nPage, X, Y) && nPage >= 0)
+			if (ParseCGI(url.substr(1, -1), nPage, X, Y) && nPage >= 1)
 			{
 				--nPage;
 				nPage = max(0, min(nPage, m_nPageCount - 1));
@@ -7068,7 +7072,7 @@ void CDjVuView::GoToURL(const GUTF8String& url, bool bAddHistoryPoint)
 		int X = -1; int Y = -1; int nPage = -1;
 		bool bIsText = false;
 		bool bIsRectCoord = false;
-		if (ParseCGI(url.substr(1, -1), nPage, X, Y, bIsText, bIsRectCoord))
+		if (ParseCGI(url.substr(1, -1), nPage, X, Y, bIsText, bIsRectCoord) && nPage >= 1)
 		{
 			if (Y == -1 || theApp.GetAppSettings()->bDisablePositioning)
 			{
