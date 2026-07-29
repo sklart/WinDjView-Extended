@@ -152,6 +152,8 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 
 	strFileName.TrimLeft();
 	strFileName.TrimRight();
+	if (strFileName.IsEmpty())
+		return NULL;
 	if (strFileName[0] == '\"')
 		strFileName.Delete(0);
 	int nPos = strFileName.ReverseFind('\"');
@@ -172,7 +174,7 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 	}
 
 	bool bPathTooLong = false;
-	TCHAR szPath[_MAX_PATH];
+	TCHAR szPath[_MAX_PATH] = { 0 };
 	if (!AfxFullPath(szPath, strFileName))
 		bPathTooLong = true;
 
@@ -192,7 +194,7 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 
 	if (bPathTooLong)
 	{
-		AfxMessageBox(FormatString(IDS_PATH_TOO_LONG, szPath), MB_ICONEXCLAMATION | MB_OK);
+		AfxMessageBox(FormatString(IDS_PATH_TOO_LONG, strFileName), MB_ICONEXCLAMATION | MB_OK);
 		return NULL;
 	}
 
