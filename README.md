@@ -1,7 +1,7 @@
 # WinDjView Extended 4.1
 
 WinDjView Extended is a native Windows DjVu viewer written in C++ with MFC.
-The bundled `src/libdjvu` directory is built as a static library.
+The bundled `src/libdjvu` directory is linked statically.
 
 ## Upstream and acknowledgements
 
@@ -10,45 +10,28 @@ This repository is based on the WinDjView Extended sources published by
 Many thanks to N.M.E. for maintaining and making WinDjView Extended available,
 and to Andrew Zhezherun, the original author of WinDjView.
 
-
 ## License
 
 The source code is distributed under the GNU General Public License, version 2
-or later. See [src/license](src/license).
+or later. See [src/license](src/license). The bundled DjVuLibre 3.5.30 code is
+also GPL-2.0-or-later; see its source notices and
+[upgrade notes](docs/djvulibre-upgrade.md).
 
-## Build Win32
+## Building
 
-The supported baseline is a 32-bit Release build. You need Visual Studio 2022
-or later with the **Desktop development with C++** and **MFC** components.
-
-Open a Developer Command Prompt for Visual Studio and run:
-
-```bat
-cd src\libdjvu
-nmake /nologo /f makefile
-cd ..
-nmake /nologo /f makefile
-```
-
-The resulting executable is `src\Release\WinDjView.exe`.
-
-## Build x64 (experimental)
-
-Use the x64 Developer Command Prompt and pass `X64=1` to both makefiles:
-
-```bat
-cd src\libdjvu
-nmake /nologo /f makefile X64=1
-cd ..
-nmake /nologo /f makefile X64=1
-```
-
-This produces `src\Release_x64\WinDjView.exe`. It is not release-ready:
-the inherited `libdjvu` code currently emits pointer- and size-truncation
-warnings on x64 and requires a dedicated portability audit.
+Verified NMAKE builds are available for Release Win32 and Release x64 with
+Visual Studio C++ and MFC. Exact commands, prerequisites, and current Debug /
+Windows 7 limitations are in [BUILDING.md](BUILDING.md).
 
 ## Continuous integration
 
-GitHub Actions builds the Win32 Release configuration for every push and pull
-request. Generated objects, libraries and executables are intentionally ignored
-by Git.
+GitHub Actions builds Release Win32 and Release x64 for every push and pull
+request, verifies the executable, and publishes it as a workflow artifact.
+
+## Project notes
+
+- [Build baseline](docs/build-baseline.md)
+- [Security hardening](docs/security-hardening.md)
+- [Encoding policy](docs/encoding.md)
+- [Testing](docs/testing.md)
+- [Changelog](CHANGELOG.md)

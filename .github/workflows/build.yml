@@ -8,8 +8,21 @@ permissions:
   contents: read
 
 jobs:
-  win32-release:
+  release:
+    name: Release ${{ matrix.name }}
     runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Win32
+            arch: x86
+            nmake_args: ''
+            output: src\Release\WinDjView.exe
+          - name: x64
+            arch: x64
+            nmake_args: X64=1
+            output: src\Release_x64\WinDjView.exe
 
     steps:
       - name: Check out source
@@ -18,17 +31,25 @@ jobs:
       - name: Build bundled libdjvu and WinDjView
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=x64
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
           cd src\libdjvu
-          nmake /nologo /f makefile
+          nmake /nologo /f makefile ${{ matrix.nmake_args }}
           cd ..
-          nmake /nologo /f makefile
+          nmake /nologo /f makefile ${{ matrix.nmake_args }}
 
       - name: Verify executable
         shell: pwsh
         run: |
-          $exe = 'src\Release\WinDjView.exe'
+          $exe = '${{ matrix.output }}'
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Expected build output was not created: $exe"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
+
+      - name: Upload executable
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDjView-Release-${{ matrix.name }}
+          path: ${{ matrix.output }}
+          if-no-files-found: error
