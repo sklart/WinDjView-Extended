@@ -60,13 +60,14 @@ void DjVuSource::UpdatePageTitle(PageInfo& pageInfo, int nPage)
 
 int DjVuSource::GetUrlToPagenum(GUTF8String url)
 {
-	if (url[0] == '#')
-		url = url.substr(1, -1);
-	else 
+	if (url.length() == 0 || url[0] != '#')
 		return -2;
 
+	url = url.substr(1, -1);
 	CString strTitle = MakeCString(url);
 	strTitle.Trim();
+	if (strTitle.IsEmpty())
+		return -1;
 	int nPage = 0;
 	if (CheckMatchTitle(strTitle, nPage, m_nPageCount - 1))
 	{
