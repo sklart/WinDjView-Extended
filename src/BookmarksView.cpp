@@ -106,18 +106,26 @@ void CBookmarksView::LoadContents()
 	GPosition pos = bookmarks;
 	AddBookmarks(bookmarks, TVI_ROOT, pos, bookmarks.size());
 	
-	TreeNode* pNode = reinterpret_cast<TreeNode*>(m_links.back().hIt);
-	TreeNode* pParentNode = pNode->pParent;
-	if (pParentNode->strLabel == _T("bookmarks_showposition") && pParentNode->pParent->dwUserData == NULL)
+	if (!m_links.empty())
 	{
-		AddShowpositionToContents(pParentNode, m_contents.size());
-		DeleteItem((HTREEITEM) pParentNode);
+		TreeNode* pNode = reinterpret_cast<TreeNode*>(m_links.back().hIt);
+		TreeNode* pParentNode = pNode != NULL ? pNode->pParent : NULL;
+		if (pParentNode != NULL && pParentNode->pParent != NULL &&
+			pParentNode->strLabel == _T("bookmarks_showposition") &&
+			pParentNode->pParent->dwUserData == NULL)
+		{
+			AddShowpositionToContents(pParentNode, (int)m_contents.size());
+			DeleteItem((HTREEITEM)pParentNode);
+		}
 	}
 	EndBatchUpdate();
 }
 
 void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount)
 {
+	if (pParentNode == NULL || pParentNode->pChild == NULL || nCount <= 0)
+		return;
+
 	int i = 0;
 	int nPageCount = m_pSource->GetPageCount();
 
@@ -125,20 +133,28 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 	TreeNode* pLastChildNode = pParentNode->pLastChild;
 
 	list<CString> strList;
-	for (; ; pPositionNode = pPositionNode->pNext)
+	for (; pPositionNode != NULL; pPositionNode = pPositionNode->pNext)
 	{
 		strList.push_back(pPositionNode->strLabel);
 		if (pPositionNode == pParentNode->pLastChild)
 			break;
 	}
+	if (strList.empty() || strList.size() + 1 > (size_t)nCount)
+		return;
+
 	vector <ShowPosition> vShowPosition;
-	vShowPosition.resize(nCount - strList.size() - 1);
+	vShowPosition.resize((size_t)nCount - strList.size() - 1);
+	if (vShowPosition.empty())
+		return;
 	
-	for (list<CString>::iterator itList = strList.begin(); itList != strList.end(); ++itList, ++i)
+	for (list<CString>::iterator itList = strList.begin();
+		itList != strList.end() && i < (int)vShowPosition.size(); ++itList, ++i)
 	{
 		int nItemPos = -1;
 		CString strText = (*itList).Trim();
 		strText.Replace(_T(","),_T(";"));
+		if (strText.IsEmpty())
+			continue;
 		if (strText[0] == 't')
 		{
 			vShowPosition[i].type = text;
@@ -162,7 +178,7 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 		nPos = strText.Find(';');
 		if (nPos != -1)
 		{
-			if (nItemPos >= 0 && IsRectCoord(strText, vShowPosition[nItemPos].rects))
+			if (nItemPos >= 0 && nItemPos < (int)vShowPosition.size() && IsRectCoord(strText, vShowPosition[nItemPos].rects))
 			{
 				vShowPosition[nItemPos].type = selection;
 			}
@@ -191,7 +207,7 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 		}
 		if (_stscanf(strFirst, _T("%d"), &nFirst) == 1 && _stscanf(strSecond, _T("%d"), &nSecond) == 1)
 		{
-			if (nItemPos >= 0)
+			if (nItemPos >= 0 && nItemPos < (int)vShowPosition.size())
 			{
 				if (_stscanf(strThird, _T("%d"), &nThird) == 1 && _stscanf(strFourth, _T("%d"), &nFourth) == 1)
 				{
@@ -228,7 +244,8 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 			continue;
 	}
 	list<BookmarkInfo>::iterator it = m_links.begin();
-	for (i = 0; reinterpret_cast<TreeNode*>(it->hIt) != pParentNode; ++it)
+	for (i = 0; it != m_links.end() && i < (int)vShowPosition.size() &&
+		reinterpret_cast<TreeNode*>(it->hIt) != pParentNode; ++it)
 	{
 		GUTF8String strURL = it->strURL;
 		int Num = m_pSource->GetUrlToPagenum(strURL);
@@ -301,11 +318,13 @@ bool CBookmarksView::IsRectCoord(CString strString, list<GRect>& rects)
 		rects.push_back(GRect(n1, n2, n3, n4));
 		bResult = true;
 	}
-	return bResult;
+	return bResult && nCount % 4 == 0;
 }
 
 int CBookmarksView::SearchInContents(GUTF8String& strFind, BOOL& MatchCase, BOOL& WholeWordsOnly, bool Prev)
 {
+	if (m_links.empty())
+		return 0;
 	bool hitBeforeSel = false;
 	bool hitAfterSel = false;
 	bool firstEntry = true;
