@@ -18,21 +18,25 @@ jobs:
           - configuration: Release
             platform: Win32
             arch: x86
+            pe_machine: 014c
             nmake_args: ''
             output: src\Release\WinDjView.exe
           - configuration: Release
             platform: x64
             arch: x64
+            pe_machine: 8664
             nmake_args: X64=1
             output: src\Release_x64\WinDjView.exe
           - configuration: Debug
             platform: Win32
             arch: x86
+            pe_machine: 014c
             nmake_args: DEBUG=1
             output: src\Debug\WinDjView.exe
           - configuration: Debug
             platform: x64
             arch: x64
+            pe_machine: 8664
             nmake_args: X64=1 DEBUG=1
             output: src\Debug_x64\WinDjView.exe
 
@@ -55,6 +59,19 @@ jobs:
           $exe = '${{ matrix.output }}'
           if (-not (Test-Path -LiteralPath $exe)) {
             throw "Expected build output was not created: $exe"
+          }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) {
+            throw "Expected a PE executable: $exe"
+          }
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ($peOffset -lt 0 -or $peOffset + 6 -gt $bytes.Length -or
+              [BitConverter]::ToUInt32($bytes, $peOffset) -ne 0x00004550) {
+            throw "Invalid PE header: $exe"
+          }
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) {
+            throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
 
