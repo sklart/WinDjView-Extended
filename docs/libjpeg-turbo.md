@@ -63,3 +63,11 @@ The library source and license notices are included under
 `src/third_party/libjpeg-turbo`; its libjpeg API implementation is covered by
 the IJG license, with additional upstream BSD-style notices documented in
 `LICENSE.md`.
+## Local benchmark
+
+A Win32 Release smoke benchmark was run on 2026-08-01 using the same classic
+libjpeg API loop and the legacy `testimg.jpg` fixture (5,000 decodes). The
+legacy IJG JPEG 6b library took 1,391 ms; libjpeg-turbo 3.1.4.1 built with NASM
+SIMD took 687 ms (about 2.0x faster in this local run). This is a directional
+result only: it is not a release-performance guarantee and does not represent
+all JPEG sizes, formats, CPUs, or Windows versions.
