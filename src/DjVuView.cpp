@@ -6859,6 +6859,32 @@ bool CDjVuView::FindBookmarkTitle(GUTF8String strBookmarkTitle, int nPage, Bookm
 	}
 	return false;
 }
+static bool ParseIntStrict(const CString& source, int& value)
+{
+	CString text(source);
+	text.Trim();
+	if (text.IsEmpty())
+		return false;
+	TCHAR* end = NULL;
+	errno = 0;
+	const long parsed = _tcstol(text, &end, 10);
+	if (errno == ERANGE || end == (LPCTSTR)text || *end != 0 || parsed < INT_MIN || parsed > INT_MAX)
+		return false;
+	value = (int)parsed;
+	return true;
+}
+static bool ParseDoubleStrict(const CString& source, double& value)
+{
+	CString text(source);
+	text.Trim();
+	if (text.IsEmpty()) return false;
+	TCHAR* end = NULL;
+	errno = 0;
+	const double parsed = _tcstod(text, &end);
+	if (errno == ERANGE || end == (LPCTSTR)text || *end != 0 || !_finite(parsed)) return false;
+	value = parsed;
+	return true;
+}
 bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y)
 {
 	bool bIsText = false;
@@ -6902,20 +6928,24 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 		{
 			if (numStr.length() == 0)
 				return false;
-			if (numStr[0] == '+')
+			CString pageNumber = MakeCString(numStr);
+			int parsedPage = 0;
+			if (pageNumber[0] == '+')
 			{
-				Num = numStr.substr(1, numStr.length() - 1).toInt();
-				if (Num != -1)
-					Num += m_nPage + 1;
+				if (!ParseIntStrict(pageNumber.Mid(1), parsedPage))
+					return false;
+				if (parsedPage > INT_MAX - m_nPage - 1)
+					return false;
+				Num = parsedPage + m_nPage + 1;
 			}
-			else if (numStr[0] == '-')
+			else if (pageNumber[0] == '-')
 			{
-				Num = numStr.substr(1, numStr.length() - 1).toInt();
-				if (Num != -1)
-					Num = m_nPage + 1 - Num;
+				if (!ParseIntStrict(pageNumber.Mid(1), parsedPage))
+					return false;
+				Num = m_nPage + 1 - parsedPage;
 			}
-			else
-				Num = numStr.toInt();
+			else if (!ParseIntStrict(pageNumber, Num))
+				return false;
 		}
 
 		if (Num < 1 || Num > m_nPageCount)
@@ -6971,8 +7001,8 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 
 	if (bIsText)
 	{
-		X = off_X.toInt();
-		Y = off_Y.toInt();
+		if (!ParseIntStrict(MakeCString(off_X), X) || !ParseIntStrict(MakeCString(off_Y), Y))
+			return false;
 		return true;
 	}
 
@@ -6983,12 +7013,10 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 
 
 	double kx, ky;
-	int len;
 	int nPosX, nPosY;
 
-	kx = off_X.toDouble(0, delim);
-	len = off_Y.length();
-	ky = off_Y.toDouble(0, len);
+	if (!ParseDoubleStrict(MakeCString(off_X), kx) || !ParseDoubleStrict(MakeCString(off_Y), ky))
+		return false;
 	if (kx >= 0.0 && kx <= 1.0 && ky >= 0.0 && ky <= 1.0)
 	{
 		nPosX = (int)(kx * szPage.cx);
