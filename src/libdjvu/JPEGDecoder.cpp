@@ -173,6 +173,16 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
 
   (void) jpeg_read_header(&cinfo, TRUE);
 
+  const int expected_components =
+    cinfo.jpeg_color_space == JCS_GRAYSCALE ? 1 : 3;
+  if (!cinfo.image_width || !cinfo.image_height ||
+      cinfo.image_width > (JDIMENSION)(INT_MAX / expected_components) ||
+      cinfo.image_height > (JDIMENSION)INT_MAX)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG dimensions" );
+  }
+
   cinfo.out_color_space = cinfo.jpeg_color_space == JCS_GRAYSCALE ? JCS_GRAYSCALE : JCS_RGB;
   jpeg_start_decompress(&cinfo);
   if (cinfo.output_components != 1 && cinfo.output_components != 3)
