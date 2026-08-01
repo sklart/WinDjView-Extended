@@ -71,3 +71,11 @@ legacy IJG JPEG 6b library took 1,391 ms; libjpeg-turbo 3.1.4.1 built with NASM
 SIMD took 687 ms (about 2.0x faster in this local run). This is a directional
 result only: it is not a release-performance guarantee and does not represent
 all JPEG sizes, formats, CPUs, or Windows versions.
+
+## Corrupt-input smoke check
+
+On 2026-08-01, the temporary Win32 SIMD djpeg-static build rejected both an
+empty input (Empty input file) and a 128-byte truncation of 	estorig.jpg`n(Premature end of JPEG file followed by JPEG datastream contains no image)
+with exit code 1. This confirms controlled error reporting by libjpeg-turbo;
+the WinDjView JPEGDecoder adds its own setjmp error translation around the
+same libjpeg API.
