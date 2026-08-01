@@ -79,3 +79,13 @@ empty input (Empty input file) and a 128-byte truncation of 	estorig.jpg`n(Prema
 with exit code 1. This confirms controlled error reporting by libjpeg-turbo;
 the WinDjView JPEGDecoder adds its own setjmp error translation around the
 same libjpeg API.
+
+
+## Windows 7 release validation
+
+Run the Win32 binary on Windows 7 x86 and the x64 binary on Windows 7 x64.
+Open baseline, progressive, grayscale, ICC/EXIF JPEG-backed DjVu documents and
+repeat the corrupt-input cases. Confirm that the application starts and that
+dumpbin /imports WinDjView.exe contains no JPEG DLL import. Record the OS
+edition, CPU, NASM/SIMD build choice, input corpus, and observed result before
+publishing a release.
