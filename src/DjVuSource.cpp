@@ -634,7 +634,9 @@ void Bookmark::Load(const XMLNode& node)
 	if (node.GetAttribute(pszAttrTitle, str))
 		strTitle = MakeUTF8String(str);
 
-	node.GetIntAttribute(pszAttrType, nLinkType);
+	int nType;
+	if (node.GetIntAttribute(pszAttrType, nType) && nType >= URL && nType <= Text)
+		nLinkType = nType;
 
 	if (nLinkType == URL)
 	{
