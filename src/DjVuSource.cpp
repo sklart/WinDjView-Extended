@@ -1175,12 +1175,21 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	}
 
 	int nLength = static_cast<int>(min(file.GetLength(), 0x40000));
-	LPBYTE pBuf = new BYTE[nLength];
-	file.Read(pBuf, nLength);
+	if (nLength == 0)
+	{
+		file.Close();
+		return NULL;
+	}
+
+	vector<BYTE> buffer(nLength);
+	if (file.Read(&buffer[0], nLength) != (UINT)nLength)
+	{
+		file.Close();
+		return NULL;
+	}
 	file.Close();
 
-	MD5 digest(pBuf, nLength);
-	delete[] pBuf;
+	MD5 digest(&buffer[0], nLength);
 
 	GP<DjVuDocument> pDoc = NULL;
 	try
