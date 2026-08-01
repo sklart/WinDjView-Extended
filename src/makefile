@@ -38,6 +38,12 @@ RSC_MODE_FLAGS = /d "NDEBUG"
 JPEG_DEBUG_ARG =
 !ENDIF
 
+!IFDEF SIMD
+JPEG_SIMD_ARG = SIMD=1
+!ELSE
+JPEG_SIMD_ARG =
+!ENDIF
+
 INTDIR = .\$(CONFIG)$(DIR_SUFFIX)
 LIBDJVU = libdjvu$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
 JPEGLIB = third_party\libjpeg-turbo\jpeg$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
@@ -63,7 +69,7 @@ RSC_FLAGS = /l 0x409 /fo"$(INTDIR)\WinDjView.res" $(RSC_FLAGS) $(RSC_MODE_FLAGS)
 all: $(JPEGLIB) $(OUT)
 
 $(JPEGLIB):
-	@cd third_party\libjpeg-turbo && $(MAKE) /nologo /f makefile.wdj $(JPEG_X64_ARG) $(JPEG_DEBUG_ARG)
+	@cd third_party\libjpeg-turbo && $(MAKE) /nologo /f makefile.wdj $(JPEG_X64_ARG) $(JPEG_DEBUG_ARG) $(JPEG_SIMD_ARG)
 
 rebuild: clean all
 

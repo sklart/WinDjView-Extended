@@ -33,6 +33,12 @@ JPEG_DEBUG_SUFFIX =
 JPEG_DEBUG_ARG =
 !ENDIF
 
+!IFDEF SIMD
+JPEG_SIMD_ARG = SIMD=1
+!ELSE
+JPEG_SIMD_ARG =
+!ENDIF
+
 JPEG_ROOT = ..\third_party\libjpeg-turbo
 JPEG_BUILD = $(JPEG_ROOT)\build\$(JPEG_CONFIG)
 JPEGLIB = $(JPEG_ROOT)\jpeg$(JPEG_DEBUG_SUFFIX)$(SUFFIX).lib
@@ -166,7 +172,7 @@ OBJS = "$(INTDIR)\Arrays.obj" \
 FORCE:
 
 $(JPEGLIB): FORCE
-	@cd $(JPEG_ROOT) && $(MAKE) /nologo /f makefile.wdj $(JPEG_DEBUG_ARG) $(JPEG_X64_ARG)
+	@cd $(JPEG_ROOT) && $(MAKE) /nologo /f makefile.wdj $(JPEG_DEBUG_ARG) $(JPEG_X64_ARG) $(JPEG_SIMD_ARG)
 
 $(OUT): $(JPEGLIB) "$(INTDIR)" $(OBJS)
 	@$(GENLIB) $(OUTOPT)$(OUT) $(OBJS) $(OUTOTHER)
