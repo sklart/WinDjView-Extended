@@ -1688,7 +1688,7 @@ void DjVuSource::ReadAnnotations(GP<ByteStream> pInclStream,
 
 			if (chkid == "INCL")
 			{
-				ReadAnnotations(pInclStream, processed, pAnnoStream);
+				ReadAnnotations(chunk_stream, processed, pAnnoStream);
 			}
 			else if (chkid == "FORM:ANNO")
 			{
