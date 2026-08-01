@@ -40,7 +40,7 @@ JPEG_DEBUG_ARG =
 
 INTDIR = .\$(CONFIG)$(DIR_SUFFIX)
 LIBDJVU = libdjvu$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
-JPEGLIB = third_party\jpeg-6b\jpeg$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
+JPEGLIB = third_party\libjpeg-turbo\jpeg$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
 
 CPP_FLAGS = $(CPP_FLAGS) /D "_UNICODE" /D "UNICODE"
 LINK_FLAGS = $(LINK_FLAGS) /entry:"wWinMainCRTStartup"
@@ -63,7 +63,7 @@ RSC_FLAGS = /l 0x409 /fo"$(INTDIR)\WinDjView.res" $(RSC_FLAGS) $(RSC_MODE_FLAGS)
 all: $(JPEGLIB) $(OUT)
 
 $(JPEGLIB):
-	@cd third_party\jpeg-6b && $(MAKE) /nologo /f makefile.wdj $(JPEG_X64_ARG) $(JPEG_DEBUG_ARG)
+	@cd third_party\libjpeg-turbo && $(MAKE) /nologo /f makefile.wdj $(JPEG_X64_ARG) $(JPEG_DEBUG_ARG)
 
 rebuild: clean all
 

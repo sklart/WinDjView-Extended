@@ -5,7 +5,7 @@ Current MSBuild cannot load those project files, so the supported build path is
 the checked-in NMAKE files. `WinDjView.Modern.sln` is a VS2022 Makefile-project wrapper for that supported build path.
 
 On the local Visual Studio 18 Enterprise installation, the following commands
-were run successfully on 2026-07-29:
+were run successfully on 2026-08-01:
 
 - Release Win32: `nmake /nologo /f makefile` in `src/libdjvu`, then `src`.
 - Release x64: `nmake /nologo /f makefile X64=1` in `src/libdjvu`, then `src`.
@@ -15,10 +15,14 @@ were run successfully on 2026-07-29:
   `src`.
 
 All four commands create a statically linked `libdjvu` and the corresponding
-`WinDjView.exe`. The x64 path builds `third_party/jpeg-6b/jpeg64.lib` or its
-Debug counterpart from the bundled source instead of attempting to link the
-legacy Win32 binary.
+`WinDjView.exe`. The x64 path builds the matching
+`third_party/libjpeg-turbo/jpeg64.lib` or Debug counterpart from bundled
+source instead of attempting to link a Win32 binary.
 
-The Debug x64 build completes with warnings in inherited DjVuLibre and IJG
-JPEG 6b code about size conversions and legacy CRT APIs. These are recorded
-for a separate upstream-portability audit rather than hidden globally.
+The libjpeg-turbo 3.1.4.1 adapter configures the static libjpeg 6.2 API/ABI
+with `WITH_JPEG7=OFF`, `WITH_JPEG8=OFF`, `/MT` for Release, and `/MTd` for
+Debug. See [libjpeg-turbo.md](libjpeg-turbo.md) for the full integration notes.
+
+The Debug x64 build completes without newly introduced JPEG warnings. Existing
+warnings in inherited DjVuLibre code about legacy CRT APIs remain recorded for
+a separate upstream-portability audit rather than hidden globally.

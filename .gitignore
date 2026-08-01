@@ -9,13 +9,11 @@ src/libdjvu/Objs.dbg/
 src/libdjvu/Objs64.dbg/
 src/libdjvu/*.lib
 
-src/third_party/jpeg-6b/Objs/
-src/third_party/jpeg-6b/Objs64/
-src/third_party/jpeg-6b/Objsd/
-src/third_party/jpeg-6b/Objsd64/
-src/third_party/jpeg-6b/jpegd.lib
-src/third_party/jpeg-6b/jpegd64.lib
-src/third_party/jpeg-6b/jpeg64.lib
+src/third_party/libjpeg-turbo/build/
+src/third_party/libjpeg-turbo/jpeg.lib
+src/third_party/libjpeg-turbo/jpeg64.lib
+src/third_party/libjpeg-turbo/jpegd.lib
+src/third_party/libjpeg-turbo/jpegd64.lib
 # Visual Studio user and intermediate files.
 *.suo
 *.user

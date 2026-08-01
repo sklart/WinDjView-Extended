@@ -75,9 +75,9 @@ extern "C" {
 #define INT32 jpeg_INT32
 #define INT16 jpeg_INT16
 #include <stdio.h>
-#include "jconfig.h"
-#include "jpeglib.h"
-#include "jerror.h"
+#include <jconfig.h>
+#include <jpeglib.h>
+#include <jerror.h>
 #undef FAR
 #undef INT32
 #undef INT16
@@ -300,7 +300,8 @@ skip_input_data (j_decompress_ptr cinfo, long num_bytes)
 
   if (num_bytes > (long) src->pub.bytes_in_buffer)
   {
-    src->byteStream->seek((num_bytes - src->pub.bytes_in_buffer), SEEK_CUR);
+    const long remaining = num_bytes - (long)src->pub.bytes_in_buffer;
+    src->byteStream->seek(remaining, SEEK_CUR);
     (void) fill_input_buffer(cinfo);
   }else
   {

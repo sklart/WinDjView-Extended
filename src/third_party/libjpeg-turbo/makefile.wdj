@@ -1,0 +1,48 @@
+# NMAKE adapter for libjpeg-turbo 3.1.4.1.  It builds only the static
+# libjpeg-compatible library used by WinDjView.
+
+!IFNDEF CMAKE
+CMAKE = "$(VSINSTALLDIR)Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+!ENDIF
+
+!IFDEF X64
+ARCH_SUFFIX = _x64
+LIB_SUFFIX = 64
+!ELSE
+ARCH_SUFFIX =
+LIB_SUFFIX =
+!ENDIF
+
+!IFDEF DEBUG
+CONFIG = Debug$(ARCH_SUFFIX)
+DEBUG_SUFFIX = d
+CMAKE_BUILD_TYPE = Debug
+CMAKE_RUNTIME = MultiThreadedDebug
+!ELSE
+CONFIG = Release$(ARCH_SUFFIX)
+DEBUG_SUFFIX =
+CMAKE_BUILD_TYPE = Release
+CMAKE_RUNTIME = MultiThreaded
+!ENDIF
+
+!IFDEF SIMD
+SIMD_OPTIONS = -DWITH_SIMD=ON -DREQUIRE_SIMD=ON
+!ELSE
+# NASM is optional.  Set SIMD=1 after installing NASM to require SIMD.
+SIMD_OPTIONS = -DWITH_SIMD=OFF -DREQUIRE_SIMD=OFF
+!ENDIF
+
+BUILDDIR = build\$(CONFIG)
+OUT = jpeg$(DEBUG_SUFFIX)$(LIB_SUFFIX).lib
+
+all: $(OUT)
+
+FORCE:
+
+$(OUT): FORCE
+	@$(CMAKE) -S . -B "$(BUILDDIR)" -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -DCMAKE_MSVC_RUNTIME_LIBRARY=$(CMAKE_RUNTIME) -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_JPEG7=OFF -DWITH_JPEG8=OFF -DWITH_TURBOJPEG=OFF -DWITH_TOOLS=OFF $(SIMD_OPTIONS)
+	@$(CMAKE) --build "$(BUILDDIR)" --target jpeg-static
+	@copy /y "$(BUILDDIR)\jpeg-static.lib" "$(OUT)" >nul
+
+clean:
+	@if exist "$(OUT)" del /q /f "$(OUT)"

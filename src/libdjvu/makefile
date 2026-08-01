@@ -14,6 +14,28 @@ WINTYPE = /D"WIN32"
 SUFFIX =
 !ENDIF
 
+# libjpeg-turbo is built by its NMAKE adapter using CMake only internally.
+!IFDEF X64
+JPEG_ARCH_SUFFIX = _x64
+JPEG_X64_ARG = X64=1
+!ELSE
+JPEG_ARCH_SUFFIX =
+JPEG_X64_ARG =
+!ENDIF
+
+!IFDEF DEBUG
+JPEG_CONFIG = Debug$(JPEG_ARCH_SUFFIX)
+JPEG_DEBUG_SUFFIX = d
+JPEG_DEBUG_ARG = DEBUG=1
+!ELSE
+JPEG_CONFIG = Release$(JPEG_ARCH_SUFFIX)
+JPEG_DEBUG_SUFFIX =
+JPEG_DEBUG_ARG =
+!ENDIF
+
+JPEG_ROOT = ..\third_party\libjpeg-turbo
+JPEG_BUILD = $(JPEG_ROOT)\build\$(JPEG_CONFIG)
+JPEGLIB = $(JPEG_ROOT)\jpeg$(JPEG_DEBUG_SUFFIX)$(SUFFIX).lib
 #MAKEDLL = 1
 #dumpbin /linkermember:1 libdjvud.lib > libdjvud.map
 
@@ -71,13 +93,13 @@ OUTOPT = /ltcg $(OUTOPT)
 COMPOPT = /nologo /c /W3 /Fo"$(INTDIR)\\" $(WINTYPE) /D"_WINDOWS" /D"_CONSOLE" /D"NDEBUG" \
 			/D"HAS_WCTYPE=1" /D"THREADMODEL=WINTHREADS" /D"DO_CHANGELOCALE=0" /D"WIN32_MONITOR" \
 			/D"NEED_JPEG_DECODER" /D"_CRT_SECURE_NO_DEPRECATE" \
-			/D"_CRT_NONSTDC_NO_DEPRECATE" /D"_SECURE_SCL=0" /D"_UNICODE" /D"UNICODE"
+			/D"_CRT_NONSTDC_NO_DEPRECATE" /D"_SECURE_SCL=0" /D"_UNICODE" /D"UNICODE" /I"$(JPEG_BUILD)" /I"$(JPEG_ROOT)\src"
 
 !IFNDEF MAKEDLL
 COMPOPT = $(COMPOPT) /D"LIBDJVU_STATIC"
 !ENDIF
 
-all: $(OUT)
+all: $(JPEGLIB) $(OUT)
 
 rebuild: clean all
 
@@ -141,7 +163,12 @@ OBJS = "$(INTDIR)\Arrays.obj" \
        "$(INTDIR)\XMLTags.obj" \
        "$(INTDIR)\ZPCodec.obj"
 
-$(OUT): "$(INTDIR)" $(OBJS)
+FORCE:
+
+$(JPEGLIB): FORCE
+	@cd $(JPEG_ROOT) && $(MAKE) /nologo /f makefile.wdj $(JPEG_DEBUG_ARG) $(JPEG_X64_ARG)
+
+$(OUT): $(JPEGLIB) "$(INTDIR)" $(OBJS)
 	@$(GENLIB) $(OUTOPT)$(OUT) $(OBJS) $(OUTOTHER)
 
 .cpp{$(INTDIR)}.obj::

@@ -25,6 +25,7 @@ The modern solution was verified with:
 
 The project initializes `VsDevCmd.bat` itself, including the MFC include paths,
 so it can be built from MSBuild without manually opening a Developer Console.
+
 ## Release Win32
 
 ```bat
@@ -47,8 +48,8 @@ cd ..
 nmake /nologo /f makefile X64=1
 ```
 
-Output: `src\Release_x64\WinDjView.exe`. The build also creates the x64
-variant of the bundled IJG JPEG 6b static library from source.
+Output: `src\Release_x64\WinDjView.exe`. The build also creates the matching
+x64 bundled libjpeg-turbo static library from source.
 
 ## Debug Win32 and x64
 
@@ -63,7 +64,16 @@ nmake /nologo /f makefile DEBUG=1
 
 The outputs are `src\Debug\WinDjView.exe` and
 `src\Debug_x64\WinDjView.exe`. Debug builds use separate static
-`libdjvud*.lib` and `jpegd*.lib` artifacts.
+`libdjvud*.lib` and `jpegd*.lib` artifacts. libjpeg-turbo is built internally
+through its NMAKE adapter, linked statically, and configured for the libjpeg
+6.2 API/ABI.
+
+## libjpeg-turbo
+
+The bundled JPEG implementation is libjpeg-turbo 3.1.4.1. See
+[docs/libjpeg-turbo.md](docs/libjpeg-turbo.md) for its NMAKE/CMake adapter,
+static-link settings, optional NASM SIMD mode, licensing notice, and update
+procedure.
 
 ## Windows 7
 
