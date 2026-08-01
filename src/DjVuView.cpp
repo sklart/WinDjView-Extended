@@ -19,6 +19,7 @@
 #include "stdafx.h"
 #include "WinDjView.h"
 #include "Global.h"
+#include "PositionParser.h"
 
 #include "DjVuDoc.h"
 #include "DjVuView.h"
@@ -9900,39 +9901,13 @@ bool CDjVuView::IsRectCoord(const GUTF8String& strText, list<GRect>& rects, bool
 	else
 		strString = MakeCString(strText);
 
-	strString.Replace(_T(','),_T(';'));
-	strString += _T(';');
-	int nCount = 0;
-	nPos = 0;
-	int nOldPos = 0;
-	while ((nPos = strString.Find(';', nPos)) > 0)
-	{
-		if (++nCount % 4 != 0)
-		{
-			++nPos;
-			continue;
-		}
-		CString str = strString.Mid(nOldPos, nPos - nOldPos);
-		nOldPos = ++nPos;
-		int n1, n2, n3, n4;
-		str.Replace(_T(';'),_T(' '));
-		n1 = n2 = n3 = n4 = -1;
-		if (_stscanf(str, _T("%d%d%d%d"), &n1, &n2, &n3, &n4) != 4)
-			return false;
-		if (bReturnCoord)
-		{
-			rects.push_back(GRect(n1, n2, n3, n4));
-		}
-		else
-			return true;
-	}
-	if (nCount % 4 == 0)
-	{
-		return true;
-	}
-	return false;
+	list<GRect> parsed;
+	if (!PositionParser::ParseRectangles(strString, parsed))
+		return false;
+	if (bReturnCoord)
+		rects.swap(parsed);
+	return true;
 }
-
 void CDjVuView::SelectRectangles(int nPage, const GUTF8String& strText)
 {
 	if (nPage < 0 || nPage >= m_nPageCount)

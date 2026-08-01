@@ -19,6 +19,7 @@
 #include "stdafx.h"
 #include "WinDjView.h"
 #include "BookmarksView.h"
+#include "PositionParser.h"
 
 #include "DjVuSource.h"
 #include "BookmarkDlg.h"
@@ -296,31 +297,8 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 
 bool CBookmarksView::IsRectCoord(CString strString, list<GRect>& rects)
 {
-	strString += _T(';');
-	bool bResult = false;
-	int nCount = 0;
-	int nPos = 0;
-	int nOldPos = 0;
-	while ((nPos = strString.Find(';', nPos)) > 0)
-	{
-		if (++nCount % 4 != 0)
-		{
-			++nPos;
-			continue;
-		}
-		CString str = strString.Mid(nOldPos, nPos - nOldPos);
-		nOldPos = ++nPos;
-		int n1, n2, n3, n4;
-		str.Replace(_T(';'),_T(' '));
-		n1 = n2 = n3 = n4 = -1;
-		if (_stscanf(str, _T("%d%d%d%d"), &n1, &n2, &n3, &n4) != 4)
-			return bResult;
-		rects.push_back(GRect(n1, n2, n3, n4));
-		bResult = true;
-	}
-	return bResult && nCount % 4 == 0;
+	return PositionParser::ParseRectangles(strString, rects);
 }
-
 int CBookmarksView::SearchInContents(GUTF8String& strFind, BOOL& MatchCase, BOOL& WholeWordsOnly, bool Prev)
 {
 	if (m_links.empty())
