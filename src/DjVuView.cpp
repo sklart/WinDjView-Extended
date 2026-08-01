@@ -6414,7 +6414,7 @@ void CDjVuView::ClearSelection(int nPage)
 	}
 	else
 	{
-		CWaitCursor* pWaitCursor = new CWaitCursor();
+		CWaitCursor waitCursor;
 		for (nPage = 0; nPage < m_nPageCount; ++nPage)
 		{
 
@@ -6429,8 +6429,6 @@ void CDjVuView::ClearSelection(int nPage)
 				page.bIsFindResult = false;
 			}
 		}
-		delete pWaitCursor;
-
 		if (m_nSelectionPage != -1)
 		{
 			InvalidatePage(m_nSelectionPage);
