@@ -27,6 +27,29 @@
 #include "NavPane.h"
 #include "MDIChild.h"
 
+#include <limits.h>
+
+namespace
+{
+bool ParseBookmarkInteger(const CString& source, int& value)
+{
+	CString text(source);
+	text.Trim();
+	if (text.IsEmpty())
+		return false;
+
+	TCHAR* end = NULL;
+	errno = 0;
+	const long parsed = _tcstol(text, &end, 10);
+	if (errno == ERANGE || end == (LPCTSTR)text || *end != 0 ||
+		parsed < INT_MIN || parsed > INT_MAX)
+		return false;
+
+	value = (int)parsed;
+	return true;
+}
+}
+
 
 // CBookmarksView
 
@@ -127,12 +150,8 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 	if (pParentNode == NULL || pParentNode->pChild == NULL || nCount <= 0)
 		return;
 
-	int i = 0;
-	int nPageCount = m_pSource->GetPageCount();
-
+	const int nPageCount = m_pSource->GetPageCount();
 	TreeNode* pPositionNode = pParentNode->pChild;
-	TreeNode* pLastChildNode = pParentNode->pLastChild;
-
 	list<CString> strList;
 	for (; pPositionNode != NULL; pPositionNode = pPositionNode->pNext)
 	{
@@ -143,158 +162,132 @@ void CBookmarksView::AddShowpositionToContents(TreeNode* pParentNode, int nCount
 	if (strList.empty() || strList.size() + 1 > (size_t)nCount)
 		return;
 
-	vector <ShowPosition> vShowPosition;
-	vShowPosition.resize((size_t)nCount - strList.size() - 1);
-	if (vShowPosition.empty())
+	const size_t itemCount = (size_t)nCount - strList.size() - 1;
+	vector<ShowPosition> positions(itemCount);
+	if (positions.empty())
 		return;
-	
-	for (list<CString>::iterator itList = strList.begin();
-		itList != strList.end() && i < (int)vShowPosition.size(); ++itList, ++i)
+
+	// Parse all companion records before applying a single bookmark mutation.
+	size_t sequentialIndex = 0;
+	for (list<CString>::iterator it = strList.begin(); it != strList.end(); ++it)
 	{
-		int nItemPos = -1;
-		CString strText = (*itList).Trim();
-		strText.Replace(_T(","),_T(";"));
+		CString strText = (*it).Trim();
+		strText.Replace(_T(","), _T(";"));
 		if (strText.IsEmpty())
-			continue;
-		if (strText[0] == 't')
-		{
-			vShowPosition[i].type = text;
-			strText.Replace(_T("t"),_T(""));
-		}
-		CString strFirst, strSecond, strThird, strFourth;
-		int nFirst, nSecond, nThird, nFourth;
+			return;
 
-		int nPos = strText.Find('*');
-		if (nPos != -1)
+		size_t itemIndex = sequentialIndex;
+		const int star = strText.Find(_T('*'));
+		if (star >= 0)
 		{
-			--i;
-			strFirst = strText.Mid(0, nPos);
-			strText = strText.Mid(nPos + 1, strText.GetLength() - nPos - 1);
-			if (_stscanf(strFirst, _T("%d"), &nFirst) == 1)
-				nItemPos = nFirst - 1;
-			else
-				continue;
-		}
-
-		nPos = strText.Find(';');
-		if (nPos != -1)
-		{
-			if (nItemPos >= 0 && nItemPos < (int)vShowPosition.size() && IsRectCoord(strText, vShowPosition[nItemPos].rects))
-			{
-				vShowPosition[nItemPos].type = selection;
-			}
-			else
-			{
-				strFirst = strText.Mid(0, nPos);
-				strSecond = strText.Mid(nPos + 1, strText.GetLength() - nPos - 1);
-				nPos = strSecond.Find(';');
-				if (nPos != -1)
-				{
-					strThird = strSecond.Mid(nPos + 1, strSecond.GetLength() - nPos - 1);
-					strSecond = strSecond.Mid(0, nPos);
-					nPos = strThird.Find(';');
-					if (nPos != -1)
-					{
-						strFourth  = strThird.Mid(nPos + 1, strThird.GetLength() - nPos - 1);
-						strThird = strThird.Mid(0, nPos);
-					}
-				}
-			}
+			if (strText.Find(_T('*'), star + 1) >= 0)
+				return;
+			int target;
+			if (!ParseBookmarkInteger(strText.Left(star), target) || target <= 0 ||
+				(size_t)target > itemCount)
+				return;
+			itemIndex = (size_t)target - 1;
+			strText = strText.Mid(star + 1);
 		}
 		else
 		{
-			strFirst = _T("0");
-			strSecond = strText;
+			if (sequentialIndex >= itemCount)
+				return;
+			++sequentialIndex;
 		}
-		if (_stscanf(strFirst, _T("%d"), &nFirst) == 1 && _stscanf(strSecond, _T("%d"), &nSecond) == 1)
+
+		ShowPosition parsed;
+		if (strText[0] == _T('t'))
 		{
-			if (nItemPos >= 0 && nItemPos < (int)vShowPosition.size())
+			parsed.type = text;
+			strText = strText.Mid(1);
+		}
+		if (strText.IsEmpty())
+			return;
+
+		if (strText.Find(_T(';')) >= 0 && IsRectCoord(strText, parsed.rects))
+		{
+			parsed.type = selection;
+		}
+		else
+		{
+			const int delimiter = strText.Find(_T(';'));
+			CString first = delimiter < 0 ? _T("0") : strText.Left(delimiter);
+			CString second = delimiter < 0 ? strText : strText.Mid(delimiter + 1);
+			int nFirst, nSecond;
+			if (ParseBookmarkInteger(first, nFirst) && ParseBookmarkInteger(second, nSecond) &&
+				((nFirst > 0 && nSecond > -nFirst) || (nFirst <= 0 && nSecond > 0 && nFirst > -nSecond)) && strText.Find(_T('-')) < 0)
 			{
-				if (_stscanf(strThird, _T("%d"), &nThird) == 1 && _stscanf(strFourth, _T("%d"), &nFourth) == 1)
+				if (parsed.type == text)
 				{
-					{
-						GRect rect = GRect(nFirst, nSecond, nThird, nFourth);
-						vShowPosition[nItemPos].type = selection;
-						vShowPosition[nItemPos].rects.push_back(rect);
-					}
-				}
-			}
-			else if (nFirst + nSecond > 0 && strText.Find('-') == -1)
-			{
-				if (vShowPosition[i].type == text)
-				{
-					vShowPosition[i].textStart = max(nFirst, 0);
-					vShowPosition[i].textLen = max(nSecond, 1);
+					parsed.textStart = max(nFirst, 0);
+					parsed.textLen = max(nSecond, 1);
 				}
 				else
 				{
-					vShowPosition[i].type = view;
-					vShowPosition[i].nX = max(nFirst, 0);
-					vShowPosition[i].nY = nSecond;
+					parsed.type = view;
+					parsed.nX = max(nFirst, 0);
+					parsed.nY = nSecond;
 				}
 			}
-			else if (strText.Find('.') != -1 || strText.Find('-') != -1)
+			else if (parsed.type == none && (strText.Find(_T('.')) >= 0 || strText.Find(_T('-')) >= 0))
 			{
-				vShowPosition[i].type = url;
-				vShowPosition[i].strURL = _T("?&showposition=") + strText;
+				parsed.type = url;
+				parsed.strURL = _T("?&showposition=") + strText;
 			}
 			else
-				continue;
+				return;
 		}
-		else
-			continue;
+		positions[itemIndex] = parsed;
 	}
+
 	list<BookmarkInfo>::iterator it = m_links.begin();
-	for (i = 0; it != m_links.end() && i < (int)vShowPosition.size() &&
-		reinterpret_cast<TreeNode*>(it->hIt) != pParentNode; ++it)
+	for (size_t i = 0; it != m_links.end() && i < positions.size() &&
+		reinterpret_cast<TreeNode*>(it->hIt) != pParentNode; ++it, ++i)
 	{
 		GUTF8String strURL = it->strURL;
-		int Num = m_pSource->GetUrlToPagenum(strURL);
-		if (Num >= 0 && Num < nPageCount)
+		const int Num = m_pSource->GetUrlToPagenum(strURL);
+		if (Num < 0 || Num >= nPageCount)
+			continue;
+
+		Bookmark* bm = it->pBookmark;
+		bm->nPage = Num;
+		if (positions[i].type == view)
 		{
-			Bookmark* bm = it->pBookmark;
-			bm->nPage = Num;
-			if (vShowPosition[i].type == view)
+			bm->nLinkType = Bookmark::View;
+			bm->ptOffset.x = positions[i].nX;
+			bm->ptOffset.y = positions[i].nY;
+			if (bm->ptOffset.y <= 0)
 			{
-				bm->nLinkType = Bookmark::View;
-				bm->ptOffset.x = vShowPosition[i].nX;
-				bm->ptOffset.y = vShowPosition[i].nY;
-				if (bm->ptOffset.y <= 0)
-				{
-					PageInfo pInfo = m_pSource->GetPageInfo(Num);
-					bm->ptOffset.y += pInfo.szPage.cy;
-				}
-			}
-			else if (vShowPosition[i].type == text)
-			{
-				bm->nLinkType = Bookmark::Text;
-				bm->textStart = vShowPosition[i].textStart;
-				bm->textLen = vShowPosition[i].textLen;
-			}
-			else if (vShowPosition[i].type == url)
-			{
-				bm->nLinkType = Bookmark::URL;
-				bm->strURL = MakeUTF8String(vShowPosition[i].strURL + _T("&page=")) + GUTF8String(Num + 1);
-			}
-			else if (vShowPosition[i].type == selection)
-			{
-				bm->nLinkType = Bookmark::URL;
-				CString strText = _T("?&showposition=");
-				for (list<GRect>::iterator rect_it = vShowPosition[i].rects.begin(); rect_it != vShowPosition[i].rects.end(); ++rect_it)
-				{
-					strText = strText + MakeCString(rect_it->xmin) + _T(';') + MakeCString(rect_it->ymin) + _T(';') + 
-						MakeCString(rect_it->width()) + _T(';') + MakeCString(rect_it->height()) + _T(';');
-				}
-				strText.TrimRight(';');
-				bm->strURL = MakeUTF8String(strText + _T("&page=")) + GUTF8String(Num + 1);
+				PageInfo pInfo = m_pSource->GetPageInfo(Num);
+				bm->ptOffset.y += pInfo.szPage.cy;
 			}
 		}
-
-		if ( ++i == vShowPosition.size())
-			break;
+		else if (positions[i].type == text)
+		{
+			bm->nLinkType = Bookmark::Text;
+			bm->textStart = positions[i].textStart;
+			bm->textLen = positions[i].textLen;
+		}
+		else if (positions[i].type == url)
+		{
+			bm->nLinkType = Bookmark::URL;
+			bm->strURL = MakeUTF8String(positions[i].strURL + _T("&page=")) + GUTF8String(Num + 1);
+		}
+		else if (positions[i].type == selection)
+		{
+			bm->nLinkType = Bookmark::URL;
+			CString encoded = _T("?&showposition=");
+			for (list<GRect>::iterator rect = positions[i].rects.begin(); rect != positions[i].rects.end(); ++rect)
+			{
+				encoded = encoded + MakeCString(rect->xmin) + _T(';') + MakeCString(rect->ymin) + _T(';') +
+					MakeCString(rect->width()) + _T(';') + MakeCString(rect->height()) + _T(';');
+			}
+			encoded.TrimRight(_T(';'));
+			bm->strURL = MakeUTF8String(encoded + _T("&page=")) + GUTF8String(Num + 1);
+		}
 	}
 }
-
 bool CBookmarksView::IsRectCoord(CString strString, list<GRect>& rects)
 {
 	return PositionParser::ParseRectangles(strString, rects);
