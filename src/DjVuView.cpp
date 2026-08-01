@@ -9943,6 +9943,13 @@ void CDjVuView::SelectRectangles(int nPage, const GUTF8String& strText)
 	if (!IsRectCoord(strText, rects, true))
 		return;
 
+	const PageInfo pageInfo = m_pSource->GetPageInfo(nPage);
+	for (list<GRect>::const_iterator rect = rects.begin(); rect != rects.end(); ++rect)
+	{
+		if (rect->xmin < 0 || rect->ymin < 0 || rect->xmax > pageInfo.szPage.cx || rect->ymax > pageInfo.szPage.cy)
+			return;
+	}
+
 	AddHistoryPoint();
 	Page& page = m_pages[nPage];
 	bool bInfoLoaded = false;
