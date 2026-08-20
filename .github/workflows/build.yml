@@ -80,6 +80,23 @@ jobs:
             throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
+          if ('${{ matrix.configuration }}' -eq 'Release') {
+            $vsDevCmd = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat'
+            $imports = & cmd.exe /d /c "call `"$vsDevCmd`" -arch=${{ matrix.arch }} -host_arch=x64 && dumpbin /imports `"$exe`""
+            if ($LASTEXITCODE -ne 0) {
+              throw "dumpbin /imports failed for $exe"
+            }
+            $dlls = @($imports | Where-Object { $_ -match '^\s+[A-Za-z0-9_.-]+\.dll\s*$' } |
+              ForEach-Object { $_.Trim() })
+            if ($dlls.Count -eq 0) {
+              throw "dumpbin did not report imported DLLs for $exe"
+            }
+            Write-Host 'Imported DLLs:'
+            $dlls
+            if ($dlls | Where-Object { $_ -match '(?i)^(jpeg|turbojpeg)\.dll$' }) {
+              throw "Release executable imports an external JPEG DLL: $exe"
+            }
+          }
 
       - name: Run JPEGDecoder regression tests
         shell: cmd
