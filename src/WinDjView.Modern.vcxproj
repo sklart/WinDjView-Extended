@@ -26,8 +26,8 @@
     <NMakeOutput>$(ProjectDir)Debug\WinDjView.exe</NMakeOutput>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><BuildArchitecture>x86</BuildArchitecture>
-    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile SIMD=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile SIMD=1</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild SIMD=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild SIMD=1</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean</NMakeCleanCommandLine>
     <NMakeOutput>$(ProjectDir)Release\WinDjView.exe</NMakeOutput>
   </PropertyGroup>
@@ -38,8 +38,8 @@
     <NMakeOutput>$(ProjectDir)Debug_x64\WinDjView.exe</NMakeOutput>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><BuildArchitecture>x64</BuildArchitecture>
-    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile X64=1</NMakeBuildCommandLine>
-    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild X64=1</NMakeReBuildCommandLine>
+    <NMakeBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile X64=1 SIMD=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile X64=1 SIMD=1</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile rebuild X64=1 SIMD=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile rebuild X64=1 SIMD=1</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>call &quot;$(VSInstallDir)Common7\Tools\VsDevCmd.bat&quot; -arch=$(BuildArchitecture) -host_arch=x64 &gt;nul &amp;&amp; cd /d &quot;$(ProjectDir)libdjvu&quot; &amp;&amp; nmake /nologo /f makefile clean X64=1 &amp;&amp; cd .. &amp;&amp; nmake /nologo /f makefile clean X64=1</NMakeCleanCommandLine>
     <NMakeOutput>$(ProjectDir)Release_x64\WinDjView.exe</NMakeOutput>
   </PropertyGroup>

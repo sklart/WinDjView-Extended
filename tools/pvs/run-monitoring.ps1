@@ -4,10 +4,27 @@ param(
 	[ValidateSet('Win32', 'x64')]
 	[string]$Platform = 'Win32',
 	[string]$ReportPath = '',
-	[string]$PvsStudioPath = ${env:ProgramFiles(x86)} + '\PVS-Studio'
+	[string]$PvsStudioPath = ${env:ProgramFiles(x86)} + '\PVS-Studio',
+	[string]$NasmDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($Configuration -eq 'Release')
+{
+	if (-not [string]::IsNullOrWhiteSpace($NasmDirectory))
+	{
+		if (-not (Test-Path -LiteralPath (Join-Path $NasmDirectory 'nasm.exe')))
+		{
+			throw "nasm.exe was not found in: $NasmDirectory"
+		}
+		$env:Path = $NasmDirectory + ';' + $env:Path
+	}
+	elseif (-not (Get-Command nasm.exe -ErrorAction SilentlyContinue))
+	{
+		throw 'NASM is required for Release SIMD builds. Install NASM or pass -NasmDirectory to an existing NASM installation.'
+	}
+}
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $solutionPath = Join-Path $repositoryRoot 'WinDjView.Modern.sln'

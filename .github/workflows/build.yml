@@ -82,9 +82,8 @@ jobs:
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
 
       - name: Run JPEGDecoder regression tests
-        if: matrix.configuration == 'Debug' && matrix.platform == 'Win32'
         shell: cmd
-        run: tools\tests\run-jpegdecoder-regression.cmd
+        run: tools\tests\run-jpegdecoder-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
 
       - name: Upload executable
         if: success()

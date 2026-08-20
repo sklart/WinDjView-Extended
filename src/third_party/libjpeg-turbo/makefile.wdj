@@ -39,7 +39,14 @@ all: $(OUT)
 
 FORCE:
 
-$(OUT): FORCE
+!IFDEF SIMD
+check-nasm:
+	@where nasm >nul 2>nul || (echo NASM is required for Release SIMD builds. Install NASM or explicitly use a non-SIMD NMAKE build. & exit /b 1)
+!ELSE
+check-nasm:
+!ENDIF
+
+$(OUT): check-nasm FORCE
 	@$(CMAKE) -S . -B "$(BUILDDIR)" -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) -DCMAKE_MSVC_RUNTIME_LIBRARY=$(CMAKE_RUNTIME) -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DWITH_JPEG7=OFF -DWITH_JPEG8=OFF -DWITH_TURBOJPEG=OFF -DWITH_TOOLS=OFF $(SIMD_OPTIONS)
 	@$(CMAKE) --build "$(BUILDDIR)" --target jpeg-static
 	@copy /y "$(BUILDDIR)\jpeg-static.lib" "$(OUT)" >nul

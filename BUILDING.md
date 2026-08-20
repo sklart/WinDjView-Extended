@@ -8,8 +8,10 @@ consume them directly.
 ## Prerequisites
 
 Install Visual Studio 2022 or newer with **Desktop development with C++** and
-MFC. Run commands in a Developer Command Prompt or initialise the environment
-with `VsDevCmd.bat`.
+MFC. Open **Developer Command Prompt for VS**, then run the commands below.
+This works with Community, Professional, and Enterprise editions. For scripted
+discovery, use `vswhere.exe` instead of hard-coding a Visual Studio edition or
+installation-directory version.
 
 ## Visual Studio 2022 solution
 
@@ -17,23 +19,17 @@ with `VsDevCmd.bat`.
 project and exposes Debug/Release for Win32/x64. The historical
 `src\WinDjView.sln` and `.vcproj` files are preserved unchanged.
 
-The modern solution was verified with:
-
-```bat
-"C:\Program Files\Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\MSBuild.exe" WinDjView.Modern.sln /m /t:Rebuild /p:Configuration=Release;Platform=Win32
-```
-
-The project initializes `VsDevCmd.bat` itself, including the MFC include paths,
-so it can be built from MSBuild without manually opening a Developer Console.
+The project initializes `VsDevCmd.bat` itself, including the MFC include paths.
+It can therefore be built from MSBuild as well as from a Developer Command
+Prompt.
 
 ## Release Win32
 
 ```bat
-call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=x64
 cd src\libdjvu
-nmake /nologo /f makefile
+nmake /nologo /f makefile SIMD=1
 cd ..
-nmake /nologo /f makefile
+nmake /nologo /f makefile SIMD=1
 ```
 
 Output: `src\Release\WinDjView.exe`.
@@ -41,11 +37,10 @@ Output: `src\Release\WinDjView.exe`.
 ## Release x64
 
 ```bat
-call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 cd src\libdjvu
-nmake /nologo /f makefile X64=1
+nmake /nologo /f makefile X64=1 SIMD=1
 cd ..
-nmake /nologo /f makefile X64=1
+nmake /nologo /f makefile X64=1 SIMD=1
 ```
 
 Output: `src\Release_x64\WinDjView.exe`. The build also creates the matching
@@ -67,6 +62,10 @@ The outputs are `src\Debug\WinDjView.exe` and
 `libdjvud*.lib` and `jpegd*.lib` artifacts. libjpeg-turbo is built internally
 through its NMAKE adapter, linked statically, and configured for the libjpeg
 6.2 API/ABI.
+
+Release builds use NASM SIMD. If `nasm` is unavailable, the JPEG adapter stops
+before CMake with an explanation. For diagnostic or legacy environments, omit
+`SIMD=1` from both NMAKE commands to make a supported non-SIMD Release build.
 
 ## libjpeg-turbo
 
