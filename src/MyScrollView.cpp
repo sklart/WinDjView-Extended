@@ -346,7 +346,7 @@ BOOL CMyScrollView::OnMouseWheel(UINT nFlags, short zDelta, CPoint point)
 	int nToScroll = ::MulDiv(-zDelta, uWheelScrollLines, WHEEL_DELTA);
 	int nDisplacement;
 
-	bool bResult;
+	bool bResult = false;
 	if (m_bVertScroll && (!m_bHorzScroll || (nFlags & MK_SHIFT) == 0))
 	{
 		if (uWheelScrollLines == WHEEL_PAGESCROLL)

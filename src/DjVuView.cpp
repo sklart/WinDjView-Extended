@@ -4080,29 +4080,30 @@ void CDjVuView::OnPageInformation()
 		if (!strLine.IsEmpty() && strLine[0] == '\003')
 			strLine = strLine.Mid(1);
 
-		TCHAR szName[1000];
-		int nWidth, nHeight, nDPI, nVersion, nPart, nColors, nCCS, nShapes;
-		double fSize, fRatio;
+		TCHAR szName[1000] = { 0 };
+		int nWidth = 0, nHeight = 0, nDPI = 0, nVersion = 0, nPart = 0, nColors = 0, nCCS = 0, nShapes = 0;
+		double fSize = 0.0, fRatio = 0.0;
+		int nParsed = 0, nExpected = 0;
 		CString strFormatted, szFile;
 
 		if (strLine.Find(_T("DjVuFile.djvu_header")) == 0)
 		{
 			strLine = strLine.Mid(20);
-			_stscanf(strLine, _T("%d%d%d%d"), &nWidth, &nHeight, &nDPI, &nVersion);
+			nParsed = _stscanf(strLine, _T("%d%d%d%d"), &nWidth, &nHeight, &nDPI, &nVersion); nExpected = 4;
 			strFormatted.Format(_T("DJVU Image (%dx%d, %d dpi) version %d:\n"),
 				nWidth, nHeight, nDPI, nVersion);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_header")) == 0)
 		{
 			strLine = strLine.Mid(20);
-			_stscanf(strLine, _T("%d%d%d"), &nWidth, &nHeight, &nDPI);
+			nParsed = _stscanf(strLine, _T("%d%d%d"), &nWidth, &nHeight, &nDPI); nExpected = 3;
 			strFormatted.Format(_T("IW44 Image (%dx%d, %d dpi):\n"),
 				nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.page_info")) == 0)
 		{
 			strLine = strLine.Mid(18);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tPage information."),
 				fSize, szName);
 		}
@@ -4112,191 +4113,194 @@ void CDjVuView::OnPageInformation()
 			int tab = strLine.Find('\t');
 			szFile = strLine.Left(tab);
 			strLine = strLine.Mid(tab);
-			_stscanf(strLine, _T("%lf%s"),&fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIndirection chunk (%s)."),
 				fSize, szName, szFile);
 		}
 		else if (strLine.Find(_T("DjVuFile.indir_chunk2")) == 0)
 		{
 			strLine = strLine.Mid(21);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIndirection chunk."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JB2_fg")) == 0)
 		{
 			strLine = strLine.Mid(15);
-			_stscanf(strLine, _T("%d%d%lf%s"), &nColors, &nCCS, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%lf%999s"), &nColors, &nCCS, &fSize, szName); nExpected = 4;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJB2 foreground colors (%d color%s, %d ccs)."),
 				fSize, szName, nColors, (nColors == 1 ? _T("") : _T("s")), nCCS);
 		}
 		else if (strLine.Find(_T("DjVuFile.shape_dict")) == 0)
 		{
 			strLine = strLine.Mid(19);
-			_stscanf(strLine, _T("%d%lf%s"), &nShapes, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%lf%999s"), &nShapes, &fSize, szName); nExpected = 3;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJB2 shapes dictionary (%d shape%s)."),
 				fSize, szName, nShapes, (nShapes == 1 ? _T("") : _T("s")));
 		}
 		else if (strLine.Find(_T("DjVuFile.fg_mask")) == 0)
 		{
 			strLine = strLine.Mid(16);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJB2 foreground mask (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.G4_mask")) == 0)
 		{
 			strLine = strLine.Mid(16);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tG4 foreground mask (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_bg1")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIW44 background (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_bg2")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%d%d%lf%s"), &nPart, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%lf%999s"), &nPart, &nDPI, &fSize, szName); nExpected = 4;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIW44 background (part %d, %d dpi)."),
 				fSize, szName, nPart, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_data1")) == 0)
 		{
 			strLine = strLine.Mid(19);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIW44 data (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_data2")) == 0)
 		{
 			strLine = strLine.Mid(19);
-			_stscanf(strLine, _T("%d%d%lf%s"), &nPart, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%lf%999s"), &nPart, &nDPI, &fSize, szName); nExpected = 4;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIW44 data (part %d, %d dpi)."),
 				fSize, szName, nPart, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.IW44_fg")) == 0)
 		{
 			strLine = strLine.Mid(16);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIW44 foreground colors (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_bg1_w")) == 0)
 		{
 			strLine = strLine.Mid(19);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG background."), fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_bg1")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG background (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_bg2")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG background (unimplemented)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_fg1_w")) == 0)
 		{
 			strLine = strLine.Mid(19);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG foreground colors."), fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_fg1")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG foreground colors (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG_fg2")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG foreground colors (unimplemented)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG2K_bg")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG-2000 background (unimplemented)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.JPEG2K_fg")) == 0)
 		{
 			strLine = strLine.Mid(17);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tJPEG-2000 foreground colors (unimplemented)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.ratio")) == 0)
 		{
 			strLine = strLine.Mid(14);
-			_stscanf(strLine, _T("%lf%lf"), &fRatio, &fSize);
+			nParsed = _stscanf(strLine, _T("%lf%lf"), &fRatio, &fSize); nExpected = 2;
 			strFormatted.Format(_T("\nCompression ratio: %.1f (%.1f Kb)"),
 				fRatio, fSize);
 		}
 		else if (strLine.Find(_T("DjVuFile.text")) == 0)
 		{
 			strLine = strLine.Mid(13);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tText (text, etc.)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.unrecog_chunk")) == 0)
 		{
 			strLine = strLine.Mid(22);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tUnrecognized chunk."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.nav_dir")) == 0)
 		{
 			strLine = strLine.Mid(16);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tNavigation directory (obsolete)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.color_import1")) == 0)
 		{
 			strLine = strLine.Mid(22);
-			_stscanf(strLine, _T("%d%d%d%lf%s"), &nWidth, &nHeight, &nDPI, &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%d%d%d%lf%999s"), &nWidth, &nHeight, &nDPI, &fSize, szName); nExpected = 5;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tLINK Color Import (%dx%d, %d dpi)."),
 				fSize, szName, nWidth, nHeight, nDPI);
 		}
 		else if (strLine.Find(_T("DjVuFile.color_import2")) == 0)
 		{
 			strLine = strLine.Mid(22);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tLINK Color Import (unimplemented)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.anno1")) == 0)
 		{
 			strLine = strLine.Mid(14);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tAnnotations (bundled)."),
 				fSize, szName);
 		}
 		else if (strLine.Find(_T("DjVuFile.anno2")) == 0)
 		{
 			strLine = strLine.Mid(14);
-			_stscanf(strLine, _T("%lf%s"), &fSize, szName);
+			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tAnnotations (hyperlinks, etc.)."),
 				fSize, szName);
 		}
 		else
+			strFormatted = strLine;
+
+		if (nExpected != 0 && nParsed != nExpected)
 			strFormatted = strLine;
 
 		strInfo += (!strInfo.IsEmpty() ? _T("\n") : _T("")) + strFormatted;
@@ -6141,16 +6145,15 @@ void CDjVuView::AddPrevEmptyWord(DjVuSelection& sel, DjVuTXT* pText) const
 		while (zone->ztype < DjVuTXT::WORD && zone->children.size() > 0)
 		{
 			zone = &zone->children[zone->children];
-			if (!zone)
-				return;
 			}
 	}
 
-	const DjVuTXT::Zone* zone_parent = zone->get_parent();
-	const DjVuTXT::Zone* zone_parent_child = &(zone_parent->children[zone_parent->children]);
-
-	if (!zone_parent || zone_parent->ztype != DjVuTXT::LINE || zone_parent_child != zone)
-		return;
+		const DjVuTXT::Zone* zone_parent = zone->get_parent();
+		if (!zone_parent || zone_parent->ztype != DjVuTXT::LINE)
+			return;
+		const DjVuTXT::Zone* zone_parent_child = &(zone_parent->children[zone_parent->children]);
+		if (zone_parent_child != zone)
+			return;
 	
 	const DjVuTXT::Zone* zone_parent_parent = zone_parent->get_parent();
 	if (!zone_parent_parent)
@@ -9353,7 +9356,7 @@ void CDjVuView::OnCropPages()
 				swap(nPageFrom, nPageTo);
 			if (nPageFrom < 0)
 				nPageFrom = 0;
-			for (int i = nPageFrom; i < m_nPageCount, i <= nPageTo; ++i)
+			for (int i = nPageFrom; i < m_nPageCount && i <= nPageTo; ++i)
 			{
 				if ((dlg.m_nApplyRange == CCropPagesDlg::OnlyEven && i % 2 == 0) ||
 					(dlg.m_nApplyRange == CCropPagesDlg::OnlyOdd && i % 2 != 0))

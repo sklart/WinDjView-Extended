@@ -9,9 +9,9 @@ thread configuration, empty text-zone tolerance, metadata and container
 compatibility, and safe document stream cleanup. Subsequent commits harden
 chunk sizes, directory names, JPEG dimensions and parser resource limits.
 
-`src/libdjvu` is linked statically. The application builds its IJG JPEG 6b
-dependency from source for x64; the historical Win32 library remains in the
-source distribution for compatibility.
+`src/libdjvu` is linked statically. The application builds its bundled
+libjpeg-turbo dependency from source for all four Win32/x64 Debug/Release
+configurations; no historical JPEG binary is retained.
 
 The embedded DjVuLibre code is GPL-2.0-or-later. Its notices remain in the
 source headers and the application distribution must continue to comply with

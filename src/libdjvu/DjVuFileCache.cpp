@@ -116,6 +116,9 @@ DjVuFileCache::add_file(const GP<DjVuFile> & file)
 
    GCriticalSectionLock lock(&class_lock);
 
+   if (!enabled)
+      return;
+
       // See if the file is already cached
    GPosition pos;
    for(pos=list;pos;++pos)
@@ -151,7 +154,7 @@ DjVuFileCache::clear_to_size(int size)
    DEBUG_MAKE_INDENT(3);
 
    GCriticalSectionLock lock(&class_lock);
-   
+
    if (size==0)
      {
        list.empty();
@@ -223,6 +226,9 @@ DjVuFileCache::del_file(const DjVuFile * file)
    DEBUG_MAKE_INDENT(3);
 
    GCriticalSectionLock lock(&class_lock);
+
+   if (!enabled)
+      return;
 
    for(GPosition pos=list;pos;++pos)
       if (list[pos]->get_file()==file)

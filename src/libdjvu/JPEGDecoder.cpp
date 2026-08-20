@@ -66,6 +66,7 @@
 #include "ByteStream.h"
 #include "GPixmap.h"
 #include <limits.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -146,10 +147,12 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
   /* We use our private extension JPEG error handler. */
   struct djvu_error_mgr jerr;
 
-  JSAMPARRAY buffer;    /* Output row buffer */
-  int row_stride;   /* physical row width in output buffer */
+  JSAMPARRAY buffer = 0;    /* Output row buffer for grayscale/fallback. */
+  int row_stride;
   int output_width, output_height;
-  int isGrey,i;
+  int isGrey;
+  bool direct_bgr;
+  bool output_is_bgr;
 
   cinfo.err = jpeg_std_error(&jerr.pub);
 
@@ -183,7 +186,19 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
     G_THROW("Unsupported JPEG dimensions" );
   }
 
-  cinfo.out_color_space = cinfo.jpeg_color_space == JCS_GRAYSCALE ? JCS_GRAYSCALE : JCS_RGB;
+  if (cinfo.jpeg_color_space == JCS_GRAYSCALE)
+  {
+    cinfo.out_color_space = JCS_GRAYSCALE;
+  }
+  else
+  {
+#ifdef LIBJPEGNAME
+    /* A dynamically loaded system libjpeg need not know turbo extensions. */
+    cinfo.out_color_space = JCS_RGB;
+#else
+    cinfo.out_color_space = JCS_EXT_BGR;
+#endif
+  }
   jpeg_start_decompress(&cinfo);
   if (cinfo.output_components != 1 && cinfo.output_components != 3)
   {
@@ -200,53 +215,76 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
   output_width = (int)cinfo.output_width;
   output_height = (int)cinfo.output_height;
   
-  /* We may need to do some setup of our own at this point before reading
-   * the data.  After jpeg_start_decompress() we have the correct scaled
-   * output image dimensions available, as well as the output colormap
-   * if we asked for color quantization.
-   * In this example, we need to make an output work buffer of the right size.
-   */
-
-  /* JSAMPLEs per row in output buffer */
   row_stride = output_width * cinfo.output_components;
 
-  /* Make a one-row-high sample array that will go away when done with image */
-  buffer = (*cinfo.mem->alloc_sarray)
-    ((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
+  /* GPixmap uses bottom-to-top rows and BGR pixels.  libjpeg emits top-to-
+   * bottom scanlines, so write each scanline to its vertically mirrored row. */
+  G_TRY
+  {
+    pix.init(output_height, output_width);
+  }
+  G_CATCH_ALL
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_RETHROW;
+  }
+  G_ENDCATCH;
 
-  GP<ByteStream> goutputBlock=ByteStream::create();
-  ByteStream &outputBlock=*goutputBlock;
-  outputBlock.format("P6\n%d %d\n%d\n",output_width, output_height,255);
+  isGrey = (cinfo.out_color_space == JCS_GRAYSCALE) ? 1 : 0;
+  output_is_bgr = cinfo.out_color_space == JCS_EXT_BGR;
+  direct_bgr = output_is_bgr && sizeof(GPixel) == 3 &&
+    offsetof(GPixel, b) == 0 && offsetof(GPixel, g) == 1 && offsetof(GPixel, r) == 2;
 
-  isGrey = ( cinfo.out_color_space == JCS_GRAYSCALE) ? 1 : 0; 
+  if (!direct_bgr)
+  {
+    /* Grayscale and unusual GPixel layouts use only one libjpeg-managed row. */
+    buffer = (*cinfo.mem->alloc_sarray)
+      ((j_common_ptr)&cinfo, JPOOL_IMAGE, row_stride, 1);
+  }
 
   while (cinfo.output_scanline < cinfo.output_height)
   {
-    (void) jpeg_read_scanlines(&cinfo, buffer, 1);
-
-    if ( isGrey == 1 )
+    const int y = output_height - 1 - (int)cinfo.output_scanline;
+    GPixel *dst = pix[y];
+    if (direct_bgr)
     {
-      for (i=0; i<row_stride; i++)
+      JSAMPROW row = reinterpret_cast<JSAMPROW>(dst);
+      (void)jpeg_read_scanlines(&cinfo, &row, 1);
+    }
+    else
+    {
+      (void)jpeg_read_scanlines(&cinfo, buffer, 1);
+      if (isGrey)
       {
-        outputBlock.write8((char)buffer[0][i]); 
-        outputBlock.write8((char)buffer[0][i]); 
-        outputBlock.write8((char)buffer[0][i]); 
+        for (int x = 0; x < output_width; ++x)
+          dst[x].r = dst[x].g = dst[x].b = buffer[0][x];
       }
-    }else
-    {
-      for (i=0; i<row_stride; i++) 
-        outputBlock.write8((char)buffer[0][i]); 
+      else
+      {
+        for (int x = 0; x < output_width; ++x)
+        {
+          const int source = x * 3;
+          if (output_is_bgr)
+          {
+            dst[x].b = buffer[0][source];
+            dst[x].g = buffer[0][source + 1];
+            dst[x].r = buffer[0][source + 2];
+          }
+          else
+          {
+            dst[x].r = buffer[0][source];
+            dst[x].g = buffer[0][source + 1];
+            dst[x].b = buffer[0][source + 2];
+          }
+        }
+      }
     }
   }
 
   (void) jpeg_finish_decompress(&cinfo);   
 
   jpeg_destroy_decompress(&cinfo);
-  
-  outputBlock.seek(0,SEEK_SET);
-
-  pix.init(outputBlock);
-}         
+}
 
 /*** From here onwards code is to make ByteStream as the data
      source for the JPEG library */

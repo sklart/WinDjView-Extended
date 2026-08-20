@@ -185,7 +185,7 @@ UnicodeByteStream::gets(
     char *buf;
   	static const size_t bufsize=327680;
     GPBuffer<char> gbuf(buf,bufsize);
-    while((i=read(buf,bufsize)>0))
+	while((i=read(buf,bufsize))>0)
     {
       if((len=buffer.length()-bufferpos))
         break;

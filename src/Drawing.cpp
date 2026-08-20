@@ -67,7 +67,10 @@ void BuildGammaTable(double fGamma, BYTE* table)
 
 void BuildTransparentcyTable(double fTransparency, BYTE c, BYTE* table)
 {
-	DWORD nAlpha = max(0, min(255, static_cast<DWORD>(fTransparency * 255.0 + 0.5)));
+	const double fClampedTransparency = _finite(fTransparency)
+		? max(0.0, min(1.0, fTransparency))
+		: 0.0;
+	DWORD nAlpha = static_cast<DWORD>(fClampedTransparency * 255.0 + 0.5);
 	for (int i = 0; i < 256; ++i)
 	{
 		BYTE color = static_cast<BYTE>((table[i] * nAlpha + c * (255 - nAlpha)) >> 8);
@@ -158,6 +161,8 @@ CDIB* RenderBitmap(GBitmap& bm, const CRect& rcClip, const CDisplaySettings& dis
 	int nSize = sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD)*nPaletteEntries;
 
 	pBMI = (LPBITMAPINFO) malloc(nSize);
+	if (pBMI == NULL)
+		AfxThrowMemoryException();
 	ZeroMemory(pBMI, nSize);
 
 	BITMAPINFOHEADER& bmih = pBMI->bmiHeader;
@@ -228,6 +233,8 @@ CDIB* RenderEmpty(const CSize& szBitmap, const CDisplaySettings& displaySettings
 {
 	int nSize = sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD);
 	LPBITMAPINFO pBMI = (LPBITMAPINFO) malloc(nSize);
+	if (pBMI == NULL)
+		AfxThrowMemoryException();
 	ZeroMemory(pBMI, nSize);
 
 	BITMAPINFOHEADER& bmih = pBMI->bmiHeader;
@@ -303,6 +310,8 @@ void CDIB::Create(const BITMAPINFO* pBMI)
 
 	UINT nSize = sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD)*pBMI->bmiHeader.biClrUsed;
 	m_pBMI = (LPBITMAPINFO)malloc(nSize);
+	if (m_pBMI == NULL)
+		AfxThrowMemoryException();
 	memcpy(m_pBMI, pBMI, nSize);
 
 	BITMAPINFOHEADER& bmih = m_pBMI->bmiHeader;
@@ -381,6 +390,8 @@ void CDIB::Create(CDIB* pSource, int nBitCount)
 
 	int nSize = sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD)*nPaletteEntries;
 	LPBITMAPINFO pBMI = (LPBITMAPINFO) malloc(nSize);
+	if (pBMI == NULL)
+		AfxThrowMemoryException();
 	ZeroMemory(pBMI, nSize);
 
 	BITMAPINFOHEADER& bmih = pBMI->bmiHeader;
@@ -454,6 +465,8 @@ CDIB* CDIB::Crop(const CRect& rcCrop)
 
 	UINT nSize = sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD)*m_pBMI->bmiHeader.biClrUsed;
 	LPBITMAPINFO pBMI = (LPBITMAPINFO) malloc(nSize);
+	if (pBMI == NULL)
+		AfxThrowMemoryException();
 	memcpy(pBMI, m_pBMI, nSize);
 
 	BITMAPINFOHEADER& bmih = pBMI->bmiHeader;

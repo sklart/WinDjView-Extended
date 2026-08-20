@@ -472,6 +472,8 @@ GP<GPixmap> RescalePnm(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 	UINT rows = pSrc->rows();
 	UINT newcols = nWidth;
 	UINT newrows = nHeight;
+	if (cols == 0 || rows == 0 || newcols == 0 || newrows == 0)
+		return pGPixmap;
 
 	// We round the scale factor down so that we never fill up the
 	// output while (a fractional pixel of) input remains unused.
@@ -483,8 +485,6 @@ GP<GPixmap> RescalePnm(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 
 	GPixel* tempxelrow = (GPixel*) malloc(cols * sizeof(GPixel));
 	unsigned int* rs = (UINT*) malloc(cols * sizeof(UINT) * 3);
-	unsigned int* gs = rs + cols;
-	unsigned int* bs = gs + cols;
 	if (tempxelrow == NULL || rs == NULL)
 	{
 		if (tempxelrow != NULL)
@@ -493,6 +493,8 @@ GP<GPixmap> RescalePnm(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 			free(rs);
 		return pGPixmap;
 	}
+	unsigned int* gs = rs + cols;
+	unsigned int* bs = gs + cols;
 
 	UINT rowsread = 0;
 	UINT fracrowleft = syscale;
@@ -617,6 +619,8 @@ GP<GPixmap> RescalePnm_subpix(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 	UINT rows = pSrc->rows();
 	UINT newcols = nWidth;
 	UINT newrows = nHeight;
+	if (cols == 0 || rows == 0 || newcols == 0 || newrows == 0)
+		return pGPixmap;
 
 	// We round the scale factor down so that we never fill up the
 	// output while (a fractional pixel of) input remains unused.
@@ -630,8 +634,6 @@ GP<GPixmap> RescalePnm_subpix(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 
 	GPixel* tempxelrow = (GPixel*) malloc(cols * sizeof(GPixel));
 	unsigned int* rs = (UINT*) malloc(cols * sizeof(UINT) * 3);
-	unsigned int* gs = rs + cols;
-	unsigned int* bs = gs + cols;
 	if (tempxelrow == NULL || rs == NULL)
 	{
 		if (tempxelrow != NULL)
@@ -640,6 +642,8 @@ GP<GPixmap> RescalePnm_subpix(GP<GPixmap> pSrc, UINT nWidth, UINT nHeight)
 			free(rs);
 		return pGPixmap;
 	}
+	unsigned int* gs = rs + cols;
+	unsigned int* bs = gs + cols;
 
 	UINT rowsread = 0;
 	UINT fracrowleft = syscale;

@@ -70,7 +70,7 @@ through its NMAKE adapter, linked statically, and configured for the libjpeg
 
 ## libjpeg-turbo
 
-The bundled JPEG implementation is libjpeg-turbo 3.1.4.1. See
+The bundled JPEG implementation is libjpeg-turbo 3.2.0. See
 [docs/libjpeg-turbo.md](docs/libjpeg-turbo.md) for its NMAKE/CMake adapter,
 static-link settings, optional NASM SIMD mode, licensing notice, and update
 procedure.

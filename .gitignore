@@ -24,3 +24,14 @@ src/third_party/libjpeg-turbo/jpegd64.lib
 *.pdb
 *.idb
 *.ipch
+
+# Intermediate files created by PVS-Studio compiler monitoring.
+*.PVS-Studio.cfg
+*.CLMonitoring.bat
+*.CLMonitoring.bat.rsp
+*.pvs-studio.i
+out/pvs/
+
+# Locally compiled JPEGDecoder regression test.
+tools/tests/*.exe
+tools/tests/*.obj

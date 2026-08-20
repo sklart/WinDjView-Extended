@@ -65,7 +65,7 @@ IMPLEMENT_DYNAMIC(CPrintDlg, CMyDialog)
 CPrintDlg::CPrintDlg(DjVuSource* pSource, int nPage, int nRotate, int nMode, CWnd* pParent)
 	: CMyDialog(CPrintDlg::IDD, pParent),
 	  m_pSource(pSource), m_strPages(_T("")), m_bPrintToFile(false),
-	  m_nRangeType(AllPages), m_pPrinter(NULL), m_hPrinter(NULL), m_pPaper(NULL),
+	  m_nRangeType(AllPages), m_pPrinter(NULL), m_pDevMode(NULL), m_hPrinter(NULL), m_pPaper(NULL),
 	  m_bReverse(false), m_nCurPage(nPage), m_nRotate(nRotate),
 	  m_nMode(nMode), m_bHasSelection(false), m_bDrawPreview(true)
 {
@@ -582,7 +582,7 @@ void CPrintDlg::OnChangePagesPerSheet()
 void CPrintDlg::OnChangePaper()
 {
 	int nItem = m_cboPaper.GetCurSel();
-	if (m_pPrinter == NULL || nItem == -1)
+	if (m_pPrinter == NULL || m_pDevMode == NULL || nItem == -1)
 		return;
 
 	m_settings.nPaperCode = (WORD)m_cboPaper.GetItemData(nItem);
@@ -810,7 +810,7 @@ void CPrintDlg::LoadPaperTypes()
 
 void CPrintDlg::OnPrintRange(UINT nID)
 {
-	if (m_pPrinter == NULL)
+	if (m_pPrinter == NULL || m_pDevMode == NULL)
 		return;
 
 	UpdateData();
@@ -875,7 +875,7 @@ void CPrintDlg::OnProperties()
 
 void CPrintDlg::OnUpdateControls()
 {
-	bool bOk = (m_pPrinter != NULL);
+	bool bOk = (m_pPrinter != NULL && m_pDevMode != NULL);
 
 	GetDlgItem(IDC_PORTRAIT)->EnableWindow(bOk && (m_pDevMode->dmFields & DM_ORIENTATION));
 	GetDlgItem(IDC_LANDSCAPE)->EnableWindow(bOk && (m_pDevMode->dmFields & DM_ORIENTATION));
@@ -921,7 +921,7 @@ void CPrintDlg::OnUpdateDialogData()
 {
 	UpdateData();
 
-	if (m_pPrinter == NULL)
+	if (m_pPrinter == NULL || m_pDevMode == NULL)
 		return;
 
 	if (m_settings.nCopies > m_pPrinter->nMaxCopies)

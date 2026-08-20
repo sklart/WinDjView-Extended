@@ -19,13 +19,13 @@ jobs:
             platform: Win32
             arch: x86
             pe_machine: 014c
-            nmake_args: ''
+            nmake_args: SIMD=1
             output: src\Release\WinDjView.exe
           - configuration: Release
             platform: x64
             arch: x64
             pe_machine: 8664
-            nmake_args: X64=1
+            nmake_args: X64=1 SIMD=1
             output: src\Release_x64\WinDjView.exe
           - configuration: Debug
             platform: Win32
@@ -43,6 +43,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Set up NASM for Release SIMD build
+        if: matrix.configuration == 'Release'
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
+        with:
+          version: 2.16.03
 
       - name: Build bundled libdjvu and WinDjView
         shell: cmd
@@ -74,6 +80,11 @@ jobs:
             throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
+
+      - name: Run JPEGDecoder regression tests
+        if: matrix.configuration == 'Debug' && matrix.platform == 'Win32'
+        shell: cmd
+        run: tools\tests\run-jpegdecoder-regression.cmd
 
       - name: Upload executable
         if: success()

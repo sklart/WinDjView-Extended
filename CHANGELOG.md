@@ -18,8 +18,12 @@
 ### Changed
 
 - Updated the bundled DjVuLibre to 3.5.30 with required WinDjView extensions.
+- Updated the static JPEG implementation to libjpeg-turbo 3.2.0 and decode
+  JPEG scanlines directly into `GPixmap`.
 
 ### Build
 
 - Added reproducible Debug/Release x86/x64 NMAKE support, including a source build of
-  IJG JPEG 6b, and CI for all four build configurations.
+  libjpeg-turbo, and CI for all four build configurations.
+- Release CI now requires NASM SIMD for both architectures; Debug retains the
+  portable non-SIMD JPEG build.

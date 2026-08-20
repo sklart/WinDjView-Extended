@@ -1445,7 +1445,7 @@ bool CDjViewApp::RegisterShellFileTypes(bool bCheckOnly)
 		strOpenCommandLine.Format(_T("\"%s\""), strPathName);
 
 		CString strDefaultIconCommandLine;
-		strDefaultIconCommandLine.Format(_T("%s,0"), strPathName, 0);
+		strDefaultIconCommandLine.Format(_T("%s,0"), strPathName);
 
 		CString strFilterExt, strFileTypeId, strFileTypeName;
 		if (pTemplate->GetDocString(strFileTypeId,
@@ -1839,8 +1839,8 @@ bool CDjViewApp::UpdateOpenLastSession()
 
 void CDjViewApp::OnFileOpenLastSession()
 {
-	CDjVuDoc* pDoc;
-	CMainFrame* pMainFrame;
+	CDjVuDoc* pDoc = NULL;
+	CMainFrame* pMainFrame = NULL;
 	for (list<CMainFrame*>::iterator it = m_frames.begin(); it != m_frames.end(); ++it)
 	{
 		pMainFrame = *it;
@@ -1866,7 +1866,8 @@ void CDjViewApp::OnFileOpenLastSession()
 			break;
 		}
 	}
-	pMainFrame->ActivateDocument(pDoc);
+	if (pMainFrame != NULL && pDoc != NULL)
+		pMainFrame->ActivateDocument(pDoc);
 }
 
 void CDjViewApp::OnUpdateFileOpenLastSession(CCmdUI* pCmdUI)

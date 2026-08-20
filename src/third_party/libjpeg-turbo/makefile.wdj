@@ -1,4 +1,4 @@
-# NMAKE adapter for libjpeg-turbo 3.1.4.1.  It builds only the static
+# NMAKE adapter for libjpeg-turbo 3.2.0.  It builds only the static
 # libjpeg-compatible library used by WinDjView.
 
 !IFNDEF CMAKE

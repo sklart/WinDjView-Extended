@@ -19,7 +19,7 @@ All four commands create a statically linked `libdjvu` and the corresponding
 `third_party/libjpeg-turbo/jpeg64.lib` or Debug counterpart from bundled
 source instead of attempting to link a Win32 binary.
 
-The libjpeg-turbo 3.1.4.1 adapter configures the static libjpeg 6.2 API/ABI
+The libjpeg-turbo 3.2.0 adapter configures the static libjpeg 6.2 API/ABI
 with `WITH_JPEG7=OFF`, `WITH_JPEG8=OFF`, `/MT` for Release, and `/MTd` for
 Debug. See [libjpeg-turbo.md](libjpeg-turbo.md) for the full integration notes.
 
