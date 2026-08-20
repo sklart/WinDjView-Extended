@@ -185,6 +185,26 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
     jpeg_destroy_decompress(&cinfo);
     G_THROW("Unsupported JPEG dimensions" );
   }
+  /* This decoder always requests full-resolution output.  Revisit this guard
+   * if a future IDCT scaling path changes the actual GPixmap dimensions. */
+  const size_t source_pixel_count = static_cast<size_t>(cinfo.image_width) *
+    static_cast<size_t>(cinfo.image_height);
+  const size_t max_pixel_count = static_cast<size_t>(INT_MAX);
+  if (source_pixel_count > max_pixel_count)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG dimensions" );
+  }
+  /* The int GPixmap limit already fits in size_t bytes on 64-bit Windows. */
+#if !defined(_WIN64)
+  const size_t max_pixel_allocation = static_cast<size_t>(-1) /
+    sizeof(GPixel);
+  if (source_pixel_count > max_pixel_allocation)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG dimensions" );
+  }
+#endif
 
   if (cinfo.jpeg_color_space == JCS_GRAYSCALE)
   {

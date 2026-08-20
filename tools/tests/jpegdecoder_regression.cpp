@@ -9,6 +9,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <vector>
 
 namespace {
@@ -25,6 +26,12 @@ GP<ByteStream> make_jpeg(bool grayscale, bool progressive,
   unsigned char *encoded = 0;
   unsigned long encoded_size = 0;
   const int components = grayscale ? 1 : 3;
+  if (width <= 0 || height <= 0 || components <= 0 ||
+      width > INT_MAX / components)
+  {
+    fputs("invalid JPEG regression fixture dimensions\n", stderr);
+    exit(2);
+  }
   std::vector<unsigned char> row(static_cast<size_t>(width) * components);
 
   cinfo.err = jpeg_std_error(&jerr);
@@ -173,6 +180,24 @@ bool rejects_oversized_pixmap()
   return rejected;
 }
 
+bool rejects_win32_unrepresentable_pixmap()
+{
+  if (sizeof(size_t) != 4)
+    return true;
+  bool rejected = false;
+  G_TRY
+  {
+    GP<GPixmap> pixmap = GPixmap::create();
+    pixmap->init(32768, 65535);
+  }
+  G_CATCH_ALL
+  {
+    rejected = true;
+  }
+  G_ENDCATCH;
+  return rejected;
+}
+
 } // namespace
 
 int main()
@@ -182,7 +207,8 @@ int main()
       !verify_image(false, true, kWidth, kHeight, true) ||
       !verify_image(true, false) || !verify_image(false, false, 1, 1) ||
       !verify_image(false, false, 2, 2) || !rejects_truncated_input() ||
-      !rejects_empty_and_malformed_input() || !rejects_oversized_pixmap())
+      !rejects_empty_and_malformed_input() || !rejects_oversized_pixmap() ||
+      !rejects_win32_unrepresentable_pixmap())
   {
     fputs("JPEGDecoder regression failed\n", stderr);
     return 1;

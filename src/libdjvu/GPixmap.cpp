@@ -291,8 +291,16 @@ GPixmap::init(int arows, int acolumns, const GPixel *filler)
     G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
   const size_t np = static_cast<size_t>(arows) *
     static_cast<size_t>(acolumns);
-  if (np > INT_MAX)
+  const size_t max_pixel_count = static_cast<size_t>(INT_MAX);
+  if (np > max_pixel_count)
     G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+  /* The int npix limit already fits in size_t bytes on 64-bit Windows. */
+#if !defined(_WIN64)
+  const size_t max_pixel_allocation = static_cast<size_t>(-1) /
+    sizeof(GPixel);
+  if (np > max_pixel_allocation)
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+#endif
   destroy();
   nrows = arows;
   ncolumns = acolumns;
