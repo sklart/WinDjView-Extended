@@ -20,6 +20,10 @@
 - Updated the bundled DjVuLibre to 3.5.30 with required WinDjView extensions.
 - Updated the static JPEG implementation to libjpeg-turbo 3.2.0 and decode
   JPEG scanlines directly into `GPixmap`.
+- Expanded JPEGDecoder regression coverage and run it for every Debug/Release
+  Win32/x64 CI configuration.
+- Recorded a post-fix PVS-Studio scan and hardened malformed page-description
+  handling.
 
 ### Build
 
@@ -27,3 +31,5 @@
   libjpeg-turbo, and CI for all four build configurations.
 - Release CI now requires NASM SIMD for both architectures; Debug retains the
   portable non-SIMD JPEG build.
+- Visual Studio Release Makefile commands now use the same SIMD policy as CI;
+  a non-SIMD NMAKE build remains available by omitting `SIMD=1`.

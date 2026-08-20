@@ -20,7 +20,6 @@ Visual Studio only to generate and build the private static JPEG library.
 CMake is not a replacement for the project build system.
 
 ```bat
-call "C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=x86 -host_arch=x64
 cd src\libdjvu
 nmake /nologo /f makefile
 cd ..
@@ -72,10 +71,12 @@ the IJG license, with additional upstream BSD-style notices documented in
 
 A Win32 Release smoke benchmark was run on 2026-08-01 using the same classic
 libjpeg API loop and the legacy `testimg.jpg` fixture (5,000 decodes). The
-legacy IJG JPEG 6b library took 1,391 ms; libjpeg-turbo 3.2.0 built with NASM
-SIMD took 687 ms (about 2.0x faster in this local run). This is a directional
-result only: it is not a release-performance guarantee and does not represent
-all JPEG sizes, formats, CPUs, or Windows versions.
+legacy IJG JPEG 6b library took 1,391 ms; libjpeg-turbo 3.1.4.1 built with NASM
+SIMD took 687 ms (about 2.0x faster in this local run). This historical result
+predates both the libjpeg-turbo 3.2.0 update and the direct
+JPEGDecoder-to-GPixmap path. It is directional only: it is not a release-
+performance guarantee and does not represent all JPEG sizes, formats, CPUs, or
+Windows versions. A current benchmark must be measured separately.
 
 ## Corrupt-input smoke check
 

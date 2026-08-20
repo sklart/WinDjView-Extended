@@ -1,0 +1,4 @@
+# Preserve the checked-in byte representation. The legacy project and its
+# vendored sources currently use CRLF, so a future EOL migration must be a
+# dedicated, reviewable change rather than an incidental dependency update.
+* -text

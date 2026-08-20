@@ -5,7 +5,9 @@
 - Release Win32 (`Windjview_x32.plog`)
 - Release x64 (`Windjview_x64.plog`)
 
-The two supplied reports were compared. No x64-only diagnostics were present.
+The originally supplied reports were compared. The previous x64 report also
+contained 397 diagnostics from `D:\Download\FBeditor`; those records were not
+part of WinDjView and are excluded below.
 
 ## Running PVS-Studio from Visual Studio builds
 
@@ -59,6 +61,29 @@ The existing `>> 8` transparency blend divisor is retained: it is an established
 - V1042 license notices are informational and intentionally retained.
 - Diagnostics for CMake `TryCompile`/`CMakeScratch` paths are build-artifact noise.
 
+## Post-fix scan (2026-08-20)
+
+Both configurations were run again using `run-monitoring.ps1`, Release SIMD,
+and NASM 2.16.03. Counts include only paths under the WinDjView repository.
+
+| Configuration | Before | After | Application | libdjvu | third_party |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Release Win32 | 826 | 818 | 405 | 411 | 2 |
+| Release x64 | 980 | 819 | 405 | 412 | 2 |
+
+The post-fix level distribution is Win32: L1 207, L2 235, L3 376; x64: L1
+207, L2 221, L3 391. The counts are not a severity claim: PVS level also
+includes informational and legacy-pattern diagnostics.
+
+The fixed `WinDjView.cpp` V576, `Global.cpp` V576, `UnicodeByteStream.cpp`
+V593, `Scaling.cpp` V769, and `MyScrollView.cpp` V614 diagnostics are absent
+from the post-fix reports. The remaining V614 reports in `ByteStream.cpp` and
+`GPixmap.cpp` concern reference-initialized `GPBuffer` paths, and the large
+remaining V547/V730/V1051 groups are legacy DjVuLibre patterns; neither class
+was mass-edited merely to lower the count.
+
 ## Remaining warnings
 
-The reports still contain legacy, style, performance, deprecation, and analyzer-limited-control-flow diagnostics. They were deliberately not mass-fixed. A new PVS run is required to produce an after-count; the supplied reports are the pre-change baseline.
+The reports still contain legacy, style, performance, deprecation, and
+analyzer-limited-control-flow diagnostics. They were deliberately not
+mass-fixed.
