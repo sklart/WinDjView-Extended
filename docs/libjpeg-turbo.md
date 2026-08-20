@@ -42,6 +42,11 @@ Release uses `/MT`; Debug uses `/MTd`.  No `jpeg*.dll` is produced or required.
 The target minimum remains Windows 7; testing on a real Windows 7 x86/x64
 installation is still required before a release.
 
+Release CI prints the imported DLL names and rejects any import whose name
+contains `jpeg` (case-insensitive). This covers `jpeg.dll`, `jpeg62.dll`,
+`libjpeg-*.dll`, and TurboJPEG naming variants without relying on a fragile
+version list.
+
 ## SIMD
 
 The default is a portable non-SIMD build, so NASM is not a normal build

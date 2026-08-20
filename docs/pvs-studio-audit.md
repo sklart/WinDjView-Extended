@@ -82,6 +82,21 @@ from the post-fix reports. The remaining V614 reports in `ByteStream.cpp` and
 remaining V547/V730/V1051 groups are legacy DjVuLibre patterns; neither class
 was mass-edited merely to lower the count.
 
+## JPEG arithmetic hardening re-scan (2026-08-20)
+
+Release Win32 and Release x64 were re-run through `run-monitoring.ps1` with
+NASM SIMD after the `GPixmap` allocation and JPEG source-dimension guards.
+
+| Configuration | Total | New L1 | New warnings in `GPixmap.cpp` | New warnings in `JPEGDecoder.cpp` |
+| --- | ---: | ---: | ---: | ---: |
+| Release Win32 | 818 | 0 | 0 | 0 |
+| Release x64 | 819 | 0 | 0 | 0 |
+
+The existing `GPixmap.cpp` V614/V730/V1042 and `JPEGDecoder.cpp` V522/V1042
+records are unrelated legacy or informational diagnostics; no new arithmetic,
+allocation, signed/unsigned, buffer-size, or null-dereference warning was
+introduced by this hardening.
+
 ## Remaining warnings
 
 The reports still contain legacy, style, performance, deprecation, and

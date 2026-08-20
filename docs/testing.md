@@ -17,11 +17,13 @@ bottom-to-top row mapping, 1×1 and 2×2 images, controlled rejection of a
 empty, and malformed streams.
 
 GitHub Actions repeats these four builds, runs the matching JPEG regression,
-and publishes the resulting executables as workflow artifacts. No automated
-corpus of DjVu samples is currently checked in, so opening real DjVu documents,
-printing, and GUI flows remain manual regression tests. PVS-Studio monitoring
-is run separately with `tools\\pvs\\run-monitoring.ps1`; Release SIMD needs
-NASM on `PATH` or the script's `-NasmDirectory` option.
+prints the imported DLLs for Release, rejects every external DLL whose name
+contains `jpeg`, and publishes the resulting executables as workflow artifacts.
+No automated corpus of DjVu samples is currently checked in, so opening real
+DjVu documents, printing, and GUI flows remain manual regression tests.
+PVS-Studio monitoring is run separately with
+`tools\\pvs\\run-monitoring.ps1`; Release SIMD needs NASM on `PATH` or the
+script's `-NasmDirectory` option.
 
 `tools\\tests\\jpegdecoder_benchmark.cpp` is a local performance harness for
 the current direct decoder. Build the same Release configuration twice (first

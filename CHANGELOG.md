@@ -32,8 +32,7 @@
   libjpeg-turbo, and CI for all four build configurations.
 - Release CI now requires NASM SIMD for both architectures; Debug retains the
   portable non-SIMD JPEG build.
-- Release CI verifies that the executable does not import `jpeg.dll` or
-  `turbojpeg.dll`.
+- Release CI verifies that WinDjView has no external JPEG DLL dependency.
 - Visual Studio Release Makefile commands now use the same SIMD policy as CI;
   a non-SIMD NMAKE build remains available by omitting `SIMD=1`.
 - Added a local current-path JPEGDecoder benchmark harness and documented its
