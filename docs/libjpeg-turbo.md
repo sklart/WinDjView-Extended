@@ -81,18 +81,20 @@ Windows versions. A current benchmark must be measured separately.
 ## Current direct-decoder benchmark (2026-08-20)
 
 The current direct `JPEGDecoder -> GPixmap` path was measured on an Intel Core
-i5-13400F, Win32 Release, libjpeg-turbo 3.2.0, `/MT`, with generated fixtures
-and the `tools/tests/jpegdecoder_benchmark.cpp` harness. Each row reports the
-average of 3–5 decode iterations; median and throughput are emitted by the
-harness but only average is shown here to avoid false precision.
+i5-13400F under Windows 10 Pro (version 2009, build 26200, 64-bit OS), using a
+Win32 Release `/MT` build of libjpeg-turbo 3.2.0. The harness generates the
+quality-85 fixtures before measurement; JPEG encoding is excluded. For every
+fixture it performs one excluded warm-up decode, then reports both average and
+median decode time. Median is the primary result and is used for MP/s. The
+same encoded input is proven by the matching byte size and CRC32 in both runs.
 
-| Fixture | SIMD OFF | SIMD ON | Change |
-| --- | ---: | ---: | ---: |
-| baseline RGB, 1200×1600 | 19.72 ms | 12.49 ms | 1.58× |
-| progressive RGB, 2500×3500 | 124.39 ms | 96.07 ms | 1.29× |
-| grayscale, 4000×6000 | 116.69 ms | 93.51 ms | 1.25× |
+| Fixture | JPEG bytes / CRC32 | Warm-up / runs | SIMD OFF avg / median | SIMD ON avg / median | SIMD ON median MP/s | Median speedup |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| baseline RGB, 1200×1600 | 994124 / `CD4AE52A` | 1 / 25 | 18.489 / 18.400 ms | 12.120 / 11.905 ms | 161.28 | 1.55× |
+| progressive RGB, 2500×3500 | 4017850 / `7FA0797E` | 1 / 15 | 124.904 / 123.228 ms | 95.369 / 95.061 ms | 92.05 | 1.30× |
+| grayscale, 4000×6000 | 9794674 / `9310BEAF` | 1 / 7 | 204.069 / 204.553 ms | 92.035 / 91.225 ms | 263.09 | 2.24× |
 
-This isolates the SIMD effect on the current 3.2.0 direct path. It does not
+This isolates the SIMD choice on the current 3.2.0 direct path. It does not
 isolate the direct-GPixmap effect from the historical RGB-to-PPM path, because
 that path is intentionally not restored to production code. Results are local
 measurements, not a cross-machine performance promise or a peak-memory claim.

@@ -22,6 +22,7 @@
   JPEG scanlines directly into `GPixmap`.
 - Expanded JPEGDecoder regression coverage and run it for every Debug/Release
   Win32/x64 CI configuration.
+- Hardened `GPixmap` and JPEG output dimension arithmetic before allocation.
 - Recorded a post-fix PVS-Studio scan and hardened malformed page-description
   handling.
 
@@ -31,7 +32,11 @@
   libjpeg-turbo, and CI for all four build configurations.
 - Release CI now requires NASM SIMD for both architectures; Debug retains the
   portable non-SIMD JPEG build.
+- Release CI verifies that the executable does not import `jpeg.dll` or
+  `turbojpeg.dll`.
 - Visual Studio Release Makefile commands now use the same SIMD policy as CI;
   a non-SIMD NMAKE build remains available by omitting `SIMD=1`.
 - Added a local current-path JPEGDecoder benchmark harness and documented its
   SIMD ON/OFF results separately from the historical 3.1.4.1 benchmark.
+- Improved the benchmark with excluded warm-ups, median-first reporting, and
+  fixture size/CRC32 identity output.
