@@ -15,7 +15,8 @@ namespace {
 const int kWidth = 8;
 const int kHeight = 6;
 
-GP<ByteStream> make_jpeg(bool grayscale, bool progressive)
+GP<ByteStream> make_jpeg(bool grayscale, bool progressive,
+                         int width = kWidth, int height = kHeight)
 {
   jpeg_compress_struct cinfo;
   jpeg_error_mgr jerr;
@@ -26,8 +27,8 @@ GP<ByteStream> make_jpeg(bool grayscale, bool progressive)
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_compress(&cinfo);
   jpeg_mem_dest(&cinfo, &encoded, &encoded_size);
-  cinfo.image_width = kWidth;
-  cinfo.image_height = kHeight;
+  cinfo.image_width = width;
+  cinfo.image_height = height;
   cinfo.input_components = grayscale ? 1 : 3;
   cinfo.in_color_space = grayscale ? JCS_GRAYSCALE : JCS_RGB;
   jpeg_set_defaults(&cinfo);
@@ -43,7 +44,7 @@ GP<ByteStream> make_jpeg(bool grayscale, bool progressive)
   while (cinfo.next_scanline < cinfo.image_height)
   {
     const int y = (int)cinfo.next_scanline;
-    for (int x = 0; x < kWidth; ++x)
+    for (int x = 0; x < width; ++x)
     {
       const int value = x * 20 + y * 9;
       if (grayscale)
@@ -72,17 +73,18 @@ bool approximately_equal(unsigned char actual, int expected)
   return difference >= -3 && difference <= 3;
 }
 
-bool verify_image(bool grayscale, bool progressive)
+bool verify_image(bool grayscale, bool progressive,
+                  int width = kWidth, int height = kHeight)
 {
-  GP<ByteStream> stream = make_jpeg(grayscale, progressive);
+  GP<ByteStream> stream = make_jpeg(grayscale, progressive, width, height);
   GP<GPixmap> pixmap = JPEGDecoder::decode(*stream);
-  if (pixmap->columns() != kWidth || pixmap->rows() != kHeight)
+  if ((int)pixmap->columns() != width || (int)pixmap->rows() != height)
     return false;
 
-  for (int source_y = 0; source_y < kHeight; ++source_y)
+  for (int source_y = 0; source_y < height; ++source_y)
   {
-    const GPixel *row = (*pixmap)[kHeight - 1 - source_y];
-    for (int x = 0; x < kWidth; ++x)
+    const GPixel *row = (*pixmap)[height - 1 - source_y];
+    for (int x = 0; x < width; ++x)
     {
       const int value = x * 20 + source_y * 9;
       if (grayscale)
@@ -121,12 +123,36 @@ bool rejects_truncated_input()
   return rejected;
 }
 
+bool rejects_input(GP<ByteStream> input)
+{
+  bool rejected = false;
+  G_TRY
+  {
+    JPEGDecoder::decode(*input);
+  }
+  G_CATCH_ALL
+  {
+    rejected = true;
+  }
+  G_ENDCATCH;
+  return rejected;
+}
+
+bool rejects_empty_and_malformed_input()
+{
+  static const char malformed[] = "not a JPEG";
+  return rejects_input(ByteStream::create()) &&
+    rejects_input(ByteStream::create(malformed, sizeof(malformed) - 1));
+}
+
 } // namespace
 
 int main()
 {
   if (!verify_image(false, false) || !verify_image(false, true) ||
-      !verify_image(true, false) || !rejects_truncated_input())
+      !verify_image(true, false) || !verify_image(false, false, 1, 1) ||
+      !verify_image(false, false, 2, 2) || !rejects_truncated_input() ||
+      !rejects_empty_and_malformed_input())
   {
     fputs("JPEGDecoder regression failed\n", stderr);
     return 1;
