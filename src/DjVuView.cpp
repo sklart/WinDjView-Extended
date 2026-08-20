@@ -4111,11 +4111,18 @@ void CDjVuView::OnPageInformation()
 		{
 			strLine = strLine.Mid(22);
 			int tab = strLine.Find('\t');
-			szFile = strLine.Left(tab);
-			strLine = strLine.Mid(tab);
-			nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
-			strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIndirection chunk (%s)."),
-				fSize, szName, szFile);
+			if (tab >= 0)
+			{
+				szFile = strLine.Left(tab);
+				strLine = strLine.Mid(tab);
+				nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
+				strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIndirection chunk (%s)."),
+					fSize, szName, szFile);
+			}
+			else
+			{
+				strFormatted = strLine;
+			}
 		}
 		else if (strLine.Find(_T("DjVuFile.indir_chunk2")) == 0)
 		{
