@@ -77,6 +77,7 @@
 #include "JPEGDecoder.h"
 
 #include <stddef.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
@@ -281,19 +282,22 @@ GPixmap::GPixmap(const GPixmap &ref, const GRect &rect)
 //////////////////////////////////////////////////
 
 
-void 
+void
 GPixmap::init(int arows, int acolumns, const GPixel *filler)
 {
-  size_t np = arows * acolumns;
-  if (arows != (unsigned short) arows ||
-      acolumns != (unsigned short) acolumns ||
-      (arows>0 && np/(size_t)arows!=(size_t)acolumns) )
+  if (arows < 0 || acolumns < 0 ||
+      arows != (unsigned short) arows ||
+      acolumns != (unsigned short) acolumns)
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+  const size_t np = static_cast<size_t>(arows) *
+    static_cast<size_t>(acolumns);
+  if (np > INT_MAX)
     G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
   destroy();
   nrows = arows;
   ncolumns = acolumns;
   nrowsize = acolumns;
-  int npix = nrows * nrowsize;
+  int npix = static_cast<int>(np);
   if (npix > 0)
   {
     pixels = pixels_data = new GPixel[npix];

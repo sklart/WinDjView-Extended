@@ -214,7 +214,14 @@ JPEGDecoder::decode(ByteStream & bs,GPixmap &pix)
   }
   output_width = (int)cinfo.output_width;
   output_height = (int)cinfo.output_height;
-  
+  const size_t pixel_count = static_cast<size_t>(output_width) *
+    static_cast<size_t>(output_height);
+  if (pixel_count > INT_MAX)
+  {
+    jpeg_destroy_decompress(&cinfo);
+    G_THROW("Unsupported JPEG dimensions" );
+  }
+
   row_stride = output_width * cinfo.output_components;
 
   /* GPixmap uses bottom-to-top rows and BGR pixels.  libjpeg emits top-to-
