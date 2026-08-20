@@ -93,8 +93,10 @@ jobs:
             }
             Write-Host 'Imported DLLs:'
             $dlls
-            if ($dlls | Where-Object { $_ -match '(?i)^(jpeg|turbojpeg)\.dll$' }) {
-              throw "Release executable imports an external JPEG DLL: $exe"
+            $jpegDll = $dlls | Where-Object { $_ -match '(?i)jpeg' } |
+              Select-Object -First 1
+            if ($jpegDll) {
+              throw "Unexpected external JPEG dependency: $jpegDll"
             }
           }
 
