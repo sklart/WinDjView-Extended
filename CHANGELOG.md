@@ -33,3 +33,5 @@
   portable non-SIMD JPEG build.
 - Visual Studio Release Makefile commands now use the same SIMD policy as CI;
   a non-SIMD NMAKE build remains available by omitting `SIMD=1`.
+- Added a local current-path JPEGDecoder benchmark harness and documented its
+  SIMD ON/OFF results separately from the historical 3.1.4.1 benchmark.

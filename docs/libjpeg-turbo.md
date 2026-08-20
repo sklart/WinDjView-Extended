@@ -78,6 +78,25 @@ JPEGDecoder-to-GPixmap path. It is directional only: it is not a release-
 performance guarantee and does not represent all JPEG sizes, formats, CPUs, or
 Windows versions. A current benchmark must be measured separately.
 
+## Current direct-decoder benchmark (2026-08-20)
+
+The current direct `JPEGDecoder -> GPixmap` path was measured on an Intel Core
+i5-13400F, Win32 Release, libjpeg-turbo 3.2.0, `/MT`, with generated fixtures
+and the `tools/tests/jpegdecoder_benchmark.cpp` harness. Each row reports the
+average of 3–5 decode iterations; median and throughput are emitted by the
+harness but only average is shown here to avoid false precision.
+
+| Fixture | SIMD OFF | SIMD ON | Change |
+| --- | ---: | ---: | ---: |
+| baseline RGB, 1200×1600 | 19.72 ms | 12.49 ms | 1.58× |
+| progressive RGB, 2500×3500 | 124.39 ms | 96.07 ms | 1.29× |
+| grayscale, 4000×6000 | 116.69 ms | 93.51 ms | 1.25× |
+
+This isolates the SIMD effect on the current 3.2.0 direct path. It does not
+isolate the direct-GPixmap effect from the historical RGB-to-PPM path, because
+that path is intentionally not restored to production code. Results are local
+measurements, not a cross-machine performance promise or a peak-memory claim.
+
 ## Corrupt-input smoke check
 
 On 2026-08-01, the temporary Win32 SIMD djpeg-static build rejected both an
