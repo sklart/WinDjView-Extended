@@ -36,10 +36,6 @@ public:
     return cache.list.size();
   }
 
-  static void set_reported_size(DjVuFileCache &cache, int size)
-  {
-    cache.cur_size = size;
-  }
 };
 
 #ifdef HAVE_NAMESPACES
@@ -206,6 +202,15 @@ public:
     static char contents[700];
     meta = ByteStream::create(contents, payload);
   }
+  void set_reported_size(unsigned int size)
+  {
+    // Static ByteStream reports its logical size without allocating a buffer.
+    // Keep size at least as large as the DjVuFile object itself.
+    static char contents;
+    meta = ByteStream::create_static(&contents, 0);
+    const unsigned int fixed_size = get_memory_usage();
+    meta = ByteStream::create_static(&contents, size - fixed_size);
+  }
 private:
   TestDjVuFile(void) : DjVuFile() {}
 };
@@ -220,10 +225,6 @@ public:
   }
   int reported_size() const { return DjVuFileCacheTestAccess::reported_size(*this); }
   int item_count() const { return DjVuFileCacheTestAccess::item_count(*this); }
-  void saturate_accounting()
-  {
-    DjVuFileCacheTestAccess::set_reported_size(*this, INT_MAX);
-  }
 private:
   time_t next_time;
 };
@@ -279,12 +280,38 @@ bool cache_accounting_cases()
     return false;
 
   TestDjVuFileCache saturated(-1);
-  GP<TestDjVuFile> saturated_file = TestDjVuFile::create(100);
-  saturated.add(saturated_file.operator->());
-  saturated.saturate_accounting();
-  saturated_file->set_payload(700);
-  saturated.set_max_size(-1);
-  if (static_cast<unsigned int>(saturated.reported_size()) != saturated_file->get_memory_usage())
+  GP<TestDjVuFile> saturated_large = TestDjVuFile::create(0);
+  GP<TestDjVuFile> saturated_overflow = TestDjVuFile::create(0);
+  GP<TestDjVuFile> saturated_small = TestDjVuFile::create(0);
+  saturated_large->set_reported_size(INT_MAX - 100);
+  saturated_overflow->set_reported_size(200);
+  saturated.add(saturated_large.operator->());
+  saturated.add(saturated_overflow.operator->());
+  if (saturated.reported_size() != INT_MAX)
+    return false;
+
+  saturated.add(saturated_small.operator->());
+  saturated.del_file(saturated_small.operator->());
+  if (saturated.reported_size() != INT_MAX)
+    return false;
+
+  saturated.del_file(saturated_overflow.operator->());
+  if (static_cast<unsigned int>(saturated.reported_size()) !=
+      saturated_large->get_memory_usage())
+    return false;
+
+  TestDjVuFileCache unlimited(-1);
+  GP<TestDjVuFile> unlimited_large = TestDjVuFile::create(0);
+  GP<TestDjVuFile> unlimited_overflow = TestDjVuFile::create(0);
+  GP<TestDjVuFile> unlimited_remaining = TestDjVuFile::create(0);
+  unlimited_large->set_reported_size(INT_MAX - 100);
+  unlimited_overflow->set_reported_size(200);
+  unlimited.add(unlimited_large.operator->());
+  unlimited.add(unlimited_overflow.operator->());
+  unlimited.add(unlimited_remaining.operator->());
+  const int unlimited_remaining_size = unlimited_remaining->get_memory_usage();
+  unlimited.set_max_size(unlimited_remaining_size);
+  if (unlimited.reported_size() != unlimited_remaining_size || unlimited.item_count() != 1)
     return false;
 
   TestDjVuFileCache large(-1);
@@ -296,7 +323,23 @@ bool cache_accounting_cases()
   }
   const int item_size = large_file->get_memory_usage();
   large.set_max_size(item_size * 9);
-  return large.reported_size() == item_size * 9 && large.item_count() == 9;
+  if (large.reported_size() != item_size * 9 || large.item_count() != 9)
+    return false;
+
+  TestDjVuFileCache saturated_large_list(-1);
+  GP<TestDjVuFile> saturated_list_file;
+  saturated_list_file = TestDjVuFile::create(0);
+  saturated_list_file->set_reported_size(INT_MAX - 100);
+  saturated_large_list.add(saturated_list_file.operator->());
+  for (int i=0; i<20; ++i)
+  {
+    saturated_list_file = TestDjVuFile::create(0);
+    saturated_large_list.add(saturated_list_file.operator->());
+  }
+  const int saturated_list_item_size = saturated_list_file->get_memory_usage();
+  saturated_large_list.set_max_size(saturated_list_item_size * 9);
+  return saturated_large_list.reported_size() == saturated_list_item_size * 9 &&
+    saturated_large_list.item_count() == 9;
 }
 
 bool exception_cause_cases()
