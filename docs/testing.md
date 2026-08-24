@@ -20,7 +20,10 @@ empty, and malformed streams.
 and runs for the same four configurations. It covers `GBitmap` size limits and
 invalid donation inputs, `GPBuffer` multiplication overflow, overflowing
 PNM/PPM integer fields, and `GException::cmp_cause()` prefix plus legacy
-null/empty behavior.
+null/empty behavior. It also verifies exact/saturated DjVu cache accounting,
+eviction after saturated deletion (including the `>20` item path and unlimited
+to finite cache transition), normal image memory accounting, and PNM/PPM
+dimension limits before narrowing to `int`.
 
 GitHub Actions repeats these four builds, runs the matching JPEG and libdjvu
 core regressions,

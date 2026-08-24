@@ -25,6 +25,8 @@
 - Hardened `GPixmap` and JPEG output dimension arithmetic before allocation.
 - Hardened `GBitmap` and `GPBuffer` size arithmetic, image memory accounting,
   PNM/PPM numeric parsing, exception-cause comparison, and JPEG input skipping.
+- Corrected saturated DjVu cache accounting during eviction and removal, and
+  validate PNM/PPM dimensions before converting them to `int`.
 - Added libdjvu core regressions for arithmetic, parser, and exception behavior.
 - Recorded a post-fix PVS-Studio scan and hardened malformed page-description
   handling.

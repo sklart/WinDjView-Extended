@@ -101,10 +101,9 @@ introduced by this hardening.
 
 Release Win32 and Release x64 were run again through `run-monitoring.ps1`
 with Release SIMD and NASM. The reports contain 821 and 973 diagnostics,
-respectively, including existing DjVuLibre license, style, and cache-pattern
-messages. The new size checks were reviewed specifically: no confirmed new L1
-arithmetic, conversion, allocation, buffer-size, pointer-arithmetic, or null
-dereference defect was found in `GBitmap.cpp`, `GPixmap.cpp`,
+respectively. The new size checks were reviewed specifically: no confirmed new
+L1 arithmetic, conversion, allocation, buffer-size, pointer-arithmetic, or
+null-dereference defect was found in `GBitmap.cpp`, `GPixmap.cpp`,
 `GSmartPointer.cpp`, `GException.cpp`, `DjVuFile.cpp`, `DjVuFileCache.cpp`, or
 `JPEGDecoder.cpp`.
 
@@ -112,6 +111,37 @@ The scan did flag an intermediate `GBitmap` saturation expression as a
 provably false unsigned-overflow pattern. It was simplified while retaining the
 same `UINT_MAX` saturation behavior, then rebuilt and covered by the core
 regression. No unrelated legacy warning cleanup was performed.
+
+### Why the documented x64 count changed from 819 to 973
+
+The saved 819-report baseline is no longer available as a `.plog`, so a
+diagnostic-code and severity-level diff is **NOT VERIFIED**. Its documented
+repository breakdown was application 405, libdjvu 412, and third-party 2.
+The current 973-report contains application 405, libdjvu 419, third-party 2,
+and 147 diagnostics under the unrelated external path
+`D:\Download\FBeditor`.
+
+| Category | Added | Removed |
+| --- | ---: | ---: |
+| Application | 0 | 0 |
+| libdjvu | 7 | 0 |
+| third_party | 0 | 0 |
+| build/CMake scratch | 0 observed | 0 observed |
+| external `D:\Download\FBeditor` | 147 | 0 |
+| V1042/license and per-level breakdown | NOT VERIFIED | NOT VERIFIED |
+
+Thus the whole +154 consists of 147 out-of-scope external diagnostics and
+seven additional libdjvu diagnostics. Without the original `.plog`, those
+seven cannot be attributed by code or severity with evidence; no such cause is
+claimed here. The current report has 107 V1042 entries, but that is not a
+baseline delta.
+
+A clean final Release x64 re-scan contains 825 diagnostics: application 405,
+libdjvu 418, and third-party 2; it contains no external FBeditor or CMake
+scratch paths. It confirms that the 973 total was contaminated by monitoring
+scope, not a 154-warning change in WinDjView sources. Compared with the
+documented repository baseline, its remaining +6 libdjvu records still lack a
+code/level diff and remain **NOT VERIFIED**.
 
 ## Remaining warnings
 
