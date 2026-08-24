@@ -427,6 +427,18 @@ GPixmap::init(const GPixmap &ref, const GRect &rect)
 void 
 GPixmap::donate_data(GPixel *data, int w, int h)
 {
+  if (w < 0 || h < 0 || w > USHRT_MAX || h > USHRT_MAX)
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+  const size_t width = static_cast<size_t>(w);
+  const size_t height = static_cast<size_t>(h);
+  // Both operands are at most USHRT_MAX, so this product fits size_t.
+  const size_t pixels_count = width * height;
+  if (pixels_count > static_cast<size_t>(INT_MAX))
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+#if !defined(_WIN64)
+  if (pixels_count > static_cast<size_t>(-1) / sizeof(GPixel))
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+#endif
   destroy();
   nrows = h;
   ncolumns = w;
@@ -467,8 +479,10 @@ read_integer(char &c, ByteStream &bs)
   if (c<'0' || c>'9')
     G_THROW( ERR_MSG("GPixmap.no_int") );
   // eat integer
-  while (c>='0' && c<='9') 
+  while (c>='0' && c<='9')
     {
+      if (x > (UINT_MAX - static_cast<unsigned int>(c-'0')) / 10)
+        G_THROW( ERR_MSG("GPixmap.no_int") );
       x = x*10 + c - '0';
       c = 0;
       bs.read(&c, 1);
@@ -520,8 +534,8 @@ GPixmap::init(ByteStream &bs)
   int bytespercomp = 1;
   int acolumns = read_integer(lookahead, bs);
   int arows = read_integer(lookahead, bs);
-  int maxval = read_integer(lookahead, bs);
-  if (maxval > 65535)
+  unsigned int maxval = read_integer(lookahead, bs);
+  if (maxval == 0 || maxval > 65535)
     G_THROW("Cannot read PPM with depth greater than 48 bits.");
   if (maxval > 255)
     bytespercomp = 2;
@@ -531,7 +545,8 @@ GPixmap::init(ByteStream &bs)
   int maxbin = 1 << (8 * bytespercomp);
   ramp.resize(0, maxbin-1);
   for (int i=0; i<maxbin; i++)
-    ramp[i] = (i<maxval ? (255*i + maxval/2) / maxval : 255);
+    ramp[i] = (static_cast<unsigned int>(i)<maxval ?
+      (255*i + maxval/2) / maxval : 255);
   unsigned char *bramp = ramp;
   // Read image data
   if (raw && grey)

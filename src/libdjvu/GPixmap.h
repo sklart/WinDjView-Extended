@@ -55,6 +55,7 @@
 
 #ifndef _GPIXMAP_H_
 #define _GPIXMAP_H_
+#include <limits.h>
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -519,7 +520,13 @@ GPixmap::borrow_data(GPixel &data, int w, int h)
 inline unsigned int 
 GPixmap::get_memory_usage() const
 {
-  return  sizeof(GPixmap)+(nrows * ncolumns * sizeof(GPixel));
+  const size_t max_usage = static_cast<size_t>(UINT_MAX);
+  const size_t pixel_count = static_cast<size_t>(nrows) *
+    static_cast<size_t>(ncolumns);
+  if (pixel_count > (max_usage - sizeof(GPixmap)) / sizeof(GPixel))
+    return UINT_MAX;
+  return static_cast<unsigned int>(sizeof(GPixmap) +
+    pixel_count * sizeof(GPixel));
 }
 
 // ---------------------------------

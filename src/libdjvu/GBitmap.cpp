@@ -67,6 +67,7 @@
 #include "GThreads.h"
 #include "GException.h"
 #include <stddef.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -211,11 +212,21 @@ GBitmap::GBitmap(const GBitmap &ref, const GRect &rect, int border)
 void 
 GBitmap::init(int arows, int acolumns, int aborder)
 {
-  size_t np = arows * (acolumns + aborder) + aborder;
-  if (arows != (unsigned short) arows ||
-      acolumns != (unsigned short) acolumns ||
-      acolumns + aborder != (unsigned short)(acolumns + aborder) ||
-      (arows > 0 && (np-aborder)/(size_t)arows!=(size_t)(acolumns+aborder)) )
+  if (arows < 0 || acolumns < 0 || aborder < 0 ||
+      arows > USHRT_MAX || acolumns > USHRT_MAX || aborder > USHRT_MAX)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const size_t rows = static_cast<size_t>(arows);
+  const size_t columns = static_cast<size_t>(acolumns);
+  const size_t image_border = static_cast<size_t>(aborder);
+  const size_t max_size = static_cast<size_t>(-1);
+  if (columns > USHRT_MAX - image_border)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const size_t stride = columns + image_border;
+  if (rows && stride > (max_size - image_border) / rows)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const size_t total = rows * stride + image_border;
+  // Several row offsets and indexes below are still represented by int.
+  if (total > static_cast<size_t>(INT_MAX))
     G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
   GMonitorLock lock(monitor());
   destroy();
@@ -223,12 +234,11 @@ GBitmap::init(int arows, int acolumns, int aborder)
   nrows = arows;
   ncolumns = acolumns;
   border = aborder;
-  bytes_per_row = ncolumns + border;
-  int npixels = nrows * bytes_per_row + border;
+  bytes_per_row = static_cast<unsigned short>(stride);
   gzerobuffer=zeroes(bytes_per_row + border);
-  if (npixels > 0) 
+  if (total > 0)
     {
-      gbytes_data.resize(npixels);
+      gbytes_data.resize(total);
       gbytes_data.clear();
       bytes = bytes_data;
     }
@@ -310,7 +320,7 @@ GBitmap::init(ByteStream &ref, int aborder)
   char lookahead = '\n';
   int acolumns = read_integer(lookahead, ref);
   int arows = read_integer(lookahead, ref);
-  int maxval = 1;
+  unsigned int maxval = 1;
   init(arows, acolumns, aborder);
   // go reading file
   if (magic[0]=='P')
@@ -323,7 +333,7 @@ GBitmap::init(ByteStream &ref, int aborder)
           return;
         case '2':
           maxval = read_integer(lookahead, ref);
-          if (maxval > 65535)
+          if (maxval == 0 || maxval > 65535)
             G_THROW("Cannot read PGM with depth greater than 16 bits.");
           grays = (maxval>255 ? 256 : maxval+1);
           read_pgm_text(ref, maxval); 
@@ -334,7 +344,7 @@ GBitmap::init(ByteStream &ref, int aborder)
           return;
         case '5':
           maxval = read_integer(lookahead, ref);
-          if (maxval > 65535)
+          if (maxval == 0 || maxval > 65535)
             G_THROW("Cannot read PGM with depth greater than 16 bits.");
           grays = (maxval>255 ? 256 : maxval+1);
           read_pgm_raw(ref, maxval); 
@@ -357,13 +367,21 @@ GBitmap::init(ByteStream &ref, int aborder)
 void
 GBitmap::donate_data(unsigned char *data, int w, int h)
 {
+  if (w < 0 || h < 0 || w > USHRT_MAX || h > USHRT_MAX)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const size_t width = static_cast<size_t>(w);
+  const size_t height = static_cast<size_t>(h);
+  // Both operands are at most USHRT_MAX, so this product fits size_t.
+  const size_t total = width * height;
+  if (total > static_cast<size_t>(INT_MAX))
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
   destroy();
   grays = 2;
   nrows = h;
   ncolumns = w;
   border = 0;
   bytes_per_row = w;
-  gbytes_data.replace(data,w*h);
+  gbytes_data.replace(data,total);
   bytes = bytes_data;
   rlelength = 0;
 }
@@ -371,6 +389,13 @@ GBitmap::donate_data(unsigned char *data, int w, int h)
 void
 GBitmap::donate_rle(unsigned char *rledata, unsigned int rledatalen, int w, int h)
 {
+  if (w < 0 || h < 0 || w > USHRT_MAX || h > USHRT_MAX)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const size_t width = static_cast<size_t>(w);
+  const size_t height = static_cast<size_t>(h);
+  // Both operands are at most USHRT_MAX, so this product fits size_t.
+  if (width * height > static_cast<size_t>(INT_MAX))
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
   destroy();
   grays = 2;
   nrows = h;
@@ -437,12 +462,21 @@ GBitmap::uncompress()
 unsigned int 
 GBitmap::get_memory_usage() const
 {
-  unsigned long usage = sizeof(GBitmap);
+  size_t usage = sizeof(GBitmap);
   if (bytes)
-    usage += nrows * bytes_per_row + border;
+    {
+      const size_t data_size = static_cast<size_t>(nrows) *
+        static_cast<size_t>(bytes_per_row) + static_cast<size_t>(border);
+      usage += data_size;
+    }
   if (rle)
-    usage += rlelength;
-  return usage;
+    {
+      const unsigned int used = static_cast<unsigned int>(usage);
+      if (rlelength > UINT_MAX - used)
+        return UINT_MAX;
+      return used + rlelength;
+    }
+  return static_cast<unsigned int>(usage);
 }
 
 
@@ -770,8 +804,10 @@ GBitmap::read_integer(char &c, ByteStream &bs)
   if (c<'0' || c>'9')
     G_THROW( ERR_MSG("GBitmap.not_int") );
   // eat integer
-  while (c>='0' && c<='9') 
+  while (c>='0' && c<='9')
     {
+      if (x > (UINT_MAX - static_cast<unsigned int>(c-'0')) / 10)
+        G_THROW( ERR_MSG("GBitmap.no_int") );
       x = x*10 + c - '0';
       c = 0;
       bs.read(&c, 1);

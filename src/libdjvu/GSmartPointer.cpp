@@ -68,6 +68,7 @@
 // <http://prdownloads.sourceforge.net/djvu/DjVu2_2b-src.tgz>.
 
 #include <stddef.h>
+#include "GException.h"
 #include <string.h>
 #if PARANOID_DEBUG
 # include <assert.h>
@@ -139,6 +140,14 @@ GPBase::assign (GPEnabled *nptr)
 
 // ------ GPBUFFERBASE
 
+static size_t
+checked_buffer_size(const size_t n, const size_t t)
+{
+  if (t && n > static_cast<size_t>(-1) / t)
+    G_THROW(GException::outofmemory);
+  return n * t;
+}
+
 
 void
 GPBufferBase::replace(void *nptr,const size_t n)
@@ -152,7 +161,7 @@ GPBufferBase::GPBufferBase(void *&xptr,const size_t n,const size_t t)
   : ptr(xptr), num(n)
 {
   if (n)
-    xptr = ::operator new(n*t);
+    xptr = ::operator new(checked_buffer_size(n,t));
   else
     xptr = 0;
 }
@@ -182,7 +191,7 @@ GPBufferBase::resize(const size_t n, const size_t t)
     }
   else
     {
-      const size_t s=ptr?(((num<n)?num:n)*t):0;
+      const size_t s=ptr ? checked_buffer_size((num<n)?num:n,t) : 0;
       void *nptr;
       GPBufferBase gnptr(nptr, n, t);
       if(s)
@@ -197,7 +206,7 @@ void
 GPBufferBase::set(const size_t t,const char c)
 {
   if(num)
-    memset(ptr,c,num*t);
+    memset(ptr,c,checked_buffer_size(num,t));
 }
 
 
