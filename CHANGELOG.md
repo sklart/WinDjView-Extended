@@ -23,6 +23,9 @@
 - Expanded JPEGDecoder regression coverage and run it for every Debug/Release
   Win32/x64 CI configuration.
 - Hardened `GPixmap` and JPEG output dimension arithmetic before allocation.
+- Hardened `GBitmap` and `GPBuffer` size arithmetic, image memory accounting,
+  PNM/PPM numeric parsing, exception-cause comparison, and JPEG input skipping.
+- Added libdjvu core regressions for arithmetic, parser, and exception behavior.
 - Recorded a post-fix PVS-Studio scan and hardened malformed page-description
   handling.
 

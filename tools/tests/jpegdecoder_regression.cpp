@@ -19,7 +19,7 @@ const int kHeight = 6;
 
 GP<ByteStream> make_jpeg(bool grayscale, bool progressive,
                          int width = kWidth, int height = kHeight,
-                         bool subsampled = false)
+                         bool subsampled = false, bool large_marker = false)
 {
   jpeg_compress_struct cinfo;
   jpeg_error_mgr jerr;
@@ -51,6 +51,12 @@ GP<ByteStream> make_jpeg(bool grayscale, bool progressive,
   if (progressive)
     jpeg_simple_progression(&cinfo);
   jpeg_start_compress(&cinfo, TRUE);
+  if (large_marker)
+  {
+    std::vector<unsigned char> marker(8192, 0x5a);
+    jpeg_write_marker(&cinfo, JPEG_COM, &marker[0],
+      static_cast<unsigned int>(marker.size()));
+  }
   while (cinfo.next_scanline < cinfo.image_height)
   {
     const int y = (int)cinfo.next_scanline;
@@ -87,10 +93,10 @@ bool approximately_equal(unsigned char actual, int expected, int tolerance)
 
 bool verify_image(bool grayscale, bool progressive,
                   int width = kWidth, int height = kHeight,
-                  bool subsampled = false)
+                  bool subsampled = false, bool large_marker = false)
 {
   GP<ByteStream> stream = make_jpeg(grayscale, progressive, width, height,
-    subsampled);
+    subsampled, large_marker);
   GP<GPixmap> pixmap = JPEGDecoder::decode(*stream);
   if ((int)pixmap->columns() != width || (int)pixmap->rows() != height)
     return false;
@@ -140,6 +146,18 @@ bool rejects_truncated_input()
   }
   G_ENDCATCH;
   return rejected;
+}
+
+bool rejects_input(GP<ByteStream> input);
+
+bool verifies_large_marker_and_truncation()
+{
+  if (!verify_image(false, false, kWidth, kHeight, false, true))
+    return false;
+  GP<ByteStream> complete = make_jpeg(false, false, kWidth, kHeight, false,
+    true);
+  const TArray<char> bytes = complete->get_data();
+  return rejects_input(ByteStream::create(bytes, bytes.size() / 3));
 }
 
 bool rejects_input(GP<ByteStream> input)
@@ -207,6 +225,7 @@ int main()
       !verify_image(false, true, kWidth, kHeight, true) ||
       !verify_image(true, false) || !verify_image(false, false, 1, 1) ||
       !verify_image(false, false, 2, 2) || !rejects_truncated_input() ||
+      !verifies_large_marker_and_truncation() ||
       !rejects_empty_and_malformed_input() || !rejects_oversized_pixmap() ||
       !rejects_win32_unrepresentable_pixmap())
   {

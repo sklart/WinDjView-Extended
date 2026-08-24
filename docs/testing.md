@@ -16,7 +16,14 @@ bottom-to-top row mapping, 1×1 and 2×2 images, controlled rejection of a
 50000×50000 `GPixmap` before allocation, and controlled rejection of truncated,
 empty, and malformed streams.
 
-GitHub Actions repeats these four builds, runs the matching JPEG regression,
+`tools\\tests\\run-libdjvu-core-regression.cmd` accepts the same arguments
+and runs for the same four configurations. It covers `GBitmap` size limits and
+invalid donation inputs, `GPBuffer` multiplication overflow, overflowing
+PNM/PPM integer fields, and `GException::cmp_cause()` prefix plus legacy
+null/empty behavior.
+
+GitHub Actions repeats these four builds, runs the matching JPEG and libdjvu
+core regressions,
 prints the imported DLLs for Release, rejects every external DLL whose name
 contains `jpeg`, and publishes the resulting executables as workflow artifacts.
 No automated corpus of DjVu samples is currently checked in, so opening real

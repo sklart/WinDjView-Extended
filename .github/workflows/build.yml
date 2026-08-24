@@ -104,6 +104,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-jpegdecoder-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
 
+      - name: Run libdjvu core regression tests
+        shell: cmd
+        run: tools\tests\run-libdjvu-core-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
+
       - name: Upload executable
         if: success()
         uses: actions/upload-artifact@v4

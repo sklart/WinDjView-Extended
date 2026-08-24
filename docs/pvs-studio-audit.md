@@ -97,6 +97,22 @@ records are unrelated legacy or informational diagnostics; no new arithmetic,
 allocation, signed/unsigned, buffer-size, or null-dereference warning was
 introduced by this hardening.
 
+## Core arithmetic hardening re-scan (2026-08-24)
+
+Release Win32 and Release x64 were run again through `run-monitoring.ps1`
+with Release SIMD and NASM. The reports contain 821 and 973 diagnostics,
+respectively, including existing DjVuLibre license, style, and cache-pattern
+messages. The new size checks were reviewed specifically: no confirmed new L1
+arithmetic, conversion, allocation, buffer-size, pointer-arithmetic, or null
+dereference defect was found in `GBitmap.cpp`, `GPixmap.cpp`,
+`GSmartPointer.cpp`, `GException.cpp`, `DjVuFile.cpp`, `DjVuFileCache.cpp`, or
+`JPEGDecoder.cpp`.
+
+The scan did flag an intermediate `GBitmap` saturation expression as a
+provably false unsigned-overflow pattern. It was simplified while retaining the
+same `UINT_MAX` saturation behavior, then rebuilt and covered by the core
+regression. No unrelated legacy warning cleanup was performed.
+
 ## Remaining warnings
 
 The reports still contain legacy, style, performance, deprecation, and
