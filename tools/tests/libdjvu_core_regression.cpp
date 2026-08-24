@@ -4,6 +4,7 @@
 #include "GPixmap.h"
 #include "GException.h"
 #include "GSmartPointer.h"
+#include "DjVuFileCache.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -103,6 +104,136 @@ bool parser_overflow_rejected()
     rejects_pnm("P3\n1 1\n42949672960\n", false);
 }
 
+bool accepts_pnm(const char *contents, bool bitmap)
+{
+  GP<ByteStream> stream = ByteStream::create(contents, strlen(contents));
+  bool accepted = true;
+  G_TRY
+  {
+    if (bitmap)
+      GBitmap::create(*stream);
+    else
+      GPixmap::create(*stream);
+  }
+  G_CATCH_ALL
+  {
+    accepted = false;
+  }
+  G_ENDCATCH;
+  return accepted;
+}
+
+bool parser_dimension_limits()
+{
+  return accepts_pnm("P2\n65535 0\n1\n", true) &&
+    accepts_pnm("P3\n65535 0\n1\n", false) &&
+    rejects_pnm("P2\n65536 0\n1\n", true) &&
+    rejects_pnm("P3\n65536 0\n1\n", false) &&
+    rejects_pnm("P2\n1 65536\n1\n", true) &&
+    rejects_pnm("P3\n1 65536\n1\n", false) &&
+    rejects_pnm("P2\n2147483647 0\n1\n", true) &&
+    rejects_pnm("P3\n2147483647 0\n1\n", false) &&
+    rejects_pnm("P2\n2147483648 0\n1\n", true) &&
+    rejects_pnm("P3\n2147483648 0\n1\n", false) &&
+    rejects_pnm("P2\n4294967295 0\n1\n", true) &&
+    rejects_pnm("P3\n4294967295 0\n1\n", false) &&
+    rejects_pnm("P2\n4294967296 0\n1\n", true) &&
+    rejects_pnm("P3\n4294967296 0\n1\n", false) &&
+    rejects_pnm("P2\n1 1\n0\n", true) &&
+    rejects_pnm("P3\n1 1\n65536\n", false);
+}
+
+bool image_memory_usage_cases()
+{
+  GP<GBitmap> bitmap = GBitmap::create();
+  GP<GPixmap> pixmap = GPixmap::create();
+  bitmap->init(2, 3, 1);
+  pixmap->init(2, 3);
+  return bitmap->get_memory_usage() == sizeof(GBitmap) + 9 &&
+    pixmap->get_memory_usage() == sizeof(GPixmap) +
+      6 * sizeof(GPixel);
+}
+
+class SyntheticCacheItem : public DjVuFileCache::Item
+{
+public:
+  SyntheticCacheItem(unsigned int xsize, time_t xtime) : size(xsize)
+  {
+    time = xtime;
+  }
+  virtual unsigned int get_size(void) const { return size; }
+private:
+  unsigned int size;
+};
+
+class TestDjVuFileCache : public DjVuFileCache
+{
+public:
+  TestDjVuFileCache(int maximum) : DjVuFileCache(maximum), next_time(1) {}
+  void add_size(unsigned int size)
+  {
+    list.append(new SyntheticCacheItem(size, next_time++));
+    set_max_size(-1);
+  }
+  int reported_size() const { return cur_size; }
+  int item_count() const { return list.size(); }
+private:
+  time_t next_time;
+};
+
+bool cache_accounting_cases()
+{
+  TestDjVuFileCache ordinary(-1);
+  ordinary.add_size(100);
+  ordinary.add_size(200);
+  ordinary.add_size(300);
+  if (ordinary.reported_size() != 600)
+    return false;
+
+  TestDjVuFileCache saturated(-1);
+  saturated.add_size(INT_MAX - 100);
+  saturated.add_size(200);
+  if (saturated.reported_size() != INT_MAX)
+    return false;
+
+  TestDjVuFileCache deletion(-1);
+  deletion.add_size(250);
+  deletion.add_size(750);
+  deletion.del_file(0);
+  if (deletion.reported_size() != 750)
+    return false;
+
+  TestDjVuFileCache remains_saturated(-1);
+  remains_saturated.add_size(100);
+  remains_saturated.add_size(INT_MAX - 100);
+  remains_saturated.add_size(500);
+  remains_saturated.del_file(0);
+  if (remains_saturated.reported_size() != INT_MAX)
+    return false;
+
+  TestDjVuFileCache becomes_exact(-1);
+  becomes_exact.add_size(600);
+  becomes_exact.add_size(INT_MAX - 100);
+  becomes_exact.del_file(0);
+  if (becomes_exact.reported_size() != INT_MAX - 100)
+    return false;
+
+  TestDjVuFileCache unlimited(-1);
+  unlimited.add_size(INT_MAX - 100);
+  unlimited.add_size(200);
+  unlimited.add_size(100);
+  unlimited.set_max_size(100);
+  if (unlimited.reported_size() != 100 || unlimited.item_count() != 1)
+    return false;
+
+  TestDjVuFileCache large(-1);
+  large.add_size(INT_MAX - 100);
+  for (int i=0; i<20; ++i)
+    large.add_size(10);
+  large.set_max_size(90);
+  return large.reported_size() == 90 && large.item_count() == 9;
+}
+
 bool exception_cause_cases()
 {
   return GException::cmp_cause("EOF", "EOF") == 0 &&
@@ -125,7 +256,9 @@ bool exception_cause_cases()
 int main()
 {
   if (!bitmap_init_cases() || !donate_cases() || !buffer_overflow_rejected() ||
-      !parser_overflow_rejected() || !exception_cause_cases())
+      !parser_overflow_rejected() || !parser_dimension_limits() ||
+      !image_memory_usage_cases() || !cache_accounting_cases() ||
+      !exception_cause_cases())
   {
     fputs("libdjvu core regression failed\n", stderr);
     return 1;
