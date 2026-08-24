@@ -64,6 +64,7 @@
 #include "debug.h"
 
 #include <stddef.h>
+#include <limits.h>
 #include <stdlib.h>
 
 
@@ -76,6 +77,25 @@ namespace DJVU {
 
 
 DjVuFileCache::~DjVuFileCache(void) {}
+
+static int
+cache_size(unsigned int size)
+{
+  return (size > static_cast<unsigned int>(INT_MAX)) ? INT_MAX :
+    static_cast<int>(size);
+}
+
+static int
+add_cache_size(int total, int amount)
+{
+  return (amount > INT_MAX-total) ? INT_MAX : total+amount;
+}
+
+static int
+subtract_cache_size(int total, int amount)
+{
+  return (amount >= total) ? 0 : total-amount;
+}
 
 int
 DjVuFileCache::Item::qsort_func(const void *el1, const void *el2)
@@ -131,7 +151,7 @@ DjVuFileCache::add_file(const GP<DjVuFile> & file)
       int _max_size=enabled ? max_size : 0;
       if (max_size<0) _max_size=max_size;
 
-      int add_size=file->get_memory_usage();
+      int add_size=cache_size(file->get_memory_usage());
    
       if (_max_size>=0 && add_size>_max_size)
       {
@@ -142,7 +162,7 @@ DjVuFileCache::add_file(const GP<DjVuFile> & file)
       if (_max_size>=0) clear_to_size(_max_size-add_size);
 
       list.append(new Item(file));
-      cur_size+=add_size;
+      cur_size=add_cache_size(cur_size,add_size);
       file_added(file);
    }
 }
@@ -174,7 +194,8 @@ DjVuFileCache::clear_to_size(int size)
        for(i=0;i<item_arr.size() && cur_size > (int)size;i++)
          {
            Item *item = item_arr[i];
-           cur_size -= item->get_size();
+           cur_size = subtract_cache_size(cur_size,
+             cache_size(item->get_size()));
            file_cleared(item->file);
            item_arr[i] = 0;
          }
@@ -193,7 +214,8 @@ DjVuFileCache::clear_to_size(int size)
        for(++pos;pos;++pos)
          if (list[pos]->get_time()<list[oldest_pos]->get_time())
            oldest_pos=pos;
-       cur_size -= list[oldest_pos]->get_size();
+       cur_size = subtract_cache_size(cur_size,
+         cache_size(list[oldest_pos]->get_size()));
        GP<DjVuFile> file=list[oldest_pos]->file;
        list.del(oldest_pos);
        file_cleared(file);
@@ -215,7 +237,7 @@ DjVuFileCache::calculate_size(void)
    
    int size=0;
    for(GPosition pos=list;pos;++pos)
-      size+=list[pos]->get_size();
+      size=add_cache_size(size,cache_size(list[pos]->get_size()));
    return size;
 }
 
@@ -234,7 +256,7 @@ DjVuFileCache::del_file(const DjVuFile * file)
       if (list[pos]->get_file()==file)
       {
 	 GP<DjVuFile> file=list[pos]->get_file();
-	 cur_size-=list[pos]->get_size();
+	 cur_size=subtract_cache_size(cur_size,cache_size(list[pos]->get_size()));
 	 list.del(pos);
 	 file_deleted(file);
 	 break;

@@ -78,6 +78,7 @@
 #endif // NEED_DECODER_ONLY
 
 #include "debug.h"
+#include <limits.h>
 
 
 #ifdef HAVE_NAMESPACES
@@ -101,12 +102,12 @@ class ProgressByteStream : public ByteStream
 {
 public:
   ProgressByteStream(const GP<ByteStream> & xstr) : str(xstr),
-    last_call_pos(0) {}
+    progress_cl_data(0), progress_cb(0), last_call_pos(0) {}
   virtual ~ProgressByteStream() {}
 
   virtual size_t read(void *buffer, size_t size)
   {
-    int rc=0;
+    size_t rc=0;
 	   // G_TRY {} CATCH; block here is merely to avoid egcs internal error
     G_TRY {
       int cur_pos=str->tell();
@@ -127,7 +128,7 @@ public:
   }
   virtual int seek(long offset, int whence = SEEK_SET, bool nothrow=false)
   {
-    return str->seek(offset, whence);
+    return str->seek(offset, whence, nothrow);
   }
   virtual long tell(void ) const { return str->tell(); }
 
@@ -294,16 +295,23 @@ DjVuFile::reset(void)
 unsigned int
 DjVuFile::get_memory_usage(void) const
 {
-   unsigned int size=sizeof(*this);
-   if (info) size+=info->get_memory_usage();
-   if (bg44) size+=bg44->get_memory_usage();
-   if (fgjb) size+=fgjb->get_memory_usage();
-   if (fgpm) size+=fgpm->get_memory_usage();
-   if (fgbc) size+=fgbc->size()*sizeof(int);
-   if (anno) size+=anno->size();
-   if (meta) size+=meta->size();
-   if (dir) size+=dir->get_memory_usage();
-   return size;
+   const size_t max_usage=static_cast<size_t>(UINT_MAX);
+   size_t size=sizeof(*this);
+#define ADD_MEMORY_USAGE(x) \
+   do { const size_t amount=static_cast<size_t>(x); \
+     size=(amount > max_usage-size) ? max_usage : size+amount; } while (0)
+   if (info) ADD_MEMORY_USAGE(info->get_memory_usage());
+   if (bg44) ADD_MEMORY_USAGE(bg44->get_memory_usage());
+   if (fgjb) ADD_MEMORY_USAGE(fgjb->get_memory_usage());
+   if (fgpm) ADD_MEMORY_USAGE(fgpm->get_memory_usage());
+   if (fgbc && static_cast<size_t>(fgbc->size()) >
+       (max_usage-size)/sizeof(int)) size=max_usage;
+   else if (fgbc) ADD_MEMORY_USAGE(fgbc->size()*sizeof(int));
+   if (anno) ADD_MEMORY_USAGE(anno->size());
+   if (meta) ADD_MEMORY_USAGE(meta->size());
+   if (dir) ADD_MEMORY_USAGE(dir->get_memory_usage());
+#undef ADD_MEMORY_USAGE
+   return static_cast<unsigned int>(size);
 }
 
 GPList<DjVuFile>
