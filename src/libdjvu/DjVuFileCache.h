@@ -173,7 +173,7 @@ public:
 	   virtual ~Item(void);
 	   time_t	get_time(void) const;
 	   GP<DjVuFile>	get_file(void) const;
-	   unsigned int	get_size(void) const;
+	   virtual unsigned int	get_size(void) const;
 	   void		refresh(void);
 
 	public:
@@ -198,12 +198,13 @@ protected:
    virtual void	file_cleared(const GP<DjVuFile> & file);
 
    GPList<Item>	get_items(void);
-private:
+protected:
    GPList<Item>	list;
    bool		enabled;
    int		max_size;
    int		cur_size;
 
+private:
    int		calculate_size(void);
    void		clear_to_size(int size);
 };

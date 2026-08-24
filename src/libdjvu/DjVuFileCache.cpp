@@ -97,6 +97,13 @@ subtract_cache_size(int total, int amount)
   return (amount >= total) ? 0 : total-amount;
 }
 
+static bool
+is_saturated_cache_size(int size)
+{
+  // INT_MAX means "at least INT_MAX", not an exact byte count.
+  return size == INT_MAX;
+}
+
 int
 DjVuFileCache::Item::qsort_func(const void *el1, const void *el2)
 {
@@ -191,17 +198,25 @@ DjVuFileCache::clear_to_size(int size)
          item_arr[i] = list[pos];
        list.empty();
        qsort(&item_arr[0], item_arr.size(), sizeof(item_arr[0]), Item::qsort_func);
+       for(i=0;i<item_arr.size();i++)
+         list.append(item_arr[i]);
        for(i=0;i<item_arr.size() && cur_size > (int)size;i++)
          {
            Item *item = item_arr[i];
-           cur_size = subtract_cache_size(cur_size,
-             cache_size(item->get_size()));
-           file_cleared(item->file);
-           item_arr[i] = 0;
+           const bool was_saturated=is_saturated_cache_size(cur_size);
+           const int item_size=cache_size(item->get_size());
+           GP<DjVuFile> file=item->file;
+           GPosition item_pos;
+           for(item_pos=list;item_pos && list[item_pos]!=item;++item_pos) {}
+           if (item_pos)
+             list.del(item_pos);
+           if (was_saturated)
+             cur_size=calculate_size();
+           else
+             cur_size = subtract_cache_size(cur_size,item_size);
+           file_cleared(file);
          }
-       for (; i<item_arr.size(); i++)
-         list.append(item_arr[i]);
-       if (cur_size <= 0) 
+       if (cur_size <= 0)
          cur_size = calculate_size();
      } 
 
@@ -214,10 +229,15 @@ DjVuFileCache::clear_to_size(int size)
        for(++pos;pos;++pos)
          if (list[pos]->get_time()<list[oldest_pos]->get_time())
            oldest_pos=pos;
-       cur_size = subtract_cache_size(cur_size,
-         cache_size(list[oldest_pos]->get_size()));
+       Item *item=list[oldest_pos];
+       const bool was_saturated=is_saturated_cache_size(cur_size);
+       const int item_size=cache_size(item->get_size());
        GP<DjVuFile> file=list[oldest_pos]->file;
        list.del(oldest_pos);
+       if (was_saturated)
+         cur_size=calculate_size();
+       else
+         cur_size = subtract_cache_size(cur_size,item_size);
        file_cleared(file);
        // cur_size *may* become negative because items may change their
        // size after they've been added to the cache
@@ -255,9 +275,12 @@ DjVuFileCache::del_file(const DjVuFile * file)
    for(GPosition pos=list;pos;++pos)
       if (list[pos]->get_file()==file)
       {
+	 const bool was_saturated=is_saturated_cache_size(cur_size);
 	 GP<DjVuFile> file=list[pos]->get_file();
-	 cur_size=subtract_cache_size(cur_size,cache_size(list[pos]->get_size()));
+	 const int item_size=cache_size(list[pos]->get_size());
 	 list.del(pos);
+	 cur_size=was_saturated ? calculate_size() :
+	   subtract_cache_size(cur_size,item_size);
 	 file_deleted(file);
 	 break;
       }
