@@ -146,12 +146,20 @@ DjVuFileCache::add_file(const GP<DjVuFile> & file)
    if (!enabled)
       return;
 
+   // A cached file can grow or shrink after it has been inserted.
+   cur_size=calculate_size();
+
       // See if the file is already cached
    GPosition pos;
    for(pos=list;pos;++pos)
       if (list[pos]->get_file()==file) break;
    
-   if (pos) list[pos]->refresh();	// Refresh the timestamp
+   if (pos)
+   {
+      list[pos]->refresh();	// Refresh the timestamp
+      if (max_size>=0)
+        clear_to_size(max_size);
+   }
    else
    {
 	 // Doesn't exist in the list yet
@@ -182,6 +190,10 @@ DjVuFileCache::clear_to_size(int size)
 
    GCriticalSectionLock lock(&class_lock);
 
+   // Item sizes are mutable, so make every eviction decision from the
+   // current values rather than the accounting left by an earlier call.
+   cur_size=calculate_size();
+
    if (size==0)
      {
        list.empty();
@@ -198,24 +210,20 @@ DjVuFileCache::clear_to_size(int size)
          item_arr[i] = list[pos];
        list.empty();
        qsort(&item_arr[0], item_arr.size(), sizeof(item_arr[0]), Item::qsort_func);
-       for(i=0;i<item_arr.size();i++)
-         list.append(item_arr[i]);
+       GTArray<int> remaining_size(item_arr.size());
+       remaining_size[item_arr.size()]=0;
+       for(i=item_arr.size()-1;i>=0;i--)
+         remaining_size[i]=add_cache_size(remaining_size[i+1],
+           cache_size(item_arr[i]->get_size()));
        for(i=0;i<item_arr.size() && cur_size > (int)size;i++)
          {
            Item *item = item_arr[i];
-           const bool was_saturated=is_saturated_cache_size(cur_size);
-           const int item_size=cache_size(item->get_size());
            GP<DjVuFile> file=item->file;
-           GPosition item_pos;
-           for(item_pos=list;item_pos && list[item_pos]!=item;++item_pos) {}
-           if (item_pos)
-             list.del(item_pos);
-           if (was_saturated)
-             cur_size=calculate_size();
-           else
-             cur_size = subtract_cache_size(cur_size,item_size);
+           cur_size=remaining_size[i+1];
            file_cleared(file);
          }
+       for(;i<item_arr.size();i++)
+         list.append(item_arr[i]);
        if (cur_size <= 0)
          cur_size = calculate_size();
      } 
@@ -271,6 +279,8 @@ DjVuFileCache::del_file(const DjVuFile * file)
 
    if (!enabled)
       return;
+
+   cur_size=calculate_size();
 
    for(GPosition pos=list;pos;++pos)
       if (list[pos]->get_file()==file)
