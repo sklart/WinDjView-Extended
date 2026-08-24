@@ -497,7 +497,7 @@ END
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 251, 121
+IDD_ABOUTBOX DIALOGEX 0, 0, 251, 132
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About WinDjView Extended"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
@@ -507,12 +507,13 @@ BEGIN
     LTEXT           "Copyright (C) 2004-2012 Andrew Zhezherun",IDC_STATIC,40,17,149,8
     LTEXT           "Copyright (C) 2012 Leonid Zhezherun",IDC_STATIC,40,27,149,8
     LTEXT           "Copyright (C) 2014-2025 N.M.E.",IDC_STATIC,40,37,149,8
+    LTEXT           "Copyright (C) 2026 sklart (Sklyarov Artem)",IDC_STATIC,40,47,204,8
     DEFPUSHBUTTON   "Close",IDOK,194,7,50,14,WS_GROUP
-    LTEXT           "Project homepage:",IDC_STATIC,40,50,64,8
-    LTEXT           "DjVuLibre homepage:",IDC_STATIC,40,60,72,8
-    LTEXT           "sourceforge.net/../windjviewextended",IDC_STATIC_LINK,106,50,138,8
-    LTEXT           "djvu.sourceforge.net",IDC_STATIC_LIB_LINK,114,60,131,8
-    LTEXT           "License",IDC_STATIC_LICENSE,40,74,204,34
+    LTEXT           "Project homepage:",IDC_STATIC,40,60,64,8
+    LTEXT           "DjVuLibre homepage:",IDC_STATIC,40,70,72,8
+    LTEXT           "github.com/sklart/WinDjView-Extended",IDC_STATIC_LINK,106,60,138,8
+    LTEXT           "djvu.sourceforge.net",IDC_STATIC_LIB_LINK,114,70,131,8
+    LTEXT           "License",IDC_STATIC_LICENSE,40,84,204,42
 END
 
 IDD_PRINT DIALOGEX 0, 0, 432, 316
@@ -1225,7 +1226,7 @@ BEGIN
     IDS_NEW_VERSION_AVAILABLE 
                             "A new version %s is available. Do you want to open the downloads page?"
     IDS_VERSION_URL         "http://windjview.sourceforge.net/version.txt"
-    IDS_WEBSITE_URL         "https://sourceforge.net/projects/windjviewextended/"
+    IDS_WEBSITE_URL         "https://github.com/sklart/WinDjView-Extended"
     IDS_DJVULIBRE_URL       "http://djvu.sourceforge.net"
     IDS_DONATE_URL          "https://sourceforge.net/donate/index.php?group_id=114927"
     IDS_STRING_NOT_FOUND    "Search string not found"
