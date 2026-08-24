@@ -318,8 +318,12 @@ GBitmap::init(ByteStream &ref, int aborder)
   magic[0] = magic[1] = 0;
   ref.readall((void*)magic, sizeof(magic));
   char lookahead = '\n';
-  int acolumns = read_integer(lookahead, ref);
-  int arows = read_integer(lookahead, ref);
+  const unsigned int parsed_columns = read_integer(lookahead, ref);
+  const unsigned int parsed_rows = read_integer(lookahead, ref);
+  if (parsed_columns > USHRT_MAX || parsed_rows > USHRT_MAX)
+    G_THROW("GBitmap: image size exceeds maximum (corrupted file?)");
+  const int acolumns = static_cast<int>(parsed_columns);
+  const int arows = static_cast<int>(parsed_rows);
   unsigned int maxval = 1;
   init(arows, acolumns, aborder);
   // go reading file

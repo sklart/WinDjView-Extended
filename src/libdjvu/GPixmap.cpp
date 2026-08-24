@@ -532,8 +532,12 @@ GPixmap::init(ByteStream &bs)
   char lookahead = '\n';
   int bytesperrow = 0;
   int bytespercomp = 1;
-  int acolumns = read_integer(lookahead, bs);
-  int arows = read_integer(lookahead, bs);
+  const unsigned int parsed_columns = read_integer(lookahead, bs);
+  const unsigned int parsed_rows = read_integer(lookahead, bs);
+  if (parsed_columns > USHRT_MAX || parsed_rows > USHRT_MAX)
+    G_THROW("GPixmap: image size exceeds maximum (corrupted file?)");
+  const int acolumns = static_cast<int>(parsed_columns);
+  const int arows = static_cast<int>(parsed_rows);
   unsigned int maxval = read_integer(lookahead, bs);
   if (maxval == 0 || maxval > 65535)
     G_THROW("Cannot read PPM with depth greater than 48 bits.");
