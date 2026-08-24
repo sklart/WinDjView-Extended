@@ -82,6 +82,8 @@ namespace DJVU {
 #endif
 #endif
 
+class DjVuFileCacheTestAccess;
+
 /** @name DjVuFileCache.h
     Files #"DjVuFileCache.h"# and #"DjVuFileCache.cpp"# implement a simple
     caching mechanism for keeping a given number of \Ref{DjVuFile} instances
@@ -173,7 +175,7 @@ public:
 	   virtual ~Item(void);
 	   time_t	get_time(void) const;
 	   GP<DjVuFile>	get_file(void) const;
-	   virtual unsigned int	get_size(void) const;
+	   unsigned int	get_size(void) const;
 	   void		refresh(void);
 
 	public:
@@ -198,7 +200,8 @@ protected:
    virtual void	file_cleared(const GP<DjVuFile> & file);
 
    GPList<Item>	get_items(void);
-protected:
+private:
+   friend class DjVuFileCacheTestAccess;
    GPList<Item>	list;
    bool		enabled;
    int		max_size;

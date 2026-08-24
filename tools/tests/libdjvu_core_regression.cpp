@@ -10,6 +10,42 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef HAVE_NAMESPACES
+namespace DJVU {
+#endif
+
+class DjVuFileCacheTestAccess
+{
+public:
+  static void add(DjVuFileCache &cache, const GP<DjVuFile> &file,
+                  time_t time)
+  {
+    DjVuFileCache::Item *item = new DjVuFileCache::Item(file);
+    item->time = time;
+    cache.list.append(item);
+    cache.cur_size = cache.calculate_size();
+  }
+
+  static int reported_size(const DjVuFileCache &cache)
+  {
+    return cache.cur_size;
+  }
+
+  static int item_count(const DjVuFileCache &cache)
+  {
+    return cache.list.size();
+  }
+
+  static void set_reported_size(DjVuFileCache &cache, int size)
+  {
+    cache.cur_size = size;
+  }
+};
+
+#ifdef HAVE_NAMESPACES
+}
+#endif
+
 namespace {
 
 bool bitmap_init_rejected(int rows, int columns, int border)
@@ -154,29 +190,40 @@ bool image_memory_usage_cases()
       6 * sizeof(GPixel);
 }
 
-class SyntheticCacheItem : public DjVuFileCache::Item
+class TestDjVuFile : public DjVuFile
 {
 public:
-  SyntheticCacheItem(unsigned int xsize, time_t xtime) : size(xsize)
+  static GP<TestDjVuFile> create(unsigned int payload)
   {
-    time = xtime;
+    TestDjVuFile *file = new TestDjVuFile();
+    GP<TestDjVuFile> result = file;
+    file->init(ByteStream::create("", 0));
+    file->set_payload(payload);
+    return result;
   }
-  virtual unsigned int get_size(void) const { return size; }
+  void set_payload(unsigned int payload)
+  {
+    static char contents[700];
+    meta = ByteStream::create(contents, payload);
+  }
 private:
-  unsigned int size;
+  TestDjVuFile(void) : DjVuFile() {}
 };
 
 class TestDjVuFileCache : public DjVuFileCache
 {
 public:
   TestDjVuFileCache(int maximum) : DjVuFileCache(maximum), next_time(1) {}
-  void add_size(unsigned int size)
+  void add(TestDjVuFile *file)
   {
-    list.append(new SyntheticCacheItem(size, next_time++));
-    set_max_size(-1);
+    DjVuFileCacheTestAccess::add(*this, file, next_time++);
   }
-  int reported_size() const { return cur_size; }
-  int item_count() const { return list.size(); }
+  int reported_size() const { return DjVuFileCacheTestAccess::reported_size(*this); }
+  int item_count() const { return DjVuFileCacheTestAccess::item_count(*this); }
+  void saturate_accounting()
+  {
+    DjVuFileCacheTestAccess::set_reported_size(*this, INT_MAX);
+  }
 private:
   time_t next_time;
 };
@@ -184,54 +231,72 @@ private:
 bool cache_accounting_cases()
 {
   TestDjVuFileCache ordinary(-1);
-  ordinary.add_size(100);
-  ordinary.add_size(200);
-  ordinary.add_size(300);
-  if (ordinary.reported_size() != 600)
+  GP<TestDjVuFile> ordinary_a = TestDjVuFile::create(100);
+  GP<TestDjVuFile> ordinary_b = TestDjVuFile::create(200);
+  GP<TestDjVuFile> ordinary_c = TestDjVuFile::create(300);
+  ordinary.add(ordinary_a.operator->());
+  ordinary.add(ordinary_b.operator->());
+  ordinary.add(ordinary_c.operator->());
+  if (static_cast<unsigned int>(ordinary.reported_size()) != ordinary_a->get_memory_usage() +
+      ordinary_b->get_memory_usage() + ordinary_c->get_memory_usage())
+    return false;
+
+  TestDjVuFileCache grows(100000);
+  GP<TestDjVuFile> growing_file = TestDjVuFile::create(100);
+  grows.add(growing_file.operator->());
+  growing_file->set_payload(700);
+  grows.set_max_size(-1);
+  if (static_cast<unsigned int>(grows.reported_size()) != growing_file->get_memory_usage())
+    return false;
+
+  TestDjVuFileCache shrinks(-1);
+  GP<TestDjVuFile> shrinking_file = TestDjVuFile::create(700);
+  shrinks.add(shrinking_file.operator->());
+  shrinking_file->set_payload(100);
+  shrinks.set_max_size(-1);
+  if (static_cast<unsigned int>(shrinks.reported_size()) != shrinking_file->get_memory_usage())
+    return false;
+
+  TestDjVuFileCache grow_evict(-1);
+  GP<TestDjVuFile> old_file = TestDjVuFile::create(100);
+  GP<TestDjVuFile> new_file = TestDjVuFile::create(100);
+  grow_evict.add(old_file.operator->());
+  grow_evict.add(new_file.operator->());
+  old_file->set_payload(700);
+  grow_evict.set_max_size(new_file->get_memory_usage() + 200);
+  if (static_cast<unsigned int>(grow_evict.reported_size()) != new_file->get_memory_usage() ||
+      grow_evict.item_count() != 1)
+    return false;
+
+  TestDjVuFileCache refreshed(-1);
+  GP<TestDjVuFile> refreshed_file = TestDjVuFile::create(100);
+  refreshed.add(refreshed_file.operator->());
+  refreshed.set_max_size(refreshed_file->get_memory_usage() + 200);
+  refreshed_file->set_payload(700);
+  GP<DjVuFile> refreshed_base = refreshed_file.operator->();
+  refreshed.add_file(refreshed_base);
+  if (refreshed.item_count() != 0 || refreshed.reported_size() != 0)
     return false;
 
   TestDjVuFileCache saturated(-1);
-  saturated.add_size(INT_MAX - 100);
-  saturated.add_size(200);
-  if (saturated.reported_size() != INT_MAX)
-    return false;
-
-  TestDjVuFileCache deletion(-1);
-  deletion.add_size(250);
-  deletion.add_size(750);
-  deletion.del_file(0);
-  if (deletion.reported_size() != 750)
-    return false;
-
-  TestDjVuFileCache remains_saturated(-1);
-  remains_saturated.add_size(100);
-  remains_saturated.add_size(INT_MAX - 100);
-  remains_saturated.add_size(500);
-  remains_saturated.del_file(0);
-  if (remains_saturated.reported_size() != INT_MAX)
-    return false;
-
-  TestDjVuFileCache becomes_exact(-1);
-  becomes_exact.add_size(600);
-  becomes_exact.add_size(INT_MAX - 100);
-  becomes_exact.del_file(0);
-  if (becomes_exact.reported_size() != INT_MAX - 100)
-    return false;
-
-  TestDjVuFileCache unlimited(-1);
-  unlimited.add_size(INT_MAX - 100);
-  unlimited.add_size(200);
-  unlimited.add_size(100);
-  unlimited.set_max_size(100);
-  if (unlimited.reported_size() != 100 || unlimited.item_count() != 1)
+  GP<TestDjVuFile> saturated_file = TestDjVuFile::create(100);
+  saturated.add(saturated_file.operator->());
+  saturated.saturate_accounting();
+  saturated_file->set_payload(700);
+  saturated.set_max_size(-1);
+  if (static_cast<unsigned int>(saturated.reported_size()) != saturated_file->get_memory_usage())
     return false;
 
   TestDjVuFileCache large(-1);
-  large.add_size(INT_MAX - 100);
-  for (int i=0; i<20; ++i)
-    large.add_size(10);
-  large.set_max_size(90);
-  return large.reported_size() == 90 && large.item_count() == 9;
+  GP<TestDjVuFile> large_file;
+  for (int i=0; i<21; ++i)
+  {
+    large_file = TestDjVuFile::create(10);
+    large.add(large_file.operator->());
+  }
+  const int item_size = large_file->get_memory_usage();
+  large.set_max_size(item_size * 9);
+  return large.reported_size() == item_size * 9 && large.item_count() == 9;
 }
 
 bool exception_cause_cases()
