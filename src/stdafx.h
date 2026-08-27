@@ -73,6 +73,7 @@
 #include <afxmt.h>
 #include <afxpriv.h>
 #include <shlwapi.h>
+#include <shobjidl.h>
 
 #if (_MFC_VER > 0x0600)
 #include <../src/mfc/afximpl.h>
@@ -97,7 +98,7 @@
 using namespace std;
 
 #define HAS_WCTYPE 1
-#define THREADMODEL 0
+#define THREADMODEL 11 // WINTHREADS; must match the bundled libdjvu build.
 #define DO_CHANGELOCALE 0
 #define WIN32_MONITOR
 #define NEED_JPEG_DECODER

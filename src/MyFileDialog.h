@@ -51,6 +51,7 @@ public:
 	CString GetFileExt() const;   // Return only ext
 	CString GetFileTitle() const; // Return file title
 	bool GetReadOnlyPref() const; // Return true if readonly checked
+	void SetInitialFileName(const CString& fileName);
 
 	OpenFileNameEx m_ofn;  // Windows 2000/XP version of OPENFILENAME
 
@@ -61,8 +62,14 @@ public:
 protected:
 	bool m_bOpenFileDialog;
 	CString m_strFilter;  // Separate fields with '|', terminate with '||\0'
-	TCHAR m_szFileTitle[_MAX_PATH + 1];  // Contains file title after return
-	TCHAR m_szFileName[_MAX_PATH + 1];  // Contains full path name after return
+	CString m_strInitialFile;
+	CString m_strPathName;
+	CString m_strFileName;
+	vector<TCHAR> m_legacyFileBuffer;
+	vector<TCHAR> m_legacyTitleBuffer;
+
+	INT_PTR DoModernModal(HWND owner);
+	INT_PTR DoLegacyModal();
 
 	static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam);
 

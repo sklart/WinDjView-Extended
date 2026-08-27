@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32"><Configuration>Debug</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><VCProjectVersion>17.0</VCProjectVersion><ProjectGuid>{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}</ProjectGuid><Keyword>Win32Proj</Keyword><RootNamespace>libdjvu</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'"><OutDir>$(ProjectDir)..\Debug\</OutDir><IntDir>$(Configuration)\Win32\</IntDir><TargetName>libdjvud</TargetName><JpegBuild>Debug</JpegBuild><JpegArgs>DEBUG=1</JpegArgs></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><OutDir>$(ProjectDir)..\Release\</OutDir><IntDir>$(Configuration)\Win32\</IntDir><TargetName>libdjvu</TargetName><JpegBuild>Release</JpegBuild><JpegArgs>SIMD=1</JpegArgs></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><OutDir>$(ProjectDir)..\Debug_x64\</OutDir><IntDir>$(Configuration)\x64\</IntDir><TargetName>libdjvud64</TargetName><JpegBuild>Debug_x64</JpegBuild><JpegArgs>DEBUG=1 X64=1</JpegArgs></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><OutDir>$(ProjectDir)..\Release_x64\</OutDir><IntDir>$(Configuration)\x64\</IntDir><TargetName>libdjvu64</TargetName><JpegBuild>Release_x64</JpegBuild><JpegArgs>SIMD=1 X64=1</JpegArgs></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level3</WarningLevel><RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary><ExceptionHandling>Sync</ExceptionHandling><RuntimeTypeInfo>false</RuntimeTypeInfo><PreprocessorDefinitions>WIN32;_WINDOWS;_CONSOLE;NDEBUG;HAS_WCTYPE=1;THREADMODEL=WINTHREADS;DO_CHANGELOCALE=0;WIN32_MONITOR;NEED_JPEG_DECODER;LIBDJVU_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_SECURE_SCL=0;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\third_party\libjpeg-turbo\build\$(JpegBuild);$(ProjectDir)..\third_party\libjpeg-turbo\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'"><ClCompile><RuntimeLibrary>MultiThreaded</RuntimeLibrary><Optimization>MaxSpeed</Optimization><WholeProgramOptimization>true</WholeProgramOptimization></ClCompile></ItemDefinitionGroup>
+  <ItemDefinitionGroup><PreBuildEvent><Command>cd /d "$(ProjectDir)..\third_party\libjpeg-turbo" &amp;&amp; nmake /nologo /f makefile.wdj $(JpegArgs)</Command></PreBuildEvent></ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="*.cpp" /><ClInclude Include="*.h" /></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

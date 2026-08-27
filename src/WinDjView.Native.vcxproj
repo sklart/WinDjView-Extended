@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32"><Configuration>Debug</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals"><VCProjectVersion>17.0</VCProjectVersion><ProjectGuid>{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}</ProjectGuid><Keyword>MFCProj</Keyword><RootNamespace>WinDjView</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><UseOfMfc>Static</UseOfMfc></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><UseOfMfc>Static</UseOfMfc><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><UseOfMfc>Static</UseOfMfc></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet><UseOfMfc>Static</UseOfMfc><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'"><OutDir>$(ProjectDir)Debug\</OutDir><IntDir>$(Configuration)\Win32\</IntDir><JpegBuild>Debug</JpegBuild><JpegLibrary>jpegd.lib</JpegLibrary></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><OutDir>$(ProjectDir)Release\</OutDir><IntDir>$(Configuration)\Win32\</IntDir><JpegBuild>Release</JpegBuild><JpegLibrary>jpeg.lib</JpegLibrary></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><OutDir>$(ProjectDir)Debug_x64\</OutDir><IntDir>$(Configuration)\x64\</IntDir><JpegBuild>Debug_x64</JpegBuild><JpegLibrary>jpegd64.lib</JpegLibrary><PlatformDefines>WIN64;</PlatformDefines></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><OutDir>$(ProjectDir)Release_x64\</OutDir><IntDir>$(Configuration)\x64\</IntDir><JpegBuild>Release_x64</JpegBuild><JpegLibrary>jpeg64.lib</JpegLibrary><PlatformDefines>WIN64;</PlatformDefines></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level4</WarningLevel><ConformanceMode>true</ConformanceMode><RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary><ExceptionHandling>Sync</ExceptionHandling><RuntimeTypeInfo>false</RuntimeTypeInfo><PrecompiledHeader>Use</PrecompiledHeader><PrecompiledHeaderFile>$(IntDir)WinDjView.pch</PrecompiledHeaderFile><PreprocessorDefinitions>WIN32;$(PlatformDefines)_WINDOWS;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+    <Link><SubSystem>Windows</SubSystem><EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol><AdditionalDependencies>msimg32.lib;version.lib;shlwapi.lib;shell32.lib;ole32.lib;uuid.lib;$(JpegLibrary);%(AdditionalDependencies)</AdditionalDependencies><AdditionalLibraryDirectories>$(ProjectDir)third_party\libjpeg-turbo\build\$(JpegBuild);$(ProjectDir)third_party\libjpeg-turbo;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories></Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'"><ClCompile><RuntimeLibrary>MultiThreaded</RuntimeLibrary><Optimization>MaxSpeed</Optimization><WholeProgramOptimization>true</WholeProgramOptimization></ClCompile><Link><LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration></Link></ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="*.cpp" Exclude="stdafx.cpp" /><ClInclude Include="*.h" /><ResourceCompile Include="WinDjView.rc" /></ItemGroup>
+  <ItemGroup><ClCompile Include="stdafx.cpp"><PrecompiledHeader>Create</PrecompiledHeader><PrecompiledHeaderFile>$(IntDir)WinDjView.pch</PrecompiledHeaderFile></ClCompile></ItemGroup>
+  <ItemGroup><ProjectReference Include="libdjvu\libdjvu.Modern.vcxproj"><Project>{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}</Project></ProjectReference></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

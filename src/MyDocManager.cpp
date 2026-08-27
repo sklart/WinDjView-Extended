@@ -24,6 +24,7 @@
 #include "DjVuView.h"
 #include "MyFileDialog.h"
 #include "FullscreenWnd.h"
+#include "PathUtil.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -137,10 +138,11 @@ BOOL CMyDocManager::DoPromptFileName(CString& fileName, UINT nIDSTitle,
 
 	dlgFile.m_ofn.lpstrFilter = strFilter;
 	dlgFile.m_ofn.lpstrTitle = title;
-	dlgFile.m_ofn.lpstrFile = fileName.GetBuffer(_MAX_PATH);
+	dlgFile.SetInitialFileName(fileName);
 
 	INT_PTR nResult = dlgFile.DoModal();
-	fileName.ReleaseBuffer();
+	if (nResult == IDOK)
+		fileName = dlgFile.GetPathName();
 	return (nResult == IDOK);
 }
 
@@ -173,12 +175,11 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 		strFileName = strFileName.Left(nPos);
 	}
 
-	bool bPathTooLong = false;
-	TCHAR szPath[_MAX_PATH] = { 0 };
-	if (!AfxFullPath(szPath, strFileName))
-		bPathTooLong = true;
+	CString fullPath;
+	if (!PathUtil::GetFullPath(strFileName, fullPath))
+		return NULL;
 
-	if (bPathTooLong || !PathFileExists(szPath))
+	if (!PathUtil::FileExists(fullPath))
 	{
 		// Try extracting page number
 		nPos = strFileName.ReverseFind('#');
@@ -187,20 +188,12 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 			strPage = strFileName.Mid(nPos + 1);
 			strFileName = strFileName.Left(nPos);
 
-			if (!AfxFullPath(szPath, strFileName))
-				bPathTooLong = true;
+			if (!PathUtil::GetFullPath(strFileName, fullPath))
+				return NULL;
 		}
 	}
 
-	if (bPathTooLong)
-	{
-		AfxMessageBox(FormatString(IDS_PATH_TOO_LONG, strFileName), MB_ICONEXCLAMATION | MB_OK);
-		return NULL;
-	}
-
-	TCHAR szLinkName[_MAX_PATH];
-	if (AfxResolveShortcut(GetMainWnd(), szPath, szLinkName, _MAX_PATH))
-		lstrcpy(szPath, szLinkName);
+	PathUtil::ResolveShortcut(GetMainWnd(), fullPath, fullPath);
 
 	// find the highest confidence
 	CDocTemplate::Confidence bestMatch = CDocTemplate::noAttempt;
@@ -216,7 +209,7 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 
 		CDocTemplate::Confidence match;
 		ASSERT(pOpenDocument == NULL);
-		match = pTemplate->MatchDocType(szPath, pOpenDocument);
+		match = pTemplate->MatchDocType(fullPath, pOpenDocument);
 		if (match > bestMatch)
 		{
 			bestMatch = match;
@@ -249,7 +242,7 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 			return NULL;
 		}
 
-		pOpenDocument = pBestTemplate->OpenDocumentFile(szPath);
+		pOpenDocument = pBestTemplate->OpenDocumentFile(fullPath);
 	}
 
 	if (pOpenDocument != NULL)

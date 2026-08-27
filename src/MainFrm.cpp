@@ -153,7 +153,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	if (!m_wndToolBar.CreateEx(this, TBSTYLE_FLAT | TBSTYLE_TRANSPARENT,
 			WS_CHILD | CBRS_TOP | CBRS_GRIPPER | CBRS_TOOLTIPS | CBRS_SIZE_DYNAMIC) ||
-		!m_wndToolBar.GetToolBar().LoadToolBar(IDR_MAINFRAME))
+		!m_wndToolBar.LoadToolBar(IDR_MAINFRAME))
 	{
 		TRACE(_T("Failed to create toolbar\n"));
 		return -1;      // fail to create
@@ -162,7 +162,7 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	if (!m_wndDictBar.CreateEx(this, TBSTYLE_FLAT | TBSTYLE_TRANSPARENT,
 			WS_CHILD | CBRS_TOP | CBRS_GRIPPER | CBRS_TOOLTIPS | CBRS_SIZE_DYNAMIC,
 			CRect(0, 0, 0, 0), IDW_DICTIONARIES_BAR) ||
-		!m_wndDictBar.GetToolBar().LoadToolBar(IDR_DICT_BAR))
+		!m_wndDictBar.LoadToolBar(IDR_DICT_BAR))
 	{
 		TRACE(_T("Failed to create dictionaries bar\n"));
 		return -1;      // fail to create

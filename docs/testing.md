@@ -42,3 +42,11 @@ or benchmark the historical PPM intermediary path. It generates fixtures before
 timing, performs one excluded warm-up decode, reports average and median decode
 time, uses median throughput as the primary result, and prints the encoded size
 and CRC32 so SIMD OFF/ON runs can be matched.
+
+## Long-path manual regression
+
+See [long-path-support.md](long-path-support.md) for the 4.3 path-layer scope,
+known legacy limits, and the required Win32/x64 manual smoke checklist. The
+checklist deliberately includes MRU and session restoration, since a dialog
+result alone does not prove that the application preserves a long document
+path end-to-end.

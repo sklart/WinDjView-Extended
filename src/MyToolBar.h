@@ -46,6 +46,7 @@ public:
 
 	CToolBar& GetToolBar() { return m_toolBar; }
 	CToolBarCtrl& GetToolBarCtrl() const { return m_toolBar.GetToolBarCtrl(); }
+	BOOL LoadToolBar(UINT nIDResource);
 
 	void InsertLabel(int nPos, UINT nID, CFont* pFont);
 	void SetControl(int nPos, UINT nID, int nWidth);
@@ -71,6 +72,7 @@ protected:
 	class CAuxToolBar : public CToolBar
 	{
 	public:
+		BOOL LoadToolBar(UINT nIDResource);
 		virtual BOOL OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult);
 	};
 	CAuxToolBar m_toolBar;

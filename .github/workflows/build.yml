@@ -59,6 +59,12 @@ jobs:
           cd ..
           nmake /nologo /f makefile ${{ matrix.nmake_args }}
 
+      - name: Build Russian resource DLL
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
+          msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /nologo /m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
+
       - name: Verify executable
         shell: pwsh
         run: |
@@ -78,6 +84,24 @@ jobs:
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
           if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) {
             throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe"
+          }
+          $ruDirectory = if ('${{ matrix.platform }}' -eq 'x64') {
+            "src\${{ matrix.configuration }}_x64"
+          } else {
+            "src\${{ matrix.configuration }}"
+          }
+          $ruDll = Join-Path $ruDirectory 'WinDjViewRU-${{ matrix.platform }}.dll'
+          if (-not (Test-Path -LiteralPath $ruDll)) {
+            throw "Expected Russian resource DLL was not created: $ruDll"
+          }
+          $ruBytes = [System.IO.File]::ReadAllBytes($ruDll)
+          if ($ruBytes.Length -lt 64 -or $ruBytes[0] -ne 0x4d -or $ruBytes[1] -ne 0x5a) {
+            throw "Expected a PE resource DLL: $ruDll"
+          }
+          $ruPeOffset = [BitConverter]::ToInt32($ruBytes, 0x3c)
+          $ruMachine = [BitConverter]::ToUInt16($ruBytes, $ruPeOffset + 4)
+          if ($ruMachine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) {
+            throw "Unexpected Russian DLL machine 0x$('{0:X4}' -f $ruMachine): $ruDll"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
           if ('${{ matrix.configuration }}' -eq 'Release') {
@@ -114,4 +138,12 @@ jobs:
         with:
           name: WinDjView-${{ matrix.configuration }}-${{ matrix.platform }}
           path: ${{ matrix.output }}
+          if-no-files-found: error
+
+      - name: Upload Russian resource DLL
+        if: success() && matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDjViewRU-${{ matrix.platform }}
+          path: src\Release${{ matrix.platform == 'x64' && '_x64' || '' }}\WinDjViewRU-${{ matrix.platform }}.dll
           if-no-files-found: error

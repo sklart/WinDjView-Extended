@@ -25,6 +25,15 @@
 #define new DEBUG_NEW
 #endif
 
+struct ToolBarResource
+{
+	WORD wVersion;
+	WORD wWidth;
+	WORD wHeight;
+	WORD wItemCount;
+
+	WORD* items() { return reinterpret_cast<WORD*>(this + 1); }
+};
 
 // CMyToolBar
 
@@ -39,6 +48,10 @@ CMyToolBar::~CMyToolBar()
 {
 }
 
+BOOL CMyToolBar::LoadToolBar(UINT nIDResource)
+{
+	return m_toolBar.LoadToolBar(nIDResource);
+}
 
 BEGIN_MESSAGE_MAP(CMyToolBar, CControlBar)
 	ON_WM_CREATE()
@@ -321,6 +334,30 @@ void CMyToolBar::SetControl(int nPos, UINT nID, int nWidth)
 	GetToolBarCtrl().DeleteButton(nPos);
 	GetToolBarCtrl().InsertButton(nPos, &btn);
 	GetToolBarCtrl().SetButtonInfo(nID, &info);
+}
+
+BOOL CMyToolBar::CAuxToolBar::LoadToolBar(UINT nIDResource)
+{
+	HINSTANCE hInstance = AfxFindResourceHandle(MAKEINTRESOURCE(nIDResource), RT_TOOLBAR);
+	HRSRC hResource = ::FindResource(hInstance, MAKEINTRESOURCE(nIDResource), RT_TOOLBAR);
+	if (hResource == NULL)
+		return false;
+
+	HGLOBAL hGlobal = ::LoadResource(hInstance, hResource);
+	ToolBarResource* pData = static_cast<ToolBarResource*>(::LockResource(hGlobal));
+	if (pData == NULL || pData->wVersion != 1 || pData->wItemCount == 0)
+		return false;
+
+	vector<UINT> items(pData->wItemCount);
+	for (size_t i = 0; i < items.size(); ++i)
+		items[i] = pData->items()[i];
+
+	if (!SetButtons(&items[0], static_cast<int>(items.size())))
+		return false;
+
+	SetSizes(CSize(pData->wWidth + 7, pData->wHeight + 7),
+		CSize(pData->wWidth, pData->wHeight));
+	return true;
 }
 
 BOOL CMyToolBar::CAuxToolBar::OnWndMsg(UINT message, WPARAM wParam, LPARAM lParam, LRESULT* pResult)

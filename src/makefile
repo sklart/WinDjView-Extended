@@ -61,7 +61,7 @@ CPP_PCH_CREATE = /Yc"stdafx.h"
 CPP_FLAGS = $(CPP_FLAGS) /nologo /c $(CPP_MODE_FLAGS) \
             /D "WIN32" $(WIN64) /D "_WINDOWS" /Fp$(PCH) /Fo"$(INTDIR)/"
 
-LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "$(JPEGLIB)" msimg32.lib version.lib shlwapi.lib \
+LINK_FLAGS = $(LINK_FLAGS) "libdjvu\$(LIBDJVU)" "$(JPEGLIB)" msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib \
              /nologo /subsystem:windows /machine:$(MACHINE) \
              $(LINK_MODE_FLAGS) /out:$(OUT)
 
@@ -123,6 +123,7 @@ LINK_OBJS = \
 	"$(INTDIR)\MyTreeView.obj" \
 	"$(INTDIR)\NavPane.obj" \
 	"$(INTDIR)\PageIndexWnd.obj" \
+	"$(INTDIR)\PathUtil.obj" \
 	"$(INTDIR)\PositionParser.obj" \
 	"$(INTDIR)\PrintDlg.obj" \
 	"$(INTDIR)\ProgressDlg.obj" \
@@ -181,6 +182,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 "$(INTDIR)\MyTreeView.obj" : MyTreeView.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\NavPane.obj" : NavPane.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PageIndexWnd.obj" : PageIndexWnd.cpp "$(INTDIR)" $(PCH)
+"$(INTDIR)\PathUtil.obj" : PathUtil.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PositionParser.obj" : PositionParser.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PrintDlg.obj" : PrintDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\ProgressDlg.obj"	: ProgressDlg.cpp "$(INTDIR)" $(PCH)

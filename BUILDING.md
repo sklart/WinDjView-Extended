@@ -19,6 +19,21 @@ installation-directory version.
 project and exposes Debug/Release for Win32/x64. The historical
 `src\WinDjView.sln` and `.vcproj` files are preserved unchanged.
 
+The solution also contains `WinDjViewRU.Modern`, a native MSBuild resource-DLL
+project. Its outputs are `WinDjViewRU-Win32.dll` and `WinDjViewRU-x64.dll` in
+the matching application output directories. The application project remains
+an NMAKE wrapper pending the separate application MSBuild migration.
+`libdjvu.Modern` is a native static-library MSBuild project which compiles the
+bundled DjVuLibre sources directly; it invokes only the existing JPEG adapter
+to retain the checked-in libjpeg-turbo 3.2.0 configuration and Release SIMD
+policy. These new projects are staged and must be validated on a Visual Studio
+host before becoming CI's primary application build.
+
+Build `WinDjView.Native` directly while validating the migration. It has a
+project reference to `libdjvu.Modern`. Both projects are intentionally excluded
+from the solution-wide Build selection for now, preventing them from writing
+the same legacy output paths concurrently with the NMAKE wrapper.
+
 The project initializes `VsDevCmd.bat` itself, including the MFC include paths.
 It can therefore be built from MSBuild as well as from a Developer Command
 Prompt.

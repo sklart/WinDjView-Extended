@@ -37,6 +37,7 @@
 #include "MyDialog.h"
 #include "FindDlg.h"
 #include "MyFileDialog.h"
+#include "PathUtil.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -258,17 +259,23 @@ BOOL CDjViewApp::InitInstance()
 	if (m_appSettings.bProgramSettingsIntoRegistry)
 		LoadDictionaries();
 	LoadLanguages();
-	SetStartupLanguage();
 
 	m_bTopLevelDocs = m_appSettings.bTopLevelDocs;
 
 	// Enable DDE Execute open
 	EnableShellOpen();
 
-	// Create main MDI Frame window
+	// Create the initial frame from the main executable resources.
+	// The selected language is activated after the frame is ready.
+	HINSTANCE hResourceHandle = AfxGetResourceHandle();
+	AfxSetResourceHandle(AfxGetInstanceHandle());
 	CMainFrame* pMainFrame = CreateMainFrame(true, m_nCmdShow);
+	AfxSetResourceHandle(hResourceHandle);
 	if (pMainFrame == NULL)
 		return false;
+
+	// Activate the selected language after creating the main window.
+	SetStartupLanguage();
 
 	m_hHook = ::SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, NULL, ::GetCurrentThreadId());
 	m_nTimerID = ::SetTimer(NULL, 1, 100, TimerProc);
@@ -1992,21 +1999,14 @@ CDjVuDoc* CDjViewApp::OpenDocument(LPCTSTR lpszPathName, const GUTF8String& strP
 
 CDjVuDoc* CDjViewApp::FindOpenDocument(LPCTSTR lpszFileName)
 {
-	TCHAR szPath[MAX_PATH], szTemp[MAX_PATH];
-	ASSERT(lstrlen(lpszFileName) < _countof(szPath));
-	if (lpszFileName[0] == '\"')
-		++lpszFileName;
-	lstrcpyn(szTemp, lpszFileName, MAX_PATH);
-	LPTSTR lpszLast = _tcsrchr(szTemp, '\"');
-	if (lpszLast != NULL)
-		*lpszLast = 0;
-
-	if (!AfxFullPath(szPath, szTemp))
-		return NULL; // We won't open the file. MFC requires paths with length < MAX_PATH
-
-	TCHAR szLinkName[MAX_PATH];
-	if (AfxResolveShortcut(GetMainWnd(), szPath, szLinkName, MAX_PATH))
-		lstrcpy(szPath, szLinkName);
+	CString path(lpszFileName);
+	path.TrimLeft(_T("\""));
+	int lastQuote = path.ReverseFind(_T('\"'));
+	if (lastQuote >= 0)
+		path = path.Left(lastQuote);
+	if (!PathUtil::GetFullPath(path, path))
+		return NULL;
+	PathUtil::ResolveShortcut(GetMainWnd(), path, path);
 
 	POSITION pos = GetFirstDocTemplatePosition();
 	while (pos != NULL)
@@ -2015,7 +2015,7 @@ CDjVuDoc* CDjViewApp::FindOpenDocument(LPCTSTR lpszFileName)
 		ASSERT_KINDOF(CDocTemplate, pTemplate);
 
 		CDocument* pDocument = NULL;
-		if (pTemplate->MatchDocType(szPath, pDocument) == CDocTemplate::yesAlreadyOpen)
+		if (pTemplate->MatchDocType(path, pDocument) == CDocTemplate::yesAlreadyOpen)
 			return (CDjVuDoc*) pDocument;
 	}
 
@@ -2037,16 +2037,10 @@ void CDjViewApp::LoadLanguages()
 	m_languages.push_back(english);
 
 	CString strPath;
-	GetModuleFileName(m_hInstance, strPath.GetBuffer(MAX_PATH), MAX_PATH);
-	PathRemoveFileSpec(strPath.GetBuffer(MAX_PATH));
-	PathRemoveBackslash(strPath.GetBuffer(MAX_PATH));
-	strPath.ReleaseBuffer();
-	strPath += _T("\\");
-
-	CString strFileMask = strPath;
-	if (!PathAppend(strFileMask.GetBuffer(MAX_PATH), _T("WinDjView*.dll")))
+	if (!PathUtil::GetExecutableDirectory(strPath))
 		return;
-	strFileMask.ReleaseBuffer();
+	CString strFileMask = PathUtil::Combine(strPath, _T("WinDjView*.dll"));
+	strPath += _T("\\");
 
 	WIN32_FIND_DATA fd;
 	HANDLE hFind = FindFirstFile(strFileMask, &fd);
@@ -2126,7 +2120,10 @@ void CDjViewApp::SetLanguage(UINT nLangIndex)
 	}
 
 	if (nLangIndex == m_nLangIndex)
+	{
+		AfxSetResourceHandle(info.hInstance);
 		return;
+	}
 
 	m_nLangIndex = nLangIndex;
 	AfxSetResourceHandle(info.hInstance);

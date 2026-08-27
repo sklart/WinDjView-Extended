@@ -17,6 +17,9 @@
 
 ### Changed
 
+- Modernized the Open/Save dialog layer for supported Windows versions and
+  removed historical fixed-size path buffers from document opening and
+  already-open document detection.
 - Updated the bundled DjVuLibre to 3.5.30 with required WinDjView extensions.
 - Updated the static JPEG implementation to libjpeg-turbo 3.2.0 and decode
   JPEG scanlines directly into `GPixmap`.
@@ -33,6 +36,8 @@
 
 ### Build
 
+- Added a native MSBuild project for the Russian resource DLL and publish its
+  Release Win32/x64 artifacts from CI.
 - Added reproducible Debug/Release x86/x64 NMAKE support, including a source build of
   libjpeg-turbo, and CI for all four build configurations.
 - Release CI now requires NASM SIMD for both architectures; Debug retains the

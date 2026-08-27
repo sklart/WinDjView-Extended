@@ -4,6 +4,12 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "WinDjView.Modern", "src\WinDjView.Modern.vcxproj", "{A3FE9A89-481D-4A6C-AB7F-C6A23D316627}"
 EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "WinDjViewRU.Modern", "src\Languages\Russian\WinDjViewRU.Modern.vcxproj", "{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "libdjvu.Modern", "src\libdjvu\libdjvu.Modern.vcxproj", "{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "WinDjView.Native", "src\WinDjView.Native.vcxproj", "{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -20,6 +26,22 @@ Global
 		{A3FE9A89-481D-4A6C-AB7F-C6A23D316627}.Release|Win32.Build.0 = Release|Win32
 		{A3FE9A89-481D-4A6C-AB7F-C6A23D316627}.Release|x64.ActiveCfg = Release|x64
 		{A3FE9A89-481D-4A6C-AB7F-C6A23D316627}.Release|x64.Build.0 = Release|x64
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Debug|Win32.Build.0 = Debug|Win32
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Debug|x64.ActiveCfg = Debug|x64
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Debug|x64.Build.0 = Debug|x64
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Release|Win32.ActiveCfg = Release|Win32
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Release|Win32.Build.0 = Release|Win32
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Release|x64.ActiveCfg = Release|x64
+		{36F2C1A8-7A6C-4C8A-99B6-4075EBC40B1B}.Release|x64.Build.0 = Release|x64
+		{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}.Debug|x64.ActiveCfg = Debug|x64
+		{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}.Release|Win32.ActiveCfg = Release|Win32
+		{9A2B7D09-FB4F-4F0B-9425-83B34F48B3DE}.Release|x64.ActiveCfg = Release|x64
+		{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}.Debug|x64.ActiveCfg = Debug|x64
+		{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}.Release|Win32.ActiveCfg = Release|Win32
+		{2F45F3E9-712D-48B1-AE00-4D0B06E7D197}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
