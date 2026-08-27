@@ -2006,7 +2006,8 @@ CDjVuDoc* CDjViewApp::FindOpenDocument(LPCTSTR lpszFileName)
 		path = path.Left(lastQuote);
 	if (!PathUtil::GetFullPath(path, path))
 		return NULL;
-	PathUtil::ResolveShortcut(GetMainWnd(), path, path);
+	CWnd* pMainWnd = GetMainWnd();
+	PathUtil::ResolveShortcut(pMainWnd != NULL ? pMainWnd->GetSafeHwnd() : NULL, path, path);
 
 	POSITION pos = GetFirstDocTemplatePosition();
 	while (pos != NULL)

@@ -234,7 +234,11 @@ INT_PTR CMyFileDialog::DoModernModal(HWND owner)
 			::CoTaskMemFree(path);
 		}
 		if (SUCCEEDED(result))
-			dialog->GetFileTypeIndex(&m_ofn.nFilterIndex);
+		{
+			UINT filterIndex = 0;
+			if (SUCCEEDED(dialog->GetFileTypeIndex(&filterIndex)))
+				m_ofn.nFilterIndex = filterIndex;
+		}
 	}
 	return SUCCEEDED(result) ? IDOK : IDCANCEL;
 }

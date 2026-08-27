@@ -34,9 +34,21 @@ project reference to `libdjvu.Modern`. Both projects are intentionally excluded
 from the solution-wide Build selection for now, preventing them from writing
 the same legacy output paths concurrently with the NMAKE wrapper.
 
-The project initializes `VsDevCmd.bat` itself, including the MFC include paths.
-It can therefore be built from MSBuild as well as from a Developer Command
-Prompt.
+The native application project uses `/W4`. Its first baseline showed that
+`/permissive-` causes broad historical source incompatibilities, so it remains
+disabled pending a focused compatibility pass; `/WX` is likewise not enabled.
+
+Initialize a VS Developer Command Prompt (with MFC installed) before building
+the native projects. For example:
+
+```bat
+msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=Win32
+msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
+```
+
+The application's historical manifest remains embedded by `WinDjView.rc2`.
+The native project suppresses MSBuild's additional generated manifest to avoid
+creating a duplicate resource.
 
 ## Release Win32
 

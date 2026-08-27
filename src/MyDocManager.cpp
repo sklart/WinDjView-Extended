@@ -193,7 +193,8 @@ CDocument* CMyDocManager::OpenDocumentFile(LPCTSTR lpszFileName)
 		}
 	}
 
-	PathUtil::ResolveShortcut(GetMainWnd(), fullPath, fullPath);
+	CWnd* pMainWnd = GetMainWnd();
+	PathUtil::ResolveShortcut(pMainWnd != NULL ? pMainWnd->GetSafeHwnd() : NULL, fullPath, fullPath);
 
 	// find the highest confidence
 	CDocTemplate::Confidence bestMatch = CDocTemplate::noAttempt;
