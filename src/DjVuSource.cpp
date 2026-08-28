@@ -19,6 +19,7 @@
 #include "stdafx.h"
 #include "DjVuSource.h"
 #include "XMLParser.h"
+#include "PathUtil.h"
 #include "libdjvu/DjVmDir.h"
 //#include "DocPropertiesDlg.h"
 
@@ -1153,14 +1154,12 @@ void DjVuSource::Release()
 
 DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 {
-	TCHAR pszName[MAX_PATH] = { 0 };
-	LPTSTR pszFileName;
-	DWORD nPathLength = GetFullPathName(strFileName, MAX_PATH, pszName, &pszFileName);
-	if (nPathLength == 0 || nPathLength >= MAX_PATH)
+	CString fullPath;
+	if (!PathUtil::GetFullPath(strFileName, fullPath))
 		return NULL;
 
 	CSingleLock lock(&openDocumentsLock, TRUE);
-	map<CString, DjVuSource*>::iterator itSource = openDocuments.find(pszName);
+	map<CString, DjVuSource*>::iterator itSource = openDocuments.find(fullPath);
 	if (itSource != openDocuments.end())
 	{
 		DjVuSource* pSource = (*itSource).second;
@@ -1169,7 +1168,7 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	}
 
 	CFile file;
-	if (!file.Open(pszName, CFile::modeRead | CFile::shareDenyWrite))
+	if (!file.Open(fullPath, CFile::modeRead | CFile::shareDenyWrite))
 	{
 		return NULL;
 	}
@@ -1194,7 +1193,7 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	GP<DjVuDocument> pDoc = NULL;
 	try
 	{
-		GURL url = GURL::Filename::UTF8(MakeUTF8String(CString(pszName)));
+		GURL url = GURL::Filename::UTF8(MakeUTF8String(fullPath));
 		pDoc = DjVuDocument::create(url);
 		pDoc->wait_get_pages_num();
 	}
@@ -1211,7 +1210,7 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 	map<MD5, DocSettings>::iterator it = settings.find(digest);
 	bool bExisting = (it != settings.end());
 	DocSettings* pSettings = &settings[digest];
-	pSettings->strLastKnownLocation = pszName;
+	pSettings->strLastKnownLocation = fullPath;
 
 	if (!bExisting && pApplication != NULL)
 	{
@@ -1229,8 +1228,8 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 		}
 	}
 
-	DjVuSource* pSource = new DjVuSource(pszName, pDoc, pSettings);
-	openDocuments.insert(make_pair(CString(pszName), pSource));
+	DjVuSource* pSource = new DjVuSource(fullPath, pDoc, pSettings);
+	openDocuments.insert(make_pair(fullPath, pSource));
 
 	return pSource;
 }

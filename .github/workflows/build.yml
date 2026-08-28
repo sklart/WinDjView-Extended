@@ -59,12 +59,6 @@ jobs:
           cd ..
           nmake /nologo /f makefile ${{ matrix.nmake_args }}
 
-      - name: Build Russian resource DLL
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
-          msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /nologo /m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
-
       - name: Verify executable
         shell: pwsh
         run: |
@@ -84,24 +78,6 @@ jobs:
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
           if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) {
             throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe"
-          }
-          $ruDirectory = if ('${{ matrix.platform }}' -eq 'x64') {
-            "src\${{ matrix.configuration }}_x64"
-          } else {
-            "src\${{ matrix.configuration }}"
-          }
-          $ruDll = Join-Path $ruDirectory 'WinDjViewRU-${{ matrix.platform }}.dll'
-          if (-not (Test-Path -LiteralPath $ruDll)) {
-            throw "Expected Russian resource DLL was not created: $ruDll"
-          }
-          $ruBytes = [System.IO.File]::ReadAllBytes($ruDll)
-          if ($ruBytes.Length -lt 64 -or $ruBytes[0] -ne 0x4d -or $ruBytes[1] -ne 0x5a) {
-            throw "Expected a PE resource DLL: $ruDll"
-          }
-          $ruPeOffset = [BitConverter]::ToInt32($ruBytes, 0x3c)
-          $ruMachine = [BitConverter]::ToUInt16($ruBytes, $ruPeOffset + 4)
-          if ($ruMachine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) {
-            throw "Unexpected Russian DLL machine 0x$('{0:X4}' -f $ruMachine): $ruDll"
           }
           Get-Item -LiteralPath $exe | Select-Object FullName, Length
           if ('${{ matrix.configuration }}' -eq 'Release') {
@@ -132,6 +108,30 @@ jobs:
         shell: cmd
         run: tools\tests\run-libdjvu-core-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
 
+      - name: Run PathUtil regression tests
+        shell: cmd
+        run: tools\tests\run-pathutil-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
+
+      - name: Build Russian resource DLL
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
+          msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /nologo /m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
+
+      - name: Verify Russian resource DLL
+        shell: pwsh
+        run: |
+          $ruDirectory = if ('${{ matrix.platform }}' -eq 'x64') { "src\${{ matrix.configuration }}_x64" } else { "src\${{ matrix.configuration }}" }
+          $ruDll = Join-Path $ruDirectory 'WinDjViewRU-${{ matrix.platform }}.dll'
+          if (-not (Test-Path -LiteralPath $ruDll)) { throw "Expected Russian resource DLL was not created: $ruDll" }
+          $bytes = [System.IO.File]::ReadAllBytes($ruDll)
+          if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) { throw "Expected a PE resource DLL: $ruDll" }
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ([BitConverter]::ToUInt32($bytes, $peOffset) -ne 0x00004550) { throw "Invalid PE header: $ruDll" }
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) { throw "Unexpected Russian DLL machine 0x$('{0:X4}' -f $machine): $ruDll" }
+          Get-Item -LiteralPath $ruDll | Select-Object FullName, Length
+
       - name: Upload executable
         if: success()
         uses: actions/upload-artifact@v4
@@ -147,3 +147,50 @@ jobs:
           name: WinDjViewRU-${{ matrix.platform }}
           path: src\Release${{ matrix.platform == 'x64' && '_x64' || '' }}\WinDjViewRU-${{ matrix.platform }}.dll
           if-no-files-found: error
+
+  native-msbuild:
+    name: native MSBuild ${{ matrix.configuration }} ${{ matrix.platform }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - configuration: Debug
+            platform: Win32
+            arch: x86
+            output: src\Debug\WinDjView.exe
+          - configuration: Release
+            platform: Win32
+            arch: x86
+            output: src\Release\WinDjView.exe
+          - configuration: Debug
+            platform: x64
+            arch: x64
+            output: src\Debug_x64\WinDjView.exe
+          - configuration: Release
+            platform: x64
+            arch: x64
+            output: src\Release_x64\WinDjView.exe
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up NASM for Release SIMD build
+        if: matrix.configuration == 'Release'
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
+        with:
+          version: 2.16.03
+
+      - name: Build native MSBuild application and libdjvu
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
+          msbuild src\WinDjView.Native.vcxproj /nologo /m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
+
+      - name: Verify native executable
+        shell: pwsh
+        run: |
+          $exe = '${{ matrix.output }}'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Expected native MSBuild output was not created: $exe" }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) { throw "Expected a native MSBuild PE executable: $exe" }

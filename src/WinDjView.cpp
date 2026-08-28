@@ -1830,7 +1830,7 @@ bool CDjViewApp::UpdateOpenLastSession()
 			);
 		if (!strItem.IsEmpty())
 		{
-			if (PathFileExists(strItem) && FindOpenDocument(strItem) == NULL)
+			if (PathUtil::FileExists(strItem) && FindOpenDocument(strItem) == NULL)
 			{
 				bResult = true;
 				break;
