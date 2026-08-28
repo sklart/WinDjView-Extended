@@ -112,6 +112,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-pathutil-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
 
+      - name: Run long-path DjVu regression tests
+        shell: cmd
+        run: tools\tests\run-long-path-djvu-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} legacy
+
       - name: Build Russian resource DLL
         shell: cmd
         run: |
@@ -158,18 +162,22 @@ jobs:
           - configuration: Debug
             platform: Win32
             arch: x86
+            pe_machine: 014c
             output: src\Debug\WinDjView.exe
           - configuration: Release
             platform: Win32
             arch: x86
+            pe_machine: 014c
             output: src\Release\WinDjView.exe
           - configuration: Debug
             platform: x64
             arch: x64
+            pe_machine: 8664
             output: src\Debug_x64\WinDjView.exe
           - configuration: Release
             platform: x64
             arch: x64
+            pe_machine: 8664
             output: src\Release_x64\WinDjView.exe
     steps:
       - name: Check out source
@@ -194,3 +202,19 @@ jobs:
           if (-not (Test-Path -LiteralPath $exe)) { throw "Expected native MSBuild output was not created: $exe" }
           $bytes = [System.IO.File]::ReadAllBytes($exe)
           if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a) { throw "Expected a native MSBuild PE executable: $exe" }
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ($peOffset -lt 0 -or $peOffset + 6 -gt $bytes.Length -or [BitConverter]::ToUInt32($bytes, $peOffset) -ne 0x00004550) { throw "Invalid PE header: $exe" }
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) { throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe" }
+          if ('${{ matrix.configuration }}' -eq 'Release') {
+            $vsDevCmd = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat'
+            $imports = & cmd.exe /d /c "call `"$vsDevCmd`" -arch=${{ matrix.arch }} -host_arch=x64 && dumpbin /imports `"$exe`""
+            if ($LASTEXITCODE -ne 0) { throw "dumpbin /imports failed for $exe" }
+            $dlls = @($imports | Where-Object { $_ -match '^\s+[A-Za-z0-9_.-]+\.dll\s*$' } | ForEach-Object { $_.Trim() })
+            $bundledCodecDll = $dlls | Where-Object { $_ -match '(?i)(jpeg|djvu)' } | Select-Object -First 1
+            if ($bundledCodecDll) { throw "Unexpected external bundled-codec dependency: $bundledCodecDll" }
+          }
+
+      - name: Run native long-path DjVu regression tests
+        shell: cmd
+        run: tools\tests\run-long-path-djvu-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native

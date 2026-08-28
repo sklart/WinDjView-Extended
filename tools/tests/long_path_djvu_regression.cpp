@@ -50,7 +50,7 @@ int wmain(int argc, wchar_t **argv)
     if (pages > 0)
     {
       GP<DjVuImage> page = document->get_page(0, true);
-      decoded = !!page;
+      decoded = !!page && page->get_width() > 0 && page->get_height() > 0;
     }
   }
   catch (const GException &exception)

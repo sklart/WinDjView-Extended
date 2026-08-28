@@ -1,14 +1,11 @@
 @echo off
 setlocal EnableExtensions
-if "%~1"=="" (
-  echo Usage: %~nx0 path-to-djvu [Debug^|Release] [Win32^|x64]
-  exit /b 2
-)
-set "FIXTURE=%~1"
-set "CONFIGURATION=%~2"
-set "PLATFORM=%~3"
+set "CONFIGURATION=%~1"
+set "PLATFORM=%~2"
+set "BUILD_FLAVOR=%~3"
 if "%CONFIGURATION%"=="" set "CONFIGURATION=Release"
 if "%PLATFORM%"=="" set "PLATFORM=x64"
+if "%BUILD_FLAVOR%"=="" set "BUILD_FLAVOR=legacy"
 if /I "%CONFIGURATION%"=="Debug" (
   set "CRT=/MTd"
   set "DEBUG_SUFFIX=d"
@@ -41,6 +38,14 @@ call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=%ARCH% -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 set "JPEG_BUILD=src\third_party\libjpeg-turbo\build\%CONFIG_DIR%"
 set "TEST_BASENAME=tools\tests\long_path_djvu_regression-%CONFIGURATION%-%PLATFORM%"
-cl /nologo /W4 /EHsc %CRT% /DWIN32 /D_WINDOWS /D_CONSOLE /DNEED_JPEG_DECODER /DLIBDJVU_STATIC /Fo"%TEST_BASENAME%.obj" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\long_path_djvu_regression.cpp" /Fe"%TEST_BASENAME%.exe" "src\libdjvu\libdjvu%DEBUG_SUFFIX%%LIB_SUFFIX%.lib" "src\third_party\libjpeg-turbo\jpeg%DEBUG_SUFFIX%%LIB_SUFFIX%.lib" advapi32.lib
+if /I "%BUILD_FLAVOR%"=="legacy" (
+  set "DJVU_LIBRARY=src\libdjvu\libdjvu%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
+) else if /I "%BUILD_FLAVOR%"=="native" (
+  set "DJVU_LIBRARY=src\%CONFIG_DIR%\libdjvu%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
+) else (
+  echo Build flavor must be legacy or native.
+  exit /b 2
+)
+cl /nologo /W4 /EHsc %CRT% /DWIN32 /D_WINDOWS /D_CONSOLE /DNEED_JPEG_DECODER /DLIBDJVU_STATIC /Fo"%TEST_BASENAME%.obj" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\long_path_djvu_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%DJVU_LIBRARY%" "src\third_party\libjpeg-turbo\jpeg%DEBUG_SUFFIX%%LIB_SUFFIX%.lib" advapi32.lib
 if errorlevel 1 exit /b %errorlevel%
-"%TEST_BASENAME%.exe" "%FIXTURE%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\tests\run-long-path-djvu-regression.ps1" -TestExecutable "%CD%\%TEST_BASENAME%.exe" -Fixture "%CD%\tools\tests\fixtures\minimal.djvu"

@@ -48,6 +48,21 @@ msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Debug /p:Platform
 msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64
 ```
 
+Native MSBuild has explicit Debug/Release build parity with the legacy build:
+
+| Property | NMAKE | Native MSBuild |
+| --- | --- | --- |
+| Debug runtime and define | `/MTd`, `_DEBUG` | `/MTd`, `_DEBUG` |
+| Release runtime and define | `/MT`, `NDEBUG` | `/MT`, `NDEBUG` |
+| RTTI | disabled | disabled |
+| Exceptions | synchronous C++ | synchronous C++ |
+| Release optimization | optimized, static codecs | optimized, static codecs |
+| Application subsystem | Windows | Windows |
+
+Legacy NMAKE remains the production reference. Native MSBuild has staged
+build/test parity and is ready to become the primary build only in a separate
+migration step.
+
 Build the resource-only Russian DLL with the same configuration and platform:
 
 ```bat

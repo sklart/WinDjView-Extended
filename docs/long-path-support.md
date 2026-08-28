@@ -11,11 +11,21 @@ allocated buffer, but is not the normal supported path on these systems.
 `PathUtil::GetFullPath` and `PathUtil::GetExecutablePath` grow their buffers
 until the respective Windows API reports success. `FindOpenDocument()` and
 `CMyDocManager::OpenDocumentFile()` normalize through this helper before
-asking MFC to match an already-open document. This preserves MFC's existing
-case-insensitive path comparison while removing the application's prior
-`AfxFullPath`/`MAX_PATH` gate. `DjVuSource::FromFile()` still has a legacy
-fixed-buffer gate, so end-to-end opening of a path over 260 characters is not
-yet claimed until that source-loading code is modernized and tested.
+asking MFC to match an already-open document. `DjVuSource::FromFile()` keeps
+the normalized `CString` rather than a fixed buffer.
+
+The document loader preserves the normal user-visible `C:\...` path in the
+document, MRU, and session layers. At the filesystem boundary, libdjvu turns
+an absolute path of at least `MAX_PATH` characters into the Win32
+extended-length form for `_wfopen` (`\\?\C:\...` or `\\?\UNC\server\share\...`).
+Already-prefixed paths are left unchanged; relative paths and URLs are not
+prefixed. This is independent of the Windows 10/11 `longPathAware` manifest
+mechanism and therefore keeps the Windows 7 compatibility model.
+
+`tools/tests/run-long-path-djvu-regression.cmd` copies a real DjVu fixture to
+a temporary Unicode path longer than `MAX_PATH`, passes the ordinary
+non-prefixed path to libdjvu, and verifies document initialization plus page
+zero dimensions. It runs in every legacy and native CI configuration.
 
 ## Deliberate limits
 

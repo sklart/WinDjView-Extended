@@ -31,12 +31,20 @@ and verifies `GetFullPath`, `FileExists`, `DirectoryExists`, `Combine`, and
 `ReplaceExtension` against that path.
 
 GitHub Actions repeats these four legacy NMAKE builds, runs the matching JPEG,
-libdjvu core, and PathUtil regressions, then builds and verifies the Russian
-resource DLL. A separate staged native MSBuild matrix builds
-`WinDjView.Native` and `libdjvu.Modern` in Debug/Release for Win32/x64.
-Release import checks reject external DLL names containing `jpeg` or `djvu`.
-No automated corpus of DjVu samples is currently checked in, so opening real
-DjVu documents, printing, and GUI flows remain manual regression tests.
+libdjvu core, PathUtil, and long-path DjVu regressions, then builds and verifies
+the Russian resource DLL. A separate staged native MSBuild matrix builds
+`WinDjView.Native` and `libdjvu.Modern` in Debug/Release for Win32/x64, verifies
+their PE architecture, rejects external JPEG/DjVu imports in Release, and runs
+the long-path DjVu regression against the native library output.
+
+## Long-path DjVu regression
+
+`tools\tests\fixtures\minimal.djvu` is a two-page GPL DjVuLibre fixture. The
+runner copies it to a temporary Unicode directory deeper than `MAX_PATH`, uses
+the ordinary non-prefixed path, initializes a real libdjvu document, and checks
+that page zero decodes with non-zero dimensions. A minimal DjVu fixture is
+checked in for this regression; a broader representative corpus is not yet
+included.
 PVS-Studio monitoring is run separately with
 `tools\\pvs\\run-monitoring.ps1`; Release SIMD needs NASM on `PATH` or the
 script's `-NasmDirectory` option.
