@@ -45,6 +45,13 @@ the ordinary non-prefixed path, initializes a real libdjvu document, and checks
 that page zero decodes with non-zero dimensions. A minimal DjVu fixture is
 checked in for this regression; a broader representative corpus is not yet
 included.
+
+`djvusource_long_path_regression` uses a minimal `IApplication` implementation
+because `DjVuSource` normally receives this application service during real
+WinDjView startup. The test passes a normal Unicode path longer than 260
+characters to `DjVuSource::FromFile()`, then verifies page zero through the
+same production backend. The bridge keeps the MFC-facing test ABI separate
+from the static DjVuLibre interface.
 PVS-Studio monitoring is run separately with
 `tools\\pvs\\run-monitoring.ps1`; Release SIMD needs NASM on `PATH` or the
 script's `-NasmDirectory` option.

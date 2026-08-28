@@ -1,12 +1,17 @@
 // Exercises the same file-open path used by WinDjView, not just libdjvu.
 #include "../../src/stdafx.h"
-#include "../../src/DjVuSource.h"
-#include "../../src/libdjvu/DataPool.h"
-
 #include <stdio.h>
+
+extern "C" int RunDjVuSourceLongPathBridge(LPCTSTR path);
 
 int _tmain(int argc, TCHAR** argv)
 {
+	if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
+	{
+		fputs("could not initialize MFC for DjVuSource regression\n", stderr);
+		return 1;
+	}
+
 	if (argc != 2)
 	{
 		fputs("usage: djvusource_long_path_regression <path-to-djvu>\n", stderr);
@@ -21,28 +26,7 @@ int _tmain(int argc, TCHAR** argv)
 	}
 
 	fputs("DjVuSource regression: FromFile\n", stderr);
-	DjVuSource* source = DjVuSource::FromFile(path);
-	if (source == NULL)
-	{
-		fputs("DjVuSource could not open the long-path fixture\n", stderr);
-		return 1;
-	}
-
-	bool decoded = false;
-	fputs("DjVuSource regression: page count\n", stderr);
-	if (source->GetPageCount() > 0)
-	{
-		fputs("DjVuSource regression: page 0\n", stderr);
-		GP<DjVuImage> page = source->GetPage(0);
-		decoded = !!page && page->get_width() > 0 && page->get_height() > 0;
-	}
-	fputs("DjVuSource regression: release\n", stderr);
-	source->Release();
-	// DjVuLibre keeps a process-wide file cache; release it before the runner
-	// removes the long-path fixture tree.
-	DataPool::close_all();
-
-	if (!decoded)
+	if (RunDjVuSourceLongPathBridge(path) != 0)
 	{
 		fputs("DjVuSource long-path regression failed\n", stderr);
 		return 1;

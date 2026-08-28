@@ -56,7 +56,11 @@ set "APP_OBJECTS="
 for %%F in (%APP_OBJECT_NAMES%) do set "APP_OBJECTS=!APP_OBJECTS! %OBJECT_DIR%\%%F.obj"
 lib /nologo /out:"%TEST_BASENAME%-app.lib" !APP_OBJECTS!
 if errorlevel 1 exit /b %errorlevel%
-cl /nologo /W4 /EHsc %CRT% %CONFIG_DEFINE% /DWIN32 /D_WINDOWS /D_UNICODE /DUNICODE /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\djvusource_long_path_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%TEST_BASENAME%-app.lib" %DJVU_LIBRARY% %JPEG_LIBRARY% msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /link /ENTRY:wmainCRTStartup /MANIFEST:NO
+cl /nologo /W4 /EHsc %CRT% %CONFIG_DEFINE% /DWIN32 /D_WINDOWS /D_UNICODE /DUNICODE /c /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\djvusource_long_path_regression.cpp"
+if errorlevel 1 exit /b %errorlevel%
+cl /nologo /W4 /EHsc %CRT% %CONFIG_DEFINE% /DWIN32 /D_WINDOWS /D_UNICODE /DUNICODE /c /Fo"%TEST_BASENAME%-bridge.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\djvusource_long_path_bridge.cpp"
+if errorlevel 1 exit /b %errorlevel%
+link /nologo /debug /out:"%TEST_BASENAME%.exe" "%TEST_BASENAME%.obj" "%TEST_BASENAME%-bridge.obj" "%TEST_BASENAME%-app.lib" %DJVU_LIBRARY% %JPEG_LIBRARY% msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /ENTRY:wmainCRTStartup /MANIFEST:NO
 if errorlevel 1 exit /b %errorlevel%
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\tests\run-long-path-djvu-regression.ps1" -TestExecutable "%CD%\%TEST_BASENAME%.exe" -Fixture "%CD%\tools\tests\fixtures\minimal.djvu"
 exit /b %errorlevel%
