@@ -18,7 +18,12 @@ No C4700/C4701 true positive was found in this targeted set.
 
 ## C4840
 
-`Global.cpp` passed a temporary `CString` directly through the variadic
-`FormatString` call. It now passes an explicit `LPCTSTR`. Other inspected
-`CString::Format`, `TRACE`, and formatting call sites already pass `LPCTSTR`,
-string literals, or scalar values with matching format specifiers.
+The native Debug Win32 `/W4` build was used as the source of truth. `Global.cpp`,
+`DjVuSource.cpp`, and `WinDjView.cpp` C4840 call sites now pass explicit
+`LPCTSTR` values to variadic `FormatString`, `CString::Format`, and `TRACE`.
+The Foundation-targeted files `DjVuDoc.cpp`, `DjVuView.cpp`, `MainFrm.cpp`,
+`MyEdit.cpp`, `PrintDlg.cpp`, the settings pages, and `UpdateDlg.cpp` emitted
+no C4840 diagnostics. Production C4840 remaining: **0**.
+
+`/WX` remains intentionally disabled; legacy warnings are retained and audited
+separately rather than suppressed.

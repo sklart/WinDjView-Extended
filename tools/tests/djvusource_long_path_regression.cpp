@@ -20,6 +20,7 @@ int _tmain(int argc, TCHAR** argv)
 		return 2;
 	}
 
+	fputs("DjVuSource regression: FromFile\n", stderr);
 	DjVuSource* source = DjVuSource::FromFile(path);
 	if (source == NULL)
 	{
@@ -28,11 +29,14 @@ int _tmain(int argc, TCHAR** argv)
 	}
 
 	bool decoded = false;
+	fputs("DjVuSource regression: page count\n", stderr);
 	if (source->GetPageCount() > 0)
 	{
+		fputs("DjVuSource regression: page 0\n", stderr);
 		GP<DjVuImage> page = source->GetPage(0);
 		decoded = !!page && page->get_width() > 0 && page->get_height() > 0;
 	}
+	fputs("DjVuSource regression: release\n", stderr);
 	source->Release();
 	// DjVuLibre keeps a process-wide file cache; release it before the runner
 	// removes the long-path fixture tree.

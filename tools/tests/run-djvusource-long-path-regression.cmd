@@ -10,7 +10,7 @@ if /I "%CONFIGURATION%"=="Debug" (
   set "CRT=/MTd"
   set "DEBUG_SUFFIX=d"
   set "CONFIG_DIR=Debug"
-  set "CONFIG_DEFINE=/DNDEBUG"
+  set "CONFIG_DEFINE=/D_DEBUG"
 ) else if /I "%CONFIGURATION%"=="Release" (
   set "CRT=/MT"
   set "DEBUG_SUFFIX="
@@ -40,18 +40,21 @@ if errorlevel 1 exit /b %errorlevel%
 if not defined TEST_BASENAME set "TEST_BASENAME=tools\tests\djvusource_long_path_regression-%CONFIGURATION%-%PLATFORM%"
 set "JPEG_BUILD=src\third_party\libjpeg-turbo\build\%CONFIG_DIR%"
 if /I "%BUILD_FLAVOR%"=="native" (
-  set "APP_OBJECTS=src\%CONFIGURATION%\%OBJECT_PLATFORM%\*.obj"
+  set "OBJECT_DIR=src\%CONFIGURATION%\%OBJECT_PLATFORM%"
   set "DJVU_LIBRARY=src\%CONFIG_DIR%\libdjvu%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
   set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\jpeg%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
 ) else if /I "%BUILD_FLAVOR%"=="legacy" (
-  set "APP_OBJECTS=src\%CONFIG_DIR%\*.obj"
+  set "OBJECT_DIR=src\%CONFIG_DIR%"
   set "DJVU_LIBRARY=src\libdjvu\libdjvu%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
   set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\jpeg%DEBUG_SUFFIX%%LIB_SUFFIX%.lib"
 ) else (
   echo Build flavor must be native or legacy.
   exit /b 2
 )
-lib /nologo /out:"%TEST_BASENAME%-app.lib" %APP_OBJECTS%
+set "APP_OBJECT_NAMES=AnnotationDlg AppSettings BookmarkDlg BookmarksView CropPagesDlg DjVuDoc DjVuSource DjVuView DocPropertiesDlg Drawing FindDlg FullscreenWnd Global GotoPageDlg InstallDicDlg MagnifyWnd MainFrm MDIChild MyBitmapButton MyColorPicker MyComboBox MyDialog MyDocManager MyDocTemplate MyEdit MyFileDialog MyGdiPlus MyScrollView MyStatusBar MyTheme MyToolBar MyTreeView NavPane PageIndexWnd PathUtil PositionParser PrintDlg ProgressDlg RenderThread Scaling SearchResultsView SettingsAdvancedPage SettingsDictPage SettingsDisplayPage SettingsDlg SettingsGeneralPage stdafx TabbedMDIWnd ThumbnailsThread ThumbnailsView UpdateDlg WinDjView XMLParser ZoomDlg"
+set "APP_OBJECTS="
+for %%F in (%APP_OBJECT_NAMES%) do set "APP_OBJECTS=!APP_OBJECTS! %OBJECT_DIR%\%%F.obj"
+lib /nologo /out:"%TEST_BASENAME%-app.lib" !APP_OBJECTS!
 if errorlevel 1 exit /b %errorlevel%
 cl /nologo /W4 /EHsc %CRT% %CONFIG_DEFINE% /DWIN32 /D_WINDOWS /D_UNICODE /DUNICODE /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\djvusource_long_path_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%TEST_BASENAME%-app.lib" %DJVU_LIBRARY% %JPEG_LIBRARY% msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /link /ENTRY:wmainCRTStartup /MANIFEST:NO
 if errorlevel 1 exit /b %errorlevel%
