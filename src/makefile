@@ -202,7 +202,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 "$(INTDIR)\XMLParser.obj" : XMLParser.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\ZoomDlg.obj" : ZoomDlg.cpp "$(INTDIR)" $(PCH)
 
-"$(INTDIR)\stdafx.obj" $(PCH) : stdafx.cpp "$(INTDIR)"
+"$(INTDIR)\stdafx.obj" $(PCH) : stdafx.cpp stdafx.h "$(INTDIR)"
 	@$(CPP) $(CPP_FLAGS) $(CPP_PCH_CREATE) stdafx.cpp
 
 "$(INTDIR)\WinDjView.res" : WinDjView.rc "$(INTDIR)"

@@ -25,10 +25,16 @@ eviction after saturated deletion (including the `>20` item path and unlimited
 to finite cache transition), normal image memory accounting, and PNM/PPM
 dimension limits before narrowing to `int`.
 
-GitHub Actions repeats these four builds, runs the matching JPEG and libdjvu
-core regressions,
-prints the imported DLLs for Release, rejects every external DLL whose name
-contains `jpeg`, and publishes the resulting executables as workflow artifacts.
+`tools\\tests\\run-pathutil-regression.cmd` also accepts configuration and
+platform. It creates a temporary Unicode directory tree longer than `MAX_PATH`
+and verifies `GetFullPath`, `FileExists`, `DirectoryExists`, `Combine`, and
+`ReplaceExtension` against that path.
+
+GitHub Actions repeats these four legacy NMAKE builds, runs the matching JPEG,
+libdjvu core, and PathUtil regressions, then builds and verifies the Russian
+resource DLL. A separate staged native MSBuild matrix builds
+`WinDjView.Native` and `libdjvu.Modern` in Debug/Release for Win32/x64.
+Release import checks reject external DLL names containing `jpeg` or `djvu`.
 No automated corpus of DjVu samples is currently checked in, so opening real
 DjVu documents, printing, and GUI flows remain manual regression tests.
 PVS-Studio monitoring is run separately with

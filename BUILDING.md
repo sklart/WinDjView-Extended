@@ -21,8 +21,8 @@ project and exposes Debug/Release for Win32/x64. The historical
 
 The solution also contains `WinDjViewRU.Modern`, a native MSBuild resource-DLL
 project. Its outputs are `WinDjViewRU-Win32.dll` and `WinDjViewRU-x64.dll` in
-the matching application output directories. The application project remains
-an NMAKE wrapper pending the separate application MSBuild migration.
+the matching application output directories. `WinDjView.Native` is the staged
+native MSBuild application project, separate from the legacy NMAKE wrapper.
 `libdjvu.Modern` is a native static-library MSBuild project which compiles the
 bundled DjVuLibre sources directly; it invokes only the existing JPEG adapter
 to retain the checked-in libjpeg-turbo 3.2.0 configuration and Release SIMD
@@ -44,6 +44,14 @@ the native projects. For example:
 ```bat
 msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=Win32
 msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
+msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Debug /p:Platform=Win32
+msbuild src\WinDjView.Native.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64
+```
+
+Build the resource-only Russian DLL with the same configuration and platform:
+
+```bat
+msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64
 ```
 
 The application's historical manifest remains embedded by `WinDjView.rc2`.

@@ -93,10 +93,10 @@ jobs:
             }
             Write-Host 'Imported DLLs:'
             $dlls
-            $jpegDll = $dlls | Where-Object { $_ -match '(?i)jpeg' } |
+            $bundledCodecDll = $dlls | Where-Object { $_ -match '(?i)(jpeg|djvu)' } |
               Select-Object -First 1
-            if ($jpegDll) {
-              throw "Unexpected external JPEG dependency: $jpegDll"
+            if ($bundledCodecDll) {
+              throw "Unexpected external bundled-codec dependency: $bundledCodecDll"
             }
           }
 
