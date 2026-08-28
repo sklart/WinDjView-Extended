@@ -533,7 +533,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_STATIC_LIB_LINK, m_weblinkLibrary);
 	//DDX_Control(pDX, IDC_DONATE, m_btnDonate);
 
-	CString strVersion = FormatString(IDS_VERSION_ABOUT, CURRENT_VERSION);
+	CString strVersion = FormatString(IDS_VERSION_ABOUT, (LPCTSTR)CURRENT_VERSION);
 	DDX_Text(pDX, IDC_STATIC_VERSION, strVersion);
 }
 
@@ -1175,7 +1175,7 @@ BOOL CDjViewApp::WriteProfileDocsSettings(LPCTSTR pszSection, const GUTF8String&
 			UpdateObservers(SETTINGS_NOT_SAVED);
 		}
 		else
-			AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strFileName), MB_OK | MB_ICONEXCLAMATION);
+			AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, (LPCTSTR)strFileName), MB_OK | MB_ICONEXCLAMATION);
 		return false;
 	}
 
@@ -1449,10 +1449,10 @@ bool CDjViewApp::RegisterShellFileTypes(bool bCheckOnly)
 		CDocTemplate* pTemplate = GetNextDocTemplate(pos);
 
 		CString strOpenCommandLine;
-		strOpenCommandLine.Format(_T("\"%s\""), strPathName);
+		strOpenCommandLine.Format(_T("\"%s\""), (LPCTSTR)strPathName);
 
 		CString strDefaultIconCommandLine;
-		strDefaultIconCommandLine.Format(_T("%s,0"), strPathName);
+		strDefaultIconCommandLine.Format(_T("%s,0"), (LPCTSTR)strPathName);
 
 		CString strFilterExt, strFileTypeId, strFileTypeName;
 		if (pTemplate->GetDocString(strFileTypeId,
@@ -1531,7 +1531,7 @@ bool CDjViewApp::RegisterShellFileTypes(bool bCheckOnly)
 				ASSERT(strFilterExt[0] == '.');
 
 				CString strExplorerKey = FormatString(_T("Software\\Microsoft\\Windows\\")
-						_T("CurrentVersion\\Explorer\\FileExts\\%s"), strFilterExt);
+						_T("CurrentVersion\\Explorer\\FileExts\\%s"), (LPCTSTR)strFilterExt);
 				CString strUserChoiceKey = strExplorerKey + _T("\\UserChoice");
 				CString strProgId = _T("ProgID");
 				HKEY hKey = NULL;
@@ -2073,7 +2073,7 @@ void CDjViewApp::LoadLanguages()
 
 		LPCTSTR pszBuffer;
 		UINT dwLength;
-		if (::VerQueryValue(pVersionInfo, FormatString(_T("\\StringFileInfo\\%s\\FileVersion"), strTranslation).GetBuffer(0),
+		if (::VerQueryValue(pVersionInfo, FormatString(_T("\\StringFileInfo\\%s\\FileVersion"), (LPCTSTR)strTranslation).GetBuffer(0),
 				(void**)&pszBuffer, &dwLength) == 0 || dwLength == 0)
 			continue;
 
@@ -2081,7 +2081,7 @@ void CDjViewApp::LoadLanguages()
 		if (strVersion != CURRENT_VERSION)
 			continue;
 
-		if (::VerQueryValue(pVersionInfo, FormatString(_T("\\StringFileInfo\\%s\\Comments"), strTranslation).GetBuffer(0),
+		if (::VerQueryValue(pVersionInfo, FormatString(_T("\\StringFileInfo\\%s\\Comments"), (LPCTSTR)strTranslation).GetBuffer(0),
 				(void**)&pszBuffer, &dwLength) == 0 || dwLength == 0)
 			continue;
 
@@ -2192,7 +2192,7 @@ BOOL CDjViewApp::OnOpenRecentFile(UINT nID)
 
 	CString& strPathName = (*m_pRecentFileList)[nIndex];
 	ASSERT(strPathName.GetLength() != 0);
-	TRACE(_T("MRU: open file (%d) '%s'.\n"), nIndex + 1, strPathName);
+	TRACE(_T("MRU: open file (%d) '%s'.\n"), nIndex + 1, (LPCTSTR)strPathName);
 
 	CDjVuDoc* pDoc = (CDjVuDoc*) OpenDocumentFile(strPathName);
 	if (pDoc == NULL)

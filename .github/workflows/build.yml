@@ -226,3 +226,11 @@ jobs:
       - name: Run native libdjvu core regression tests
         shell: cmd
         run: tools\tests\run-libdjvu-core-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native
+
+      - name: Run native PathUtil regression tests
+        shell: cmd
+        run: tools\tests\run-pathutil-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
+
+      - name: Run native DjVuSource long-path regression tests
+        shell: cmd
+        run: tools\tests\run-djvusource-long-path-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}

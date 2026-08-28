@@ -271,11 +271,11 @@ GUTF8String Annotation::GetXML() const
 
 	CString strBegin;
 	strBegin.Format(_T("<%s %s %s %s=\"%d\" %s=\""),
-			pszTagAnnotation, strBorder, strFill, pszAttrCommentAlwaysShow,
+			pszTagAnnotation, (LPCTSTR)strBorder, (LPCTSTR)strFill, pszAttrCommentAlwaysShow,
 			static_cast<int>(bAlwaysShowComment), pszAttrComment);
 
 	CString strEnd;
-	strEnd.Format(_T(">\n%s</%s>\n"), strRects, pszTagAnnotation);
+	strEnd.Format(_T(">\n%s</%s>\n"), (LPCTSTR)strRects, pszTagAnnotation);
 
 	GUTF8String strURLAttr;
 	if (strURL.length() > 0)
@@ -1167,26 +1167,33 @@ DjVuSource* DjVuSource::FromFile(const CString& strFileName)
 		return pSource;
 	}
 
-	CFile file;
-	if (!file.Open(fullPath, CFile::modeRead | CFile::shareDenyWrite))
+	HANDLE file = PathUtil::OpenFileReadOnly(fullPath);
+	if (file == INVALID_HANDLE_VALUE)
 	{
 		return NULL;
 	}
 
-	int nLength = static_cast<int>(min(file.GetLength(), 0x40000));
+	LARGE_INTEGER fileSize;
+	if (!::GetFileSizeEx(file, &fileSize))
+	{
+		::CloseHandle(file);
+		return NULL;
+	}
+	int nLength = static_cast<int>(min(fileSize.QuadPart, 0x40000));
 	if (nLength == 0)
 	{
-		file.Close();
+		::CloseHandle(file);
 		return NULL;
 	}
 
 	vector<BYTE> buffer(nLength);
-	if (file.Read(&buffer[0], nLength) != (UINT)nLength)
+	DWORD bytesRead = 0;
+	if (!::ReadFile(file, &buffer[0], nLength, &bytesRead, NULL) || bytesRead != static_cast<DWORD>(nLength))
 	{
-		file.Close();
+		::CloseHandle(file);
 		return NULL;
 	}
-	file.Close();
+	::CloseHandle(file);
 
 	MD5 digest(&buffer[0], nLength);
 

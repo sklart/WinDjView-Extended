@@ -40,7 +40,7 @@ int _tmain()
 	if (!Check(::GetTempPath(_countof(temp), temp) != 0, "GetTempPath"))
 		return 1;
 
-	CString root = CString(_T("\\\\?\\")) + temp;
+	CString root = temp;
 	if (root.Right(1) == _T("\\"))
 		root = root.Left(root.GetLength() - 1);
 	root += _T("\\WinDjView PathUtil \x0416");
@@ -49,17 +49,24 @@ int _tmain()
 
 	if (!Check(root.GetLength() > MAX_PATH, "long test path"))
 		return 1;
-	if (!Check(MakeDirectoryTree(root), "create long Unicode directory tree"))
+	CString fileSystemRoot;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(root, fileSystemRoot), "extended long directory path"))
+		return 1;
+	if (!Check(MakeDirectoryTree(fileSystemRoot), "create long Unicode directory tree"))
 		return 1;
 
 	CString filePath = PathUtil::Combine(root, _T("sample file.txt"));
-	HANDLE file = ::CreateFile(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	CString fileSystemPath;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(filePath, fileSystemPath), "extended long file path"))
+		return 1;
+	HANDLE file = ::CreateFile(fileSystemPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (!Check(file != INVALID_HANDLE_VALUE, "create file"))
 		return 1;
 	::CloseHandle(file);
 
 	CString fullPath;
 	if (!Check(PathUtil::GetFullPath(filePath, fullPath), "GetFullPath")) return 1;
+	if (!Check(fullPath.Left(4) != _T("\\\\?\\"), "GetFullPath stays canonical")) return 1;
 	if (!Check(PathUtil::FileExists(fullPath), "FileExists")) return 1;
 	if (!Check(PathUtil::DirectoryExists(root), "DirectoryExists")) return 1;
 	if (!Check(PathUtil::Combine(root, _T("sample file.txt")) == filePath, "Combine")) return 1;
@@ -68,7 +75,14 @@ int _tmain()
 	CString relative = PathUtil::Combine(root, _T(".\\sample file.txt"));
 	if (!Check(PathUtil::GetFullPath(relative, relative) && PathUtil::FileExists(relative), "relative dot path")) return 1;
 
-	::DeleteFile(filePath);
+	CString transformed;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(_T("C:\\abc"), transformed) && transformed == _T("\\\\?\\C:\\abc"), "drive transform")) return 1;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(_T("\\\\server\\share\\abc"), transformed) && transformed == _T("\\\\?\\UNC\\server\\share\\abc"), "UNC transform")) return 1;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(_T("\\\\?\\C:\\abc"), transformed) && transformed == _T("\\\\?\\C:\\abc"), "extended drive unchanged")) return 1;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(_T("\\\\?\\UNC\\server\\share\\abc"), transformed) && transformed == _T("\\\\?\\UNC\\server\\share\\abc"), "extended UNC unchanged")) return 1;
+	if (!Check(PathUtil::GetExtendedFileSystemPath(_T(".\\abc"), transformed) && transformed.Left(6) != _T("\\\\?\\.\\"), "relative transform")) return 1;
+
+	::DeleteFile(fileSystemPath);
 	puts("pathutil regression passed");
 	return 0;
 }

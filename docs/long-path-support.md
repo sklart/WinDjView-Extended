@@ -14,18 +14,23 @@ until the respective Windows API reports success. `FindOpenDocument()` and
 asking MFC to match an already-open document. `DjVuSource::FromFile()` keeps
 the normalized `CString` rather than a fixed buffer.
 
-The document loader preserves the normal user-visible `C:\...` path in the
-document, MRU, and session layers. At the filesystem boundary, libdjvu turns
-an absolute path of at least `MAX_PATH` characters into the Win32
-extended-length form for `_wfopen` (`\\?\C:\...` or `\\?\UNC\server\share\...`).
-Already-prefixed paths are left unchanged; relative paths and URLs are not
-prefixed. This is independent of the Windows 10/11 `longPathAware` manifest
-mechanism and therefore keeps the Windows 7 compatibility model.
+The document loader has two deliberately separate representations. The
+canonical user path stays `C:\very long path\book.djvu` in document identity,
+MRU, sessions, settings, and UI. `PathUtil::GetExtendedFileSystemPath` creates
+`\\?\C:\very long path\book.djvu` (or `\\?\UNC\server\share\...`) only at a
+Win32 filesystem API boundary. `DjVuSource::FromFile()` uses this form for its
+pre-read while retaining the canonical path everywhere else. Already-prefixed
+paths are unchanged; relative inputs are first resolved to an ordinary full
+path and are never converted to `\\?\.`. This is independent of the Windows
+10/11 `longPathAware` manifest mechanism and therefore keeps the Windows 7
+compatibility model.
 
 `tools/tests/run-long-path-djvu-regression.cmd` copies a real DjVu fixture to
 a temporary Unicode path longer than `MAX_PATH`, passes the ordinary
 non-prefixed path to libdjvu, and verifies document initialization plus page
-zero dimensions. It runs in every legacy and native CI configuration.
+zero dimensions. `run-djvusource-long-path-regression.cmd` additionally calls
+the production `DjVuSource::FromFile()` path against the same fixture in every
+native configuration.
 
 ## Deliberate limits
 

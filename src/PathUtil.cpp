@@ -59,15 +59,64 @@ bool PathUtil::GetFullPath(const CString& input, CString& output)
 	}
 }
 
+bool PathUtil::GetExtendedFileSystemPath(const CString& input, CString& output)
+{
+	if (input.IsEmpty())
+		return false;
+	if (input.Left(4) == _T("\\\\?\\"))
+	{
+		output = input;
+		return true;
+	}
+	if (input.Left(4) == _T("\\\\.\\") || input.Find(_T("://")) >= 0)
+		return false;
+
+	CString fullPath;
+	if (!GetFullPath(input, fullPath))
+		return false;
+	if (fullPath.Left(4) == _T("\\\\?\\"))
+	{
+		output = fullPath;
+		return true;
+	}
+	if (fullPath.Left(2) == _T("\\\\"))
+	{
+		output = _T("\\\\?\\UNC\\") + fullPath.Mid(2);
+		return true;
+	}
+	if (fullPath.GetLength() >= 3 && fullPath[1] == _T(':') &&
+		(fullPath[2] == _T('\\') || fullPath[2] == _T('/')))
+	{
+		output = _T("\\\\?\\") + fullPath;
+		return true;
+	}
+	return false;
+}
+
+HANDLE PathUtil::OpenFileReadOnly(const CString& path)
+{
+	CString fileSystemPath;
+	if (!GetExtendedFileSystemPath(path, fileSystemPath))
+		return INVALID_HANDLE_VALUE;
+	return ::CreateFile(fileSystemPath, GENERIC_READ, FILE_SHARE_READ, NULL,
+		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+}
+
 bool PathUtil::FileExists(const CString& path)
 {
-	DWORD attributes = ::GetFileAttributes(path);
+	CString fileSystemPath;
+	if (!GetExtendedFileSystemPath(path, fileSystemPath))
+		return false;
+	DWORD attributes = ::GetFileAttributes(fileSystemPath);
 	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
 bool PathUtil::DirectoryExists(const CString& path)
 {
-	DWORD attributes = ::GetFileAttributes(path);
+	CString fileSystemPath;
+	if (!GetExtendedFileSystemPath(path, fileSystemPath))
+		return false;
+	DWORD attributes = ::GetFileAttributes(fileSystemPath);
 	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
