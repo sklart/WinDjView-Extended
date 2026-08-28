@@ -218,3 +218,11 @@ jobs:
       - name: Run native long-path DjVu regression tests
         shell: cmd
         run: tools\tests\run-long-path-djvu-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native
+
+      - name: Run native JPEGDecoder regression tests
+        shell: cmd
+        run: tools\tests\run-jpegdecoder-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native
+
+      - name: Run native libdjvu core regression tests
+        shell: cmd
+        run: tools\tests\run-libdjvu-core-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native
