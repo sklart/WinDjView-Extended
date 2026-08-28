@@ -78,6 +78,10 @@
 #if defined(_WIN32) || defined(__CYGWIN32__)
 # include <io.h>
 #endif
+#if defined(_WIN32)
+# include <windows.h>
+# include <wchar.h>
+#endif
 #if defined(__APPLE__)
 # include <CoreFoundation/CFString.h>
 #endif
@@ -691,7 +695,35 @@ urlfopen(const GURL &url,const char mode[])
   wchar_t *wstr = utf8_to_wide((const char*)url.UTF8Filename());
   wchar_t *wmode = utf8_to_wide(mode);
   if (wstr && wmode)
-    retval = _wfopen(wstr, wmode);
+    {
+      // The CRT does not automatically opt into the extended-length form.
+      // Use it only when necessary, preserving relative and already-prefixed
+      // paths exactly as supplied by the caller.
+      const wchar_t *path = wstr;
+      wchar_t *long_path = 0;
+      const size_t path_length = wcslen(wstr);
+      if (path_length >= MAX_PATH && wcsncmp(wstr, L"\\\\?\\", 4))
+        {
+          if (!wcsncmp(wstr, L"\\\\", 2))
+            {
+              long_path = new wchar_t[path_length + 7];
+              wcscpy(long_path, L"\\\\?\\UNC");
+              wcscat(long_path, wstr + 1);
+            }
+          else
+            {
+              long_path = new wchar_t[path_length + 5];
+              wcscpy(long_path, L"\\\\?\\");
+              wcscat(long_path, wstr);
+            }
+          for (wchar_t *cursor = long_path; *cursor; ++cursor)
+            if (*cursor == L'/')
+              *cursor = L'\\';
+          path = long_path;
+        }
+      retval = _wfopen(path, wmode);
+      delete [] long_path;
+    }
   delete [] wstr;
   delete [] wmode;
   if (! retval)
