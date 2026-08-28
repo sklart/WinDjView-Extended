@@ -1,6 +1,7 @@
 // Exercises the same file-open path used by WinDjView, not just libdjvu.
 #include "../../src/stdafx.h"
 #include "../../src/DjVuSource.h"
+#include "../../src/libdjvu/DataPool.h"
 
 #include <stdio.h>
 
@@ -33,6 +34,9 @@ int _tmain(int argc, TCHAR** argv)
 		decoded = !!page && page->get_width() > 0 && page->get_height() > 0;
 	}
 	source->Release();
+	// DjVuLibre keeps a process-wide file cache; release it before the runner
+	// removes the long-path fixture tree.
+	DataPool::close_all();
 
 	if (!decoded)
 	{

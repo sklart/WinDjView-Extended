@@ -116,6 +116,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-long-path-djvu-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} legacy
 
+      - name: Run DjVuSource long-path regression tests
+        shell: cmd
+        run: tools\tests\run-djvusource-long-path-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} legacy
+
       - name: Build Russian resource DLL
         shell: cmd
         run: |
