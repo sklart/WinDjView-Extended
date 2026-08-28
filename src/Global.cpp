@@ -732,7 +732,7 @@ void AFXAPI DDX_MyText(CDataExchange* pDX, int nIDC, double& value, double def, 
 
 void AFXAPI DDX_MyText(CDataExchange* pDX, int nIDC, DWORD& value, DWORD def, LPCTSTR pszSuffix)
 {
-	CString strText = FormatString(_T("%lu%s"), value, CString(pszSuffix));
+	CString strText = FormatString(_T("%lu%s"), value, (LPCTSTR)CString(pszSuffix));
 	DDX_Text(pDX, nIDC, strText);
 
 	if (pDX->m_bSaveAndValidate)

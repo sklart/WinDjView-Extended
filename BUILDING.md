@@ -37,6 +37,8 @@ the same legacy output paths concurrently with the NMAKE wrapper.
 The native application project uses `/W4`. Its first baseline showed that
 `/permissive-` causes broad historical source incompatibilities, so it remains
 disabled pending a focused compatibility pass; `/WX` is likewise not enabled.
+The correctness-related warning review is recorded in
+[docs/native-warning-audit.md](docs/native-warning-audit.md).
 
 Initialize a VS Developer Command Prompt (with MFC installed) before building
 the native projects. For example:
