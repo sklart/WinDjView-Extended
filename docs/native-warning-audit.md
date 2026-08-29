@@ -18,12 +18,13 @@ No C4700/C4701 true positive was found in this targeted set.
 
 ## C4840
 
-The native Debug Win32 `/W4` build was used as the source of truth. `Global.cpp`,
-`DjVuSource.cpp`, and `WinDjView.cpp` C4840 call sites now pass explicit
-`LPCTSTR` values to variadic `FormatString`, `CString::Format`, and `TRACE`.
-The Foundation-targeted files `DjVuDoc.cpp`, `DjVuView.cpp`, `MainFrm.cpp`,
-`MyEdit.cpp`, `PrintDlg.cpp`, the settings pages, and `UpdateDlg.cpp` emitted
-no C4840 diagnostics. Production C4840 remaining: **0**.
+The native Debug Win32 `/W4` rebuild is the source of truth. It initially
+reported 21 C4840 diagnostics in `DjVuDoc.cpp`, `DjVuView.cpp`, `MainFrm.cpp`,
+`MyEdit.cpp`, `PrintDlg.cpp`, `SettingsAdvancedPage.cpp`,
+`SettingsDictPage.cpp`, `SettingsDlg.cpp`, and `UpdateDlg.cpp`. Their
+`CString` arguments now use explicit `.GetString()` values, with the matching
+`%s` format specifiers. The rebuilt compiler log contains no C4840 diagnostic.
+Production C4840 remaining: **0**.
 
 `/WX` remains intentionally disabled; legacy warnings are retained and audited
 separately rather than suppressed.

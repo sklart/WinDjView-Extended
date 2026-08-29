@@ -4117,7 +4117,7 @@ void CDjVuView::OnPageInformation()
 				strLine = strLine.Mid(tab);
 				nParsed = _stscanf(strLine, _T("%lf%999s"), &fSize, szName); nExpected = 2;
 				strFormatted.Format(_T(" %5.1f Kb\t'%s'\tIndirection chunk (%s)."),
-					fSize, szName, szFile);
+					fSize, szName, szFile.GetString());
 			}
 			else
 			{
@@ -5078,7 +5078,7 @@ unsigned int __stdcall CDjVuView::ExportThreadProc(void* pvData)
 		pProgress->SetPos(i);
 
 		CString strPathName;
-		strPathName.Format(_T("%s%0*d%s"), data.strPrefix, data.nFormatWidth, nPage + 1, data.strSuffix);
+		strPathName.Format(_T("%s%0*d%s"), data.strPrefix.GetString(), data.nFormatWidth, nPage + 1, data.strSuffix.GetString());
 		if (!data.bOverwrite && PathFileExists(strPathName))
 			continue;
 

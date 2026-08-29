@@ -32,10 +32,21 @@ and verifies `GetFullPath`, `FileExists`, `DirectoryExists`, `Combine`, and
 
 GitHub Actions repeats these four legacy NMAKE builds, runs the matching JPEG,
 libdjvu core, PathUtil, and long-path DjVu regressions, then builds and verifies
-the Russian resource DLL. A separate staged native MSBuild matrix builds
+the Russian resource DLL. Each Release job also runs
+`tools\tests\run-startup-smoke.ps1`, which invokes `WinDjView.exe
+/StartupSmokeTest`; that mode completes real application and main-frame
+initialization, then closes normally. A separate staged native MSBuild matrix builds
 `WinDjView.Native` and `libdjvu.Modern` in Debug/Release for Win32/x64, verifies
 their PE architecture, rejects external JPEG/DjVu imports in Release, and runs
-the long-path DjVu regression against the native library output.
+the long-path DjVu regression against the native library output. The startup
+smoke is run for both native Release architectures as well.
+
+The Release x64 startup blocker was an x86 Common Controls dependency embedded
+by the native resource compile: `WIN64` reached C++ compilation but not the
+resource compiler, so `WinDjView.rc2` selected the x86 manifest. The native
+project now supplies that define to `ResourceCompile`; cdb confirms that x64
+loads the `amd64_microsoft.windows.common-controls` assembly and the smoke
+process exits with status zero.
 
 ## Long-path DjVu regression
 

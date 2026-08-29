@@ -1307,7 +1307,7 @@ void CMainFrame::OnUpdateStatusSize(CCmdUI* pCmdUI)
 	AfxExtractSubString(strUnits, LoadString(IDS_UNITS_SHORT), nUnits, ',');
 
 	strNewMessage.Format(ID_INDICATOR_SIZE,
-			(LPCTSTR)FormatDouble(fWidth), (LPCTSTR)FormatDouble(fHeight), strUnits);
+			(LPCTSTR)FormatDouble(fWidth), (LPCTSTR)FormatDouble(fHeight), strUnits.GetString());
 
 	CStatusBarCtrl& status = m_wndStatusBar.GetStatusBarCtrl();
 	if (status.GetText(5, 0) != strNewMessage)
@@ -1448,7 +1448,7 @@ void CMainFrame::OnClose()
 		if (nResult == IDCANCEL)
 			return;
 		if (nResult == IDYES && !MoveToTrash(strINI))
-			AfxMessageBox(FormatString(IDS_FILE_DELETE_FAILED, strINI), MB_ICONEXCLAMATION | MB_OK);
+			AfxMessageBox(FormatString(IDS_FILE_DELETE_FAILED, strINI.GetString()), MB_ICONEXCLAMATION | MB_OK);
 	}
 
 	if (theApp.m_bTopLevelDocs && theApp.GetDocumentCount() > 1)
@@ -1926,7 +1926,7 @@ void CMainFrame::OnNewVersion()
 	CDjViewApp::MessageBoxOptions mbo;
 	mbo.strCheckBox = LoadString(IDS_CHECK_UPDATES);
 	//mbo.pCheckValue = &theApp.GetAppSettings()->bCheckUpdates;
-	if (theApp.DoMessageBox(FormatString(IDS_NEW_VERSION_AVAILABLE, theApp.m_strNewVersion),
+	if (theApp.DoMessageBox(FormatString(IDS_NEW_VERSION_AVAILABLE, theApp.m_strNewVersion.GetString()),
 			MB_ICONQUESTION | MB_YESNO, 0, mbo) == IDYES)
 	{
 		::ShellExecute(NULL, _T("open"), LoadString(IDS_WEBSITE_URL),

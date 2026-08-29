@@ -183,7 +183,7 @@ CDjViewApp::CDjViewApp()
 	: m_bInitialized(false), m_bTopLevelDocs(false), m_pDjVuTemplate(NULL), m_pFindDlg(NULL),
 	  m_nThreadCount(0), m_hHook(NULL), m_pPendingSource(NULL), m_bShiftPressed(false),
 	  m_bControlPressed(false), m_nLangIndex(0), m_nTimerID(0),
-	  m_bOnlyRegisterTypes(false), m_nExitCode(0), m_hUpdateThread(NULL)
+	  m_bOnlyRegisterTypes(false), m_bStartupSmokeTest(false), m_nExitCode(0), m_hUpdateThread(NULL)
 {
 	DjVuSource::SetApplication(this);
 }
@@ -241,6 +241,11 @@ BOOL CDjViewApp::InitInstance()
 		if (pszParam[0] == '-' || pszParam[0] == '/')
 		{
 			++pszParam;
+			if (_tcsicmp(pszParam, _T("StartupSmokeTest")) == 0)
+			{
+				m_bStartupSmokeTest = true;
+				continue;
+			}
 			if (_tcsicmp(pszParam, _T("RegisterFileTypes")) == 0)
 			{
 				m_bOnlyRegisterTypes = true;
@@ -280,7 +285,7 @@ BOOL CDjViewApp::InitInstance()
 	m_hHook = ::SetWindowsHookEx(WH_KEYBOARD, KeyboardProc, NULL, ::GetCurrentThreadId());
 	m_nTimerID = ::SetTimer(NULL, 1, 100, TimerProc);
 
-	if (m_appSettings.bProgramSettingsIntoRegistry && m_appSettings.bWarnNotDefaultViewer && RegisterShellFileTypes(true))
+	if (!m_bStartupSmokeTest && m_appSettings.bProgramSettingsIntoRegistry && m_appSettings.bWarnNotDefaultViewer && RegisterShellFileTypes(true))
 	{
 		MessageBoxOptions mbo;
 		mbo.strCheckBox = LoadString(IDS_WARN_NOT_DEFAULT_VIEWER);
@@ -302,7 +307,7 @@ BOOL CDjViewApp::InitInstance()
 	//	ThreadStarted();
 	//}
 
-	if (m_appSettings.strVersion != CURRENT_VERSION)
+	if (!m_bStartupSmokeTest && m_appSettings.strVersion != CURRENT_VERSION)
 		OnAppAbout();
 
 	// load last opened documents
@@ -328,6 +333,8 @@ BOOL CDjViewApp::InitInstance()
 	}
 
 	ThreadStarted();
+	if (m_bStartupSmokeTest)
+		pMainFrame->PostMessage(WM_CLOSE);
 	return true;
 }
 

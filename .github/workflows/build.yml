@@ -105,6 +105,11 @@ jobs:
         shell: cmd
         run: tools\tests\run-jpegdecoder-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
 
+      - name: Run Release startup smoke test
+        if: always() && matrix.configuration == 'Release'
+        shell: pwsh
+        run: tools\tests\run-startup-smoke.ps1 -ExecutablePath '${{ matrix.output }}'
+
       - name: Run libdjvu core regression tests
         if: always()
         shell: cmd
@@ -230,6 +235,11 @@ jobs:
         if: always()
         shell: cmd
         run: tools\tests\run-long-path-djvu-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }} native
+
+      - name: Run native Release startup smoke test
+        if: always() && matrix.configuration == 'Release'
+        shell: pwsh
+        run: tools\tests\run-startup-smoke.ps1 -ExecutablePath '${{ matrix.output }}'
 
       - name: Run native JPEGDecoder regression tests
         if: always()

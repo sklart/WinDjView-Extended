@@ -154,5 +154,5 @@ void CMyEdit::SetValue(double fValue, int nUnits)
 
 	CString strUnits;
 	AfxExtractSubString(strUnits, LoadString(IDS_UNITS_SHORT), nUnits, ',');
-	SetWindowText(FormatString(_T("%s %s"), FormatDouble(m_fValue), strUnits));
+	SetWindowText(FormatString(_T("%s %s"), FormatDouble(m_fValue).GetString(), strUnits.GetString()));
 }

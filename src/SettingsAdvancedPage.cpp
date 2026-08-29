@@ -115,7 +115,7 @@ void CSettingsAdvancedPage::OnBackup()
 	CFile file;
 	if (!file.Open(strPathName, CFile::modeCreate | CFile::modeWrite | CFile::shareExclusive))
 	{
-		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName), MB_OK | MB_ICONEXCLAMATION);
+		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName.GetString()), MB_OK | MB_ICONEXCLAMATION);
 		return;
 	}
 

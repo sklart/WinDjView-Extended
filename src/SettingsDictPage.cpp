@@ -104,7 +104,7 @@ void CSettingsDictPage::OnUninstall()
 	int nItem = m_list.GetNextSelectedItem(pos);
 	DictionaryInfo* pInfo = reinterpret_cast<DictionaryInfo*>(static_cast<DWORD_PTR>(m_list.GetItemData(nItem)));
 
-	if (AfxMessageBox(FormatString(IDS_UNINSTALL_DICT, pInfo->strTitle),
+	if (AfxMessageBox(FormatString(IDS_UNINSTALL_DICT, pInfo->strTitle.GetString()),
 			MB_ICONQUESTION | MB_YESNO) == IDYES)
 	{
 		if (theApp.UninstallDictionary(pInfo))
@@ -113,7 +113,7 @@ void CSettingsDictPage::OnUninstall()
 		}
 		else
 		{
-			AfxMessageBox(FormatString(IDS_UNINSTALL_FAILED, pInfo->strTitle, pInfo->strPathName),
+			AfxMessageBox(FormatString(IDS_UNINSTALL_FAILED, pInfo->strTitle.GetString(), pInfo->strPathName.GetString()),
 					MB_ICONEXCLAMATION | MB_OK);
 		}
 	}

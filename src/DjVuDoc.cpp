@@ -233,7 +233,7 @@ void CDjVuDoc::OnFileExportText()
 	CFile file;
 	if (!file.Open(strPathName, CFile::modeCreate | CFile::modeWrite | CFile::shareExclusive))
 	{
-		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName), MB_OK | MB_ICONEXCLAMATION);
+		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName.GetString()), MB_OK | MB_ICONEXCLAMATION);
 		return;
 	}
 
@@ -423,7 +423,7 @@ void CDjVuDoc::OnFileExportBookmarks()
 	CFile file;
 	if (!file.Open(strPathName, CFile::modeCreate | CFile::modeWrite | CFile::shareExclusive))
 	{
-		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName), MB_OK | MB_ICONEXCLAMATION);
+		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName.GetString()), MB_OK | MB_ICONEXCLAMATION);
 		return;
 	}
 
@@ -535,7 +535,7 @@ void CDjVuDoc::OnFileSaveSession()
 	CFile file;
 	if (!file.Open(strPathName, CFile::modeCreate | CFile::modeWrite | CFile::shareExclusive))
 	{
-		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName), MB_OK | MB_ICONEXCLAMATION);
+		AfxMessageBox(FormatString(IDS_CANNOT_WRITE_TO_FILE, strPathName.GetString()), MB_OK | MB_ICONEXCLAMATION);
 		return;
 	}
 
@@ -550,7 +550,7 @@ void CDjVuDoc::OnFileDelete()
 		CString csFileName = m_pSource->GetFileName();
 		OnFileClose();
 		if (!MoveToTrash(csFileName))
-			AfxMessageBox(FormatString(IDS_FILE_DELETE_FAILED, csFileName), MB_ICONEXCLAMATION | MB_OK);
+			AfxMessageBox(FormatString(IDS_FILE_DELETE_FAILED, csFileName.GetString()), MB_ICONEXCLAMATION | MB_OK);
 	}
 }
 

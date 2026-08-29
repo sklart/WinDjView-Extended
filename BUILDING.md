@@ -72,8 +72,10 @@ msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /t:Build /p:Configurati
 ```
 
 The application's historical manifest remains embedded by `WinDjView.rc2`.
-The native project suppresses MSBuild's additional generated manifest to avoid
-creating a duplicate resource.
+The resource compiler receives the platform's `WIN64` define, so x64 embeds
+the amd64 Common Controls dependency rather than the x86 one. The native
+project suppresses MSBuild's additional generated manifest to avoid creating a
+duplicate resource.
 
 ## Release Win32
 

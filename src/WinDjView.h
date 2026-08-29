@@ -259,7 +259,7 @@ protected:
 	static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 	static void CALLBACK TimerProc(HWND hWnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
 
-	bool m_bOnlyRegisterTypes;
+	bool m_bOnlyRegisterTypes, m_bStartupSmokeTest;
 	int m_nExitCode;
 
 	static unsigned int __stdcall CheckUpdateThreadProc(void* pvData);

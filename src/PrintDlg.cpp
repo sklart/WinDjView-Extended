@@ -145,9 +145,9 @@ void CPrintDlg::DoDataExchange(CDataExchange* pDX)
 			AfxExtractSubString(strUnits, LoadString(IDS_UNITS_SHORT), nUnits, ',');
 
 			strPaperSize.Format(IDS_PAPER_SIZE,
-				FormatDouble(static_cast<int>(szPaper.cx * fUnits * 100.0 + 0.5) * 0.01),
-				FormatDouble(static_cast<int>(szPaper.cy * fUnits * 100.0 + 0.5) * 0.01),
-				strUnits);
+				FormatDouble(static_cast<int>(szPaper.cx * fUnits * 100.0 + 0.5) * 0.01).GetString(),
+				FormatDouble(static_cast<int>(szPaper.cy * fUnits * 100.0 + 0.5) * 0.01).GetString(),
+				strUnits.GetString());
 		}
 
 		DDX_Text(pDX, IDC_STATIC_PAPER, strPaperSize);

@@ -96,7 +96,7 @@ void CUpdateDlg::OnEndDialog()
 	{
 		if (CompareVersions(m_strNewVersion, CURRENT_VERSION) > 0)
 		{
-			if (AfxMessageBox(FormatString(IDS_NEW_VERSION_AVAILABLE, m_strNewVersion),
+			if (AfxMessageBox(FormatString(IDS_NEW_VERSION_AVAILABLE, m_strNewVersion.GetString()),
 					MB_ICONQUESTION | MB_YESNO) == IDYES)
 			{
 				::ShellExecute(NULL, _T("open"), LoadString(IDS_WEBSITE_URL),
