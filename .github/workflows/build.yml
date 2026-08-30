@@ -271,3 +271,13 @@ jobs:
         if: always()
         shell: cmd
         run: tools\tests\run-djvusource-long-path-regression.cmd ${{ matrix.configuration }} ${{ matrix.platform }}
+
+      - name: Fetch real DjVu corpus
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: pwsh
+        run: pwsh .\tools\tests\corpus\fetch-corpus.ps1
+
+      - name: Run real DjVu corpus regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-real-djvu-regression.cmd Release x64 native

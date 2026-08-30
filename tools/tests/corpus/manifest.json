@@ -23,9 +23,9 @@
                                          "redistribution_review_required":  true
                                      },
                       "expected":  {
-                                       "pages":  1,
+                                       "pages":  12,
                                        "features":  [
-                                                        "single_page",
+                                                        "multipage",
                                                         "iw44",
                                                         "color"
                                                     ]
@@ -61,9 +61,9 @@
                                          "redistribution_review_required":  false
                                      },
                       "expected":  {
-                                       "pages":  1,
+                                       "pages":  2,
                                        "features":  [
-                                                        "single_page",
+                                                        "multipage",
                                                         "jb2",
                                                         "bilevel"
                                                     ]

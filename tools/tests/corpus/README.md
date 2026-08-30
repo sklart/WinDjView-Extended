@@ -31,6 +31,18 @@ The parser can be tested without DjVuLibre or a downloaded fixture:
 pwsh .\tools\tests\corpus\fetch-corpus.ps1 -ParserSelfTest
 ```
 
+After building the selected static `libdjvu` configuration, run the real decode
+regression without starting WinDjView's GUI:
+
+```powershell
+cmd /d /c .\tools\tests\run-real-djvu-regression.cmd Release x64 native
+```
+
+The runner opens each manifest fixture through `DjVuDocument`, validates its
+page count where known, and decodes the first, middle, and last pages as
+applicable. Each fixture has its own timeout and process, so one failure does
+not prevent the remaining fixtures from reporting their results.
+
 `-Force` re-downloads every fixture. Downloads use a `.part` file, validate the `AT&TFORM` magic before promotion, then calculate SHA-256. A bad fixture, checksum mismatch, or known page-count mismatch exits non-zero, while independent fixtures continue to be processed. `SHA256SUMS.txt` is generated in manifest order and per-file manifests are regenerated from the top-level `manifest.json`.
 
 The files under `files/` and raw data under `dumps/` are ignored by Git. The manifest, SHA list, script, README, and one diagnostic manifest per fixture are committed. In particular, the 520-page *Pathogenic Bacteria* fixture is always downloaded locally and is not in the release package.
@@ -41,8 +53,8 @@ Actual sizes and SHA-256 values below are from the pinned source. `actual pages`
 
 | ID | Filename | Class | Expected pages | Actual pages | Size (bytes) | License / rights basis | Original source | Validation |
 | --- | --- | --- | ---: | --- | ---: | --- | --- | --- |
-| watchmaker | `watchmaker.djvu` | color IW44 | 1 | not checked | 183352 | IA public-domain designation; redistribution review required | [Internet Archive](https://archive.org/details/Watchmaker2001) | magic pass |
-| cable_1973_100133 | `cable_1973_100133.djvu` | JB2 bilevel | 1 | not checked | 15486 | U.S. federal government work, 17 U.S.C. 105 | [Internet Archive](https://archive.org/details/State-Dept-cable-1973-100133) | magic pass |
+| watchmaker | `watchmaker.djvu` | color IW44 | 12 | not checked | 183352 | IA public-domain designation; redistribution review required | [Internet Archive](https://archive.org/details/Watchmaker2001) | magic pass |
+| cable_1973_100133 | `cable_1973_100133.djvu` | JB2 bilevel | 2 | not checked | 15486 | U.S. federal government work, 17 U.S.C. 105 | [Internet Archive](https://archive.org/details/State-Dept-cable-1973-100133) | magic pass |
 | conquete_paix | `conquete_paix.djvu` | mixed IW44 + JB2 | unknown | not checked | 1717050 | pre-1928 publication | [Internet Archive](https://archive.org/details/TriompheSagesseValeur) | magic pass |
 | pathogenic_bacteria_1896 | `pathogenic_bacteria_1896.djvu` | large mixed document | 520 | not checked | 26562908 | published 1896 | [Internet Archive](https://archive.org/details/PathogenicBacteria) | magic pass |
 | war_1812 | `war_1812.djvu` | newspaper / photo-heavy scan | 8 | not checked | 919707 | pre-1928 publication | [Internet Archive](https://archive.org/details/warv1n2wood) | magic pass |
@@ -53,6 +65,8 @@ Actual sizes and SHA-256 values below are from the pinned source. `actual pages`
 | big_scanned_page | `big_scanned_page.djvu` | photo / maskless IW44 | 1 | not checked | 584365 | Unlicense | [djvu.js test asset](https://github.com/galkahana/djvu.js/tree/master/tests/fixtures/big-scanned-page.djvu) | magic pass |
 
 The precise rights note and any redistribution flag live in [`manifest.json`](manifest.json). They report upstream and source metadata rather than adding a new legal conclusion. `watchmaker` is the only fixture marked `redistribution_review_required: true`.
+
+The original curated README describes `watchmaker` and `cable_1973_100133` as one-page files. A direct `DjVuDocument::get_pages_num()` check of the pinned bytes reports 12 and 2 pages respectively, so the local expected values use those observed counts.
 
 ## Layout
 
