@@ -8,6 +8,17 @@ permissions:
   contents: read
 
 jobs:
+  corpus-parser:
+    name: DjVu corpus parser
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run DjVuDump parser self-test
+        shell: pwsh
+        run: pwsh .\tools\tests\corpus\fetch-corpus.ps1 -ParserSelfTest
+
   build:
     name: ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022
