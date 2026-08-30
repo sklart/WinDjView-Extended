@@ -1,0 +1,8 @@
+{
+  "id": "links", "file": "files/links.djvu", "class": "navigation outline", "expected_result": "pass",
+  "download": { "url": "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures/links.djvu" },
+  "provenance": { "original_source": "https://github.com/RussCoder/djvujs", "curated_source": "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures", "license": "Unlicense", "rights_note": "djvu.js test asset, retained by the pinned djvu-rs fixture set.", "redistribution_review_required": false },
+  "expected": { "pages": 1, "features": ["bookmarks"] },
+  "actual": { "size_bytes": 440, "sha256": "3d7740439e20ae48366f62740a64f9ab67fb2062a6a7afb726e30dee81e4403f", "page_count": null, "chunks": [], "features": null, "first_info": null },
+  "validation": { "magic": "not_checked", "djvudump": "not_checked", "page_count": "not_checked" }
+}

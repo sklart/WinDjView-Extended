@@ -2,7 +2,9 @@
 // fixture per process so it can enforce a timeout without a GUI dependency.
 #include "ByteStream.h"
 #include "DjVuDocument.h"
+#include "DjVuFile.h"
 #include "DjVuImage.h"
+#include "DjVmNav.h"
 #include "GException.h"
 #include "GSmartPointer.h"
 #include "GURL.h"
@@ -64,7 +66,8 @@ bool decode_page(const GP<DjVuDocument> &document, int page_number)
 bool check_supported_features(const GP<DjVuDocument> &document,
                               const char *features)
 {
-  if (!has_feature(features, "text_layer") && !has_feature(features, "annotations"))
+  if (!has_feature(features, "text_layer") && !has_feature(features, "annotations") &&
+      !has_feature(features, "bookmarks") && !has_feature(features, "hyperlinks"))
     return true;
 
   GP<DjVuImage> first_page = document->get_page(0, true);
@@ -83,15 +86,37 @@ bool check_supported_features(const GP<DjVuDocument> &document,
     }
     puts("text layer: available");
   }
+  GP<ByteStream> annotations = first_page->get_anno();
+  if ((!annotations || annotations->size() <= 0) && document->get_djvu_file(0))
+    annotations = document->get_djvu_file(0)->get_anno();
   if (has_feature(features, "annotations"))
   {
-    GP<ByteStream> annotations = first_page->get_anno();
     if (!annotations || annotations->size() <= 0)
     {
       fputs("expected annotations are unavailable\n", stderr);
       return false;
     }
     puts("annotations: available");
+  }
+  if (has_feature(features, "hyperlinks"))
+  {
+    // Hyperlinks are represented by the same annotation stream in DjVuLibre.
+    if (!annotations || annotations->size() <= 0)
+    {
+      fputs("expected hyperlink annotations are unavailable\n", stderr);
+      return false;
+    }
+    puts("hyperlinks: annotation stream available");
+  }
+  if (has_feature(features, "bookmarks"))
+  {
+    GP<DjVmNav> bookmarks = document->get_djvm_nav();
+    if (!bookmarks)
+    {
+      fputs("expected navigation bookmarks are unavailable\n", stderr);
+      return false;
+    }
+    puts("bookmarks: available");
   }
   return true;
 }

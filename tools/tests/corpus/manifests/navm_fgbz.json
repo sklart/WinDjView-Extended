@@ -1,0 +1,8 @@
+{
+  "id": "navm_fgbz", "file": "files/navm_fgbz.djvu", "class": "multi-page navigation / shared JB2", "expected_result": "pass",
+  "download": { "url": "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures/navm_fgbz.djvu" },
+  "provenance": { "original_source": "https://github.com/RussCoder/djvujs", "curated_source": "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures", "license": "Unlicense", "rights_note": "djvu.js test asset, retained by the pinned djvu-rs fixture set.", "redistribution_review_required": false },
+  "expected": { "pages": 6, "features": ["multipage", "bookmarks", "annotations", "shared_dictionary"] },
+  "actual": { "size_bytes": 100415, "sha256": "aec189aa8a165580a87725f291e0da5ba9a16e25295b4e1e4aea162115d2d084", "page_count": null, "chunks": [], "features": null, "first_info": null },
+  "validation": { "magic": "not_checked", "djvudump": "not_checked", "page_count": "not_checked" }
+}

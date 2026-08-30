@@ -101,6 +101,61 @@ FORM:DJVM [123]
 	Write-Host 'DjVuDump parser self-test: PASS'
 }
 
+function Set-BigEndianUInt32 {
+	param([byte[]]$Bytes, [int]$Offset, [uint32]$Value)
+	$Bytes[$Offset] = [byte](($Value -shr 24) -band 0xff)
+	$Bytes[$Offset + 1] = [byte](($Value -shr 16) -band 0xff)
+	$Bytes[$Offset + 2] = [byte](($Value -shr 8) -band 0xff)
+	$Bytes[$Offset + 3] = [byte]($Value -band 0xff)
+}
+
+function Find-AsciiBytes {
+	param([byte[]]$Bytes, [string]$Text)
+	$needle = [Text.Encoding]::ASCII.GetBytes($Text)
+	for ($offset = 0; $offset -le $Bytes.Length - $needle.Length; ++$offset) {
+		$matches = $true
+		for ($index = 0; $index -lt $needle.Length; ++$index) {
+			if ($Bytes[$offset + $index] -ne $needle[$index]) { $matches = $false; break }
+		}
+		if ($matches) { return $offset }
+	}
+	return -1
+}
+
+function New-GeneratedFixture {
+	param($Entry, [string]$Root)
+	$sourcePath = Join-Path $Root $Entry.generation.source
+	$filePath = Join-Path $Root $Entry.file
+	if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+		throw "generation source is missing: $($Entry.generation.source)"
+	}
+	[IO.Directory]::CreateDirectory((Split-Path -Parent $filePath)) | Out-Null
+	$sourceBytes = [IO.File]::ReadAllBytes($sourcePath)
+	$mode = [string]$Entry.generation.mode
+	switch ($mode) {
+		'copy' { $result = $sourceBytes }
+		'truncate' { $result = $sourceBytes[0..([Math]::Min(31, $sourceBytes.Length - 1))] }
+		'invalid_form_length' {
+			$result = $sourceBytes.Clone()
+			Set-BigEndianUInt32 $result 8 ([uint32]0x7fffffff)
+		}
+		'invalid_chunk_length' {
+			$result = $sourceBytes.Clone()
+			$offset = Find-AsciiBytes $result 'INFO'
+			if ($offset -lt 0 -or $offset + 8 -gt $result.Length) { throw 'INFO chunk was not found for corruption' }
+			Set-BigEndianUInt32 $result ($offset + 4) ([uint32]0x7fffffff)
+		}
+		'missing_incl' {
+			$result = $sourceBytes.Clone()
+			$offset = Find-AsciiBytes $result 'INCL'
+			if ($offset -lt 0) { throw 'INCL chunk was not found for corruption' }
+			[Text.Encoding]::ASCII.GetBytes('JUNK').CopyTo($result, $offset)
+		}
+		default { throw "unknown fixture generation mode: $mode" }
+	}
+	[IO.File]::WriteAllBytes($filePath, $result)
+}
+
 if ($ParserSelfTest) {
 	Invoke-DjVuDumpParserSelfTest
 	exit 0
@@ -136,6 +191,20 @@ foreach ($entry in $manifest.files) {
 	$fileName = [System.IO.Path]::GetFileName($filePath)
 	$expectedHash = $entry.actual.sha256
 	try {
+		if ($entry.PSObject.Properties['generation']) {
+			New-GeneratedFixture $entry $root
+			$entry.actual.size_bytes = (Get-Item -LiteralPath $filePath).Length
+			$actualHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash.ToLowerInvariant()
+			if ($expectedHash -and $actualHash -ne $expectedHash.ToLowerInvariant()) {
+				throw "generated SHA-256 mismatch: expected $expectedHash, got $actualHash"
+			}
+			$entry.actual.sha256 = $actualHash
+			$entry.validation.magic = if (Get-DjVuMagic $filePath) { 'pass' } else { 'expected_fail' }
+			$entry.validation.djvudump = 'not_checked'
+			$entry.validation.page_count = 'not_checked'
+			Write-Host "PASS generated $fileName"
+			continue
+		}
 		$needDownload = $Force -or -not (Test-Path -LiteralPath $filePath -PathType Leaf)
 		if (-not $needDownload) {
 			if (-not (Get-DjVuMagic $filePath)) { $needDownload = $true }

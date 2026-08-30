@@ -1,0 +1,8 @@
+{
+  "id": "carte_th44", "file": "files/carte_th44.djvu", "class": "thumbnails, annotations and text", "expected_result": "pass",
+  "download": { "url": "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures/carte.djvu" },
+  "provenance": { "original_source": "https://github.com/RussCoder/djvujs", "curated_source": "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/fixtures", "license": "Unlicense", "rights_note": "djvu.js test asset, retained by the pinned djvu-rs fixture set.", "redistribution_review_required": false },
+  "expected": { "pages": 1, "features": ["thumbnails", "annotations", "hyperlinks", "text_layer"] },
+  "actual": { "size_bytes": 154282, "sha256": "7e13fbec36cc0d1d7af913e2609b4070431dbd6e527fda38f9007f300e4da22e", "page_count": null, "chunks": [], "features": null, "first_info": null },
+  "validation": { "magic": "not_checked", "djvudump": "not_checked", "page_count": "not_checked" }
+}
