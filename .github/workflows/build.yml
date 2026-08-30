@@ -281,3 +281,17 @@ jobs:
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd
         run: tools\tests\run-real-djvu-regression.cmd Release x64 native
+
+      - name: Run informational DjVu performance baseline
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        continue-on-error: true
+        shell: cmd
+        run: tools\tests\run-real-djvu-benchmark.cmd Release x64 native
+
+      - name: Upload DjVu performance baseline
+        if: always() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DjVu-performance-baseline-Release-x64
+          path: tools\tests\artifacts\djvu-performance-baseline
+          if-no-files-found: warn

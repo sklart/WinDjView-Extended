@@ -41,3 +41,4 @@ tools/tests/corpus/files/*.djvu
 tools/tests/corpus/files/*.part
 tools/tests/corpus/files/generated/
 tools/tests/corpus/dumps/*.txt
+tools/tests/artifacts/

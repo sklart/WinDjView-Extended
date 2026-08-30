@@ -1,6 +1,6 @@
 # Real-world DjVu regression corpus
 
-This directory defines the reproducible input corpus for the future WinDjView Extended real-DjVu compatibility and regression runner.  It is not a release asset and does not add any test runner, rendering comparison, OCR comparison, benchmark, or CI download.
+This directory defines the reproducible input corpus for WinDjView Extended's real-DjVu compatibility regression and separate informational performance baseline. It is not a release asset and does not add rendering or OCR comparison.
 
 The canonical curated source is [`matyushkin/djvu-rs`](https://github.com/matyushkin/djvu-rs), commit [`15f327081b68c46c516fc5189449a787b92c9ebd`](https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus), path `tests/corpus`. Every download URL is pinned to that commit; no `main` URL is used.
 
@@ -37,6 +37,21 @@ regression without starting WinDjView's GUI:
 ```powershell
 cmd /d /c .\tools\tests\run-real-djvu-regression.cmd Release x64 native
 ```
+
+The separate, informational performance baseline uses the same positive
+fixtures but is not a correctness regression and has no thresholds. It records
+open and first/middle/last-page decode timing with `QueryPerformanceCounter`,
+plus the process peak working set. Run it only after a native Release x64 build:
+
+```powershell
+cmd /d /c .\tools\tests\run-real-djvu-benchmark.cmd Release x64 native
+```
+
+It performs four runs per fixture (run zero is cold-ish), writes min/median/max
+to `tools/tests/artifacts/djvu-performance-baseline/`, and emits JSON plus a
+readable text report. GitHub Actions uploads those files only from native
+Release x64; the benchmark is informational and cannot mask a correctness
+failure.
 
 The runner opens each positive manifest fixture through `DjVuDocument`,
 validates its page count, and decodes the first, middle, and last pages as
