@@ -1,0 +1,38 @@
+{
+    "id":  "pathogenic_bacteria_1896",
+    "file":  "files/pathogenic_bacteria_1896.djvu",
+    "class":  "large mixed document",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/pathogenic_bacteria_1896.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/PathogenicBacteria",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Published 1896 (U.S. public domain)",
+                       "rights_note":  "Medical textbook with text and microscopy photographs; upstream cites its 1896 publication date.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  520,
+                     "features":  [
+                                      "large_document",
+                                      "multipage",
+                                      "mixed_content",
+                                      "photographs"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  26562908,
+                   "sha256":  "f0af59e077811f365a7c256003571dc1de4dd534a1e35268322f7a80afe7a1aa",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

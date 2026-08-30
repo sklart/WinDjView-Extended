@@ -1,0 +1,37 @@
+{
+    "id":  "conquete_paix",
+    "file":  "files/conquete_paix.djvu",
+    "class":  "mixed IW44 + JB2",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/conquete_paix.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/TriompheSagesseValeur",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Pre-1928 publication (U.S. public domain)",
+                       "rights_note":  "Upstream identifies La conquete de la paix as a pre-1928 French book; author died more than 70 years ago.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  null,
+                     "features":  [
+                                      "multipage",
+                                      "iw44",
+                                      "jb2"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  1717050,
+                   "sha256":  "700540f84ae819ea72cd92b18000682b1f4ed7f50841d68c00c0d7d6695923bc",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

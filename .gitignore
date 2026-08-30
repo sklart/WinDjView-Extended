@@ -35,3 +35,8 @@ out/pvs/
 # Locally compiled JPEGDecoder regression test.
 tools/tests/*.exe
 tools/tests/*.obj
+
+# Downloaded real-world DjVu corpus and local structure dumps.
+tools/tests/corpus/files/*.djvu
+tools/tests/corpus/files/*.part
+tools/tests/corpus/dumps/*.txt

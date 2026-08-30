@@ -1,0 +1,37 @@
+{
+    "id":  "map_atlas_sample",
+    "file":  "files/map_atlas_sample.djvu",
+    "class":  "map / line-art",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/map_atlas_sample.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/graphicatlasofwo00bart",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Internet Archive NOT_IN_COPYRIGHT; published 1910",
+                       "rights_note":  "Two-page extract from Graphic atlas of the world, chosen for dense JB2 line work.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  2,
+                     "features":  [
+                                      "maps",
+                                      "line_art",
+                                      "dense_jb2"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  413070,
+                   "sha256":  "6ed70710bf7650bc7b311dc08b1265e81f1e0a9eefd85c3965d01ec79c63d45b",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

@@ -1,0 +1,38 @@
+{
+    "id":  "big_scanned_page",
+    "file":  "files/big_scanned_page.djvu",
+    "class":  "photo / maskless IW44",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/big_scanned_page.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://github.com/galkahana/djvu.js/tree/master/tests/fixtures/big-scanned-page.djvu",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Unlicense",
+                       "rights_note":  "djvu.js test asset; upstream describes a 6780x9148 full-resolution BG44-only photo page.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  1,
+                     "features":  [
+                                      "single_page",
+                                      "photo",
+                                      "maskless_iw44",
+                                      "high_resolution"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  584365,
+                   "sha256":  "200f9bcaf891f12014fe39bd9e119f1f4560566abd8bea9b67a21eb198567594",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

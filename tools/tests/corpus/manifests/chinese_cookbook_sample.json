@@ -1,0 +1,36 @@
+{
+    "id":  "chinese_cookbook_sample",
+    "file":  "files/chinese_cookbook_sample.djvu",
+    "class":  "CJK text",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/chinese_cookbook_sample.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/chinesecookbook00chan",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Library of Congress public-domain note; published 1917",
+                       "rights_note":  "Five-page upstream extract from The Chinese cook book, selected for Han-script coverage.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  5,
+                     "features":  [
+                                      "cjk",
+                                      "non_latin_text"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  218742,
+                   "sha256":  "ea6c0e80fc8c4f238dc5e4af1a5e9572cc585ab1a7b502f6e0caeb301c6d1ad1",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

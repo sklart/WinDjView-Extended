@@ -1,0 +1,384 @@
+{
+    "schema_version":  1,
+    "purpose":  "WinDjView Extended real-world DjVu regression corpus",
+    "curated_source":  {
+                           "repository":  "matyushkin/djvu-rs",
+                           "commit":  "15f327081b68c46c516fc5189449a787b92c9ebd",
+                           "path":  "tests/corpus",
+                           "repository_url":  "https://github.com/matyushkin/djvu-rs"
+                       },
+    "files":  [
+                  {
+                      "id":  "watchmaker",
+                      "file":  "files/watchmaker.djvu",
+                      "class":  "color IW44",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/watchmaker.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/Watchmaker2001",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Internet Archive public-domain designation",
+                                         "rights_note":  "Upstream identifies this 2001 item as public domain and asks downstream users to confirm before redistribution.",
+                                         "redistribution_review_required":  true
+                                     },
+                      "expected":  {
+                                       "pages":  1,
+                                       "features":  [
+                                                        "single_page",
+                                                        "iw44",
+                                                        "color"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  183352,
+                                     "sha256":  "0d7aeb1126773ef8f99a61fea33fd58dca083f6b6e7b990c2ef52418558b4f74",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "cable_1973_100133",
+                      "file":  "files/cable_1973_100133.djvu",
+                      "class":  "JB2 bilevel",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/cable_1973_100133.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/State-Dept-cable-1973-100133",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "U.S. federal government work",
+                                         "rights_note":  "U.S. government works are not subject to copyright protection under 17 U.S.C. 105.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  1,
+                                       "features":  [
+                                                        "single_page",
+                                                        "jb2",
+                                                        "bilevel"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  15486,
+                                     "sha256":  "ceaac0b3bf8b4ea665c09e26a6f00d5d1e95b00757a7d2b9613948f16610d96b",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "conquete_paix",
+                      "file":  "files/conquete_paix.djvu",
+                      "class":  "mixed IW44 + JB2",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/conquete_paix.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/TriompheSagesseValeur",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Pre-1928 publication (U.S. public domain)",
+                                         "rights_note":  "Upstream identifies La conquete de la paix as a pre-1928 French book; author died more than 70 years ago.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  null,
+                                       "features":  [
+                                                        "multipage",
+                                                        "iw44",
+                                                        "jb2"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  1717050,
+                                     "sha256":  "700540f84ae819ea72cd92b18000682b1f4ed7f50841d68c00c0d7d6695923bc",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "pathogenic_bacteria_1896",
+                      "file":  "files/pathogenic_bacteria_1896.djvu",
+                      "class":  "large mixed document",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/pathogenic_bacteria_1896.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/PathogenicBacteria",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Published 1896 (U.S. public domain)",
+                                         "rights_note":  "Medical textbook with text and microscopy photographs; upstream cites its 1896 publication date.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  520,
+                                       "features":  [
+                                                        "large_document",
+                                                        "multipage",
+                                                        "mixed_content",
+                                                        "photographs"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  26562908,
+                                     "sha256":  "f0af59e077811f365a7c256003571dc1de4dd534a1e35268322f7a80afe7a1aa",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "war_1812",
+                      "file":  "files/war_1812.djvu",
+                      "class":  "newspaper / photo-heavy scan",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/war_1812.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/warv1n2wood",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Pre-1928 publication (U.S. public domain)",
+                                         "rights_note":  "The War (1812), pages selected by upstream as an eight-page extract.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  8,
+                                       "features":  [
+                                                        "newspaper",
+                                                        "photo_heavy",
+                                                        "mixed_content"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  919707,
+                                     "sha256":  "fdcf488ba1d4c5ab66e788e429279473ed3d000fc067ca35edafe5c34c9f3092",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "goody_twoshoes",
+                      "file":  "files/goody_twoshoes.djvu",
+                      "class":  "mixed layout / illustrated",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/goody_twoshoes.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/goodytwoshoes00newyiala",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Internet Archive NOT_IN_COPYRIGHT",
+                                         "rights_note":  "Goody Two-Shoes (1888), selected by upstream as a complete short illustrated book.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  16,
+                                       "features":  [
+                                                        "illustrated",
+                                                        "mixed_layout",
+                                                        "color_illustrations"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  1060487,
+                                     "sha256":  "20b594d3207d07b98b8ef0f8b6cd8744e94942575e71916cdac8684f5b5eeb97",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "map_atlas_sample",
+                      "file":  "files/map_atlas_sample.djvu",
+                      "class":  "map / line-art",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/map_atlas_sample.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/graphicatlasofwo00bart",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Internet Archive NOT_IN_COPYRIGHT; published 1910",
+                                         "rights_note":  "Two-page extract from Graphic atlas of the world, chosen for dense JB2 line work.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  2,
+                                       "features":  [
+                                                        "maps",
+                                                        "line_art",
+                                                        "dense_jb2"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  413070,
+                                     "sha256":  "6ed70710bf7650bc7b311dc08b1265e81f1e0a9eefd85c3965d01ec79c63d45b",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "chinese_cookbook_sample",
+                      "file":  "files/chinese_cookbook_sample.djvu",
+                      "class":  "CJK text",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/chinese_cookbook_sample.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/chinesecookbook00chan",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Library of Congress public-domain note; published 1917",
+                                         "rights_note":  "Five-page upstream extract from The Chinese cook book, selected for Han-script coverage.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  5,
+                                       "features":  [
+                                                        "cjk",
+                                                        "non_latin_text"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  218742,
+                                     "sha256":  "ea6c0e80fc8c4f238dc5e4af1a5e9572cc585ab1a7b502f6e0caeb301c6d1ad1",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "cyrillic_simonovich_co2",
+                      "file":  "files/cyrillic_simonovich_co2.djvu",
+                      "class":  "Cyrillic text",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/cyrillic_simonovich_co2.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://archive.org/details/20200630_simonovich_uglekislota",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Public Domain Mark; published 1905",
+                                         "rights_note":  "Pre-reform Cyrillic text; upstream notes a shared Djbz dictionary and TXTz text layer.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  12,
+                                       "features":  [
+                                                        "cyrillic",
+                                                        "pre_reform_orthography",
+                                                        "text_layer",
+                                                        "shared_dictionary"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  171563,
+                                     "sha256":  "596258ef4c283fc33be1e0f77a5778378a5a95220b09776d0fdd05d1744d14ad",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  },
+                  {
+                      "id":  "big_scanned_page",
+                      "file":  "files/big_scanned_page.djvu",
+                      "class":  "photo / maskless IW44",
+                      "download":  {
+                                       "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/big_scanned_page.djvu"
+                                   },
+                      "provenance":  {
+                                         "original_source":  "https://github.com/galkahana/djvu.js/tree/master/tests/fixtures/big-scanned-page.djvu",
+                                         "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                                         "license":  "Unlicense",
+                                         "rights_note":  "djvu.js test asset; upstream describes a 6780x9148 full-resolution BG44-only photo page.",
+                                         "redistribution_review_required":  false
+                                     },
+                      "expected":  {
+                                       "pages":  1,
+                                       "features":  [
+                                                        "single_page",
+                                                        "photo",
+                                                        "maskless_iw44",
+                                                        "high_resolution"
+                                                    ]
+                                   },
+                      "actual":  {
+                                     "size_bytes":  584365,
+                                     "sha256":  "200f9bcaf891f12014fe39bd9e119f1f4560566abd8bea9b67a21eb198567594",
+                                     "page_count":  null,
+                                     "chunks":  [
+
+                                                ],
+                                     "features":  null
+                                 },
+                      "validation":  {
+                                         "magic":  "pass",
+                                         "djvudump":  "not_checked",
+                                         "page_count":  "not_checked"
+                                     }
+                  }
+              ]
+}

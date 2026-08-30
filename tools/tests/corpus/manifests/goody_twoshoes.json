@@ -1,0 +1,37 @@
+{
+    "id":  "goody_twoshoes",
+    "file":  "files/goody_twoshoes.djvu",
+    "class":  "mixed layout / illustrated",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/goody_twoshoes.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/goodytwoshoes00newyiala",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Internet Archive NOT_IN_COPYRIGHT",
+                       "rights_note":  "Goody Two-Shoes (1888), selected by upstream as a complete short illustrated book.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  16,
+                     "features":  [
+                                      "illustrated",
+                                      "mixed_layout",
+                                      "color_illustrations"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  1060487,
+                   "sha256":  "20b594d3207d07b98b8ef0f8b6cd8744e94942575e71916cdac8684f5b5eeb97",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

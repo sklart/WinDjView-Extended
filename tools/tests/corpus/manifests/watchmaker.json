@@ -1,0 +1,37 @@
+{
+    "id":  "watchmaker",
+    "file":  "files/watchmaker.djvu",
+    "class":  "color IW44",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/watchmaker.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/Watchmaker2001",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Internet Archive public-domain designation",
+                       "rights_note":  "Upstream identifies this 2001 item as public domain and asks downstream users to confirm before redistribution.",
+                       "redistribution_review_required":  true
+                   },
+    "expected":  {
+                     "pages":  1,
+                     "features":  [
+                                      "single_page",
+                                      "iw44",
+                                      "color"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  183352,
+                   "sha256":  "0d7aeb1126773ef8f99a61fea33fd58dca083f6b6e7b990c2ef52418558b4f74",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}

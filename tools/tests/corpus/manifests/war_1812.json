@@ -1,0 +1,37 @@
+{
+    "id":  "war_1812",
+    "file":  "files/war_1812.djvu",
+    "class":  "newspaper / photo-heavy scan",
+    "download":  {
+                     "url":  "https://raw.githubusercontent.com/matyushkin/djvu-rs/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus/war_1812.djvu"
+                 },
+    "provenance":  {
+                       "original_source":  "https://archive.org/details/warv1n2wood",
+                       "curated_source":  "https://github.com/matyushkin/djvu-rs/tree/15f327081b68c46c516fc5189449a787b92c9ebd/tests/corpus",
+                       "license":  "Pre-1928 publication (U.S. public domain)",
+                       "rights_note":  "The War (1812), pages selected by upstream as an eight-page extract.",
+                       "redistribution_review_required":  false
+                   },
+    "expected":  {
+                     "pages":  8,
+                     "features":  [
+                                      "newspaper",
+                                      "photo_heavy",
+                                      "mixed_content"
+                                  ]
+                 },
+    "actual":  {
+                   "size_bytes":  919707,
+                   "sha256":  "fdcf488ba1d4c5ab66e788e429279473ed3d000fc067ca35edafe5c34c9f3092",
+                   "page_count":  null,
+                   "chunks":  [
+
+                              ],
+                   "features":  null
+               },
+    "validation":  {
+                       "magic":  "pass",
+                       "djvudump":  "not_checked",
+                       "page_count":  "not_checked"
+                   }
+}
