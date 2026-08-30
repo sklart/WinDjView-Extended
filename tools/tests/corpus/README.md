@@ -25,6 +25,12 @@ pwsh .\tools\tests\corpus\fetch-corpus.ps1 `
   -DjVuDumpPath "C:\Program Files\DjVuLibre\djvudump.exe"
 ```
 
+The parser can be tested without DjVuLibre or a downloaded fixture:
+
+```powershell
+pwsh .\tools\tests\corpus\fetch-corpus.ps1 -ParserSelfTest
+```
+
 `-Force` re-downloads every fixture. Downloads use a `.part` file, validate the `AT&TFORM` magic before promotion, then calculate SHA-256. A bad fixture, checksum mismatch, or known page-count mismatch exits non-zero, while independent fixtures continue to be processed. `SHA256SUMS.txt` is generated in manifest order and per-file manifests are regenerated from the top-level `manifest.json`.
 
 The files under `files/` and raw data under `dumps/` are ignored by Git. The manifest, SHA list, script, README, and one diagnostic manifest per fixture are committed. In particular, the 520-page *Pathogenic Bacteria* fixture is always downloaded locally and is not in the release package.

@@ -2,7 +2,8 @@
 param(
 	[string]$OutputDir,
 	[string]$DjVuDumpPath,
-	[switch]$Force
+	[switch]$Force,
+	[switch]$ParserSelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,9 +11,14 @@ $ErrorActionPreference = 'Stop'
 function Get-DjVuMagic {
 	param([string]$Path)
 	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	if ($bytes.Length -lt 8) { return $false }
-	return [System.Text.Encoding]::ASCII.GetString($bytes, 0, 8) -eq 'AT&TFORM'
+	$bytes = New-Object byte[] 8
+	$stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+	try {
+		$bytesRead = $stream.Read($bytes, 0, $bytes.Length)
+	} finally {
+		$stream.Dispose()
+	}
+	return $bytesRead -eq 8 -and [System.Text.Encoding]::ASCII.GetString($bytes) -eq 'AT&TFORM'
 }
 
 function Get-DjVuDumpExecutable {
@@ -34,18 +40,18 @@ function Write-Utf8Lf {
 	[System.IO.File]::WriteAllText($Path, $normalized, (New-Object System.Text.UTF8Encoding($false)))
 }
 
-function Get-DjVuDumpData {
-	param([string]$Executable, [string]$FilePath, [string]$DumpPath)
-	$output = & $Executable $FilePath 2>&1 | Out-String
-	$output | Set-Content -LiteralPath $DumpPath -Encoding UTF8
-	if ($LASTEXITCODE -ne 0) { throw "djvudump failed with exit code $LASTEXITCODE" }
+function ConvertFrom-DjVuDumpOutput {
+	param([string]$Output)
 	$chunkTypes = @('DIRM', 'NAVM', 'INFO', 'Sjbz', 'Djbz', 'BG44', 'FG44', 'TH44', 'TXTz', 'TXTa', 'ANTz', 'ANTa', 'INCL')
-	$chunks = @($chunkTypes | Where-Object { $output -match ("(?m)\\b" + [regex]::Escape($_) + "\\b") })
-	$pageCount = ([regex]::Matches($output, '(?m)FORM:DJVU\\b')).Count
+	$chunks = @($chunkTypes | Where-Object { $Output -match ("(?m)\b" + [regex]::Escape($_) + "\b") })
+	$pageCount = ([regex]::Matches($Output, '(?m)\bFORM:DJVU\b')).Count
 	if ($pageCount -eq 0) { $pageCount = $null }
+	$firstInfoMatch = [regex]::Match($Output, '(?m)^[^\r\n]*\bINFO\b[^\r\n]*$')
+	$firstInfo = if ($firstInfoMatch.Success) { $firstInfoMatch.Value.Trim() } else { $null }
 	return [PSCustomObject]@{
 		page_count = $pageCount
 		chunks = $chunks
+		first_info = $firstInfo
 		features = [PSCustomObject][ordered]@{
 			jb2_mask = ($chunks -contains 'Sjbz')
 			shared_jb2_dictionary = ($chunks -contains 'Djbz')
@@ -57,6 +63,47 @@ function Get-DjVuDumpData {
 			indirect_includes = ($chunks -contains 'INCL')
 		}
 	}
+}
+
+function Get-DjVuDumpData {
+	param([string]$Executable, [string]$FilePath, [string]$DumpPath)
+	$output = & $Executable $FilePath 2>&1 | Out-String
+	$output | Set-Content -LiteralPath $DumpPath -Encoding UTF8
+	if ($LASTEXITCODE -ne 0) { throw "djvudump failed with exit code $LASTEXITCODE" }
+	return ConvertFrom-DjVuDumpOutput $output
+}
+
+function Invoke-DjVuDumpParserSelfTest {
+	$sample = @'
+FORM:DJVM [123]
+  DIRM [42]
+  NAVM [17]
+  FORM:DJVU [100]
+    INFO [100x200, 300 dpi]
+    Sjbz [12]
+    BG44 [34]
+    TXTz [56]
+  FORM:DJVU [200]
+    INFO [400x500, 300 dpi]
+    Djbz [78]
+    FG44 [90]
+    INCL [12]
+'@
+	$data = ConvertFrom-DjVuDumpOutput $sample
+	if ($data.page_count -ne 2) { throw "Parser self-test: expected 2 pages, got $($data.page_count)" }
+	foreach ($chunk in @('Sjbz', 'Djbz', 'BG44', 'FG44', 'TXTz', 'NAVM', 'INCL')) {
+		if ($data.chunks -notcontains $chunk) { throw "Parser self-test: missing chunk $chunk" }
+	}
+	if ($data.first_info -ne 'INFO [100x200, 300 dpi]') { throw "Parser self-test: unexpected first INFO '$($data.first_info)'" }
+	if (-not $data.features.jb2_mask -or -not $data.features.shared_jb2_dictionary -or -not $data.features.iw44_background -or -not $data.features.iw44_foreground -or -not $data.features.text_layer -or -not $data.features.navigation_outline -or -not $data.features.indirect_includes) {
+		throw 'Parser self-test: feature flags are incomplete'
+	}
+	Write-Host 'DjVuDump parser self-test: PASS'
+}
+
+if ($ParserSelfTest) {
+	Invoke-DjVuDumpParserSelfTest
+	exit 0
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) { $OutputDir = $PSScriptRoot }
@@ -81,6 +128,9 @@ $djvudump = Get-DjVuDumpExecutable $DjVuDumpPath
 $failed = New-Object System.Collections.Generic.List[string]
 
 foreach ($entry in $manifest.files) {
+	if (-not $entry.actual.PSObject.Properties['first_info']) {
+		$entry.actual | Add-Member -NotePropertyName first_info -NotePropertyValue $null
+	}
 	$filePath = Join-Path $root $entry.file
 	$partPath = "$filePath.part"
 	$fileName = [System.IO.Path]::GetFileName($filePath)
@@ -119,6 +169,7 @@ foreach ($entry in $manifest.files) {
 			$dump = Get-DjVuDumpData $djvudump $filePath (Join-Path $dumpsDir ($entry.id + '.djvudump.txt'))
 			$entry.actual.page_count = $dump.page_count
 			$entry.actual.chunks = $dump.chunks
+			$entry.actual.first_info = $dump.first_info
 			$entry.actual.features = $dump.features
 			$entry.validation.djvudump = 'pass'
 			if ($null -ne $entry.expected.pages) {
