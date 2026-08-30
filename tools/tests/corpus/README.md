@@ -40,9 +40,12 @@ cmd /d /c .\tools\tests\run-real-djvu-regression.cmd Release x64 native
 
 The runner opens each positive manifest fixture through `DjVuDocument`,
 validates its page count, and decodes the first, middle, and last pages as
-applicable. It checks text, annotation/hyperlink, and bookmark APIs whenever
-the manifest declares them. Corrupt fixtures must fail through the helper's
-controlled error path: a successful open, crash, or timeout is a failure. Each
+applicable. It checks text, decoded annotation/hyperlink map areas, and
+non-empty bookmark APIs whenever the manifest declares them. Corrupt fixtures
+must fail through the helper's controlled error path with exactly the
+manifest's `expected_failure` value. The helper emits one machine-readable
+result line: `CORPUS_RESULT: PASS` or `CORPUS_RESULT: FAIL <type>`; a success,
+crash, timeout, missing line, or wrong failure type is a failure. Each
 fixture has its own timeout and process, so one failure does not prevent the
 remaining fixtures from reporting their results. The runner also copies a
 working fixture to Cyrillic, non-ASCII, and ordinary Unicode paths longer than
@@ -87,8 +90,9 @@ pinned `djvu-rs` revision. That fixture directory attributes its copied
 Four local negative entries are generated from the pinned positives:
 `corrupt_truncated`, `corrupt_form_length`, `corrupt_chunk_length`, and
 `corrupt_missing_incl`. Their manifest entries declare `expected_result: fail`
-and a specific `expected_failure`; no corrupted byte stream is downloaded or
-stored in Git.
+and respectively require `truncated_input`, `invalid_form_length`,
+`invalid_chunk_length`, and `missing_incl`; no corrupted byte stream is
+downloaded or stored in Git.
 
 The precise rights note and any redistribution flag live in [`manifest.json`](manifest.json). They report upstream and source metadata rather than adding a new legal conclusion. `watchmaker` is the only fixture marked `redistribution_review_required: true`.
 

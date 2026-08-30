@@ -62,6 +62,8 @@ function Invoke-Fixture {
 	$startInfo.Arguments = $arguments
 	$startInfo.UseShellExecute = $false
 	$startInfo.CreateNoWindow = $true
+	$startInfo.RedirectStandardOutput = $true
+	$startInfo.RedirectStandardError = $true
 	$child = New-Object System.Diagnostics.Process
 	$child.StartInfo = $startInfo
 	if (-not $child.Start()) { throw "Could not start fixture process: $($fixture.id)" }
@@ -73,13 +75,16 @@ function Invoke-Fixture {
 		return
 	}
 	$childExitCode = [int]$child.ExitCode
+	$childOutput = $child.StandardOutput.ReadToEnd() + "`n" + $child.StandardError.ReadToEnd()
+	$failureMatches = @([regex]::Matches($childOutput, '(?m)^CORPUS_RESULT:\s*FAIL\s+([a-z0-9_]+)\s*$'))
+	$observedFailure = if ($failureMatches.Count -eq 1) { $failureMatches[0].Groups[1].Value } else { $null }
 	if ($expectedResult -eq 'fail') {
-		if ($childExitCode -eq 1) {
-			Write-Host "PASS $($fixture.id): expected $($fixture.expected_failure)"
+		if ($childExitCode -eq 1 -and $observedFailure -eq $fixture.expected_failure) {
+			Write-Host "PASS $($fixture.id): expected $observedFailure"
 			return
 		}
-		$failed.Add("$($fixture.id): expected controlled $($fixture.expected_failure), exit code $childExitCode")
-		Write-Host "FAIL $($fixture.id): expected controlled $($fixture.expected_failure), exit code $childExitCode"
+		$failed.Add("$($fixture.id): expected $($fixture.expected_failure), got $observedFailure (exit code $childExitCode)")
+		Write-Host "FAIL $($fixture.id): expected $($fixture.expected_failure), got $observedFailure (exit code $childExitCode)"
 		return
 	}
 	if ($expectedResult -ne 'pass') {
@@ -90,6 +95,11 @@ function Invoke-Fixture {
 	if ($childExitCode -ne 0) {
 		$failed.Add("$($fixture.id): exit code $childExitCode")
 		Write-Host "FAIL $($fixture.id): exit code $childExitCode"
+		return
+	}
+	if ($childOutput -notmatch '(?m)^CORPUS_RESULT:\s*PASS\s*$') {
+		$failed.Add("$($fixture.id): missing machine-readable PASS result")
+		Write-Host "FAIL $($fixture.id): missing machine-readable PASS result"
 		return
 	}
 	Write-Host "PASS $($fixture.id)"

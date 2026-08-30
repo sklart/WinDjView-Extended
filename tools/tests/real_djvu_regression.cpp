@@ -2,9 +2,11 @@
 // fixture per process so it can enforce a timeout without a GUI dependency.
 #include "ByteStream.h"
 #include "DjVuDocument.h"
+#include "DjVuAnno.h"
 #include "DjVuFile.h"
 #include "DjVuImage.h"
 #include "DjVmNav.h"
+#include "GMapAreas.h"
 #include "GException.h"
 #include "GSmartPointer.h"
 #include "GURL.h"
@@ -33,6 +35,68 @@ bool has_feature(const char *features, const char *feature)
     cursor = end ? end + 1 : 0;
   }
   return false;
+}
+
+int fail(const char *failure_type, const char *message)
+{
+  if (message)
+    fprintf(stderr, "%s\n", message);
+  fprintf(stderr, "CORPUS_RESULT: FAIL %s\n", failure_type);
+  return 1;
+}
+
+unsigned long read_be32(const unsigned char *bytes)
+{
+  return (static_cast<unsigned long>(bytes[0]) << 24) |
+         (static_cast<unsigned long>(bytes[1]) << 16) |
+         (static_cast<unsigned long>(bytes[2]) << 8) |
+         static_cast<unsigned long>(bytes[3]);
+}
+
+int find_fourcc(const std::vector<unsigned char> &bytes, const char *fourcc)
+{
+  for (size_t offset = 0; offset + 4 <= bytes.size(); ++offset)
+    if (bytes[offset] == static_cast<unsigned char>(fourcc[0]) &&
+        bytes[offset + 1] == static_cast<unsigned char>(fourcc[1]) &&
+        bytes[offset + 2] == static_cast<unsigned char>(fourcc[2]) &&
+        bytes[offset + 3] == static_cast<unsigned char>(fourcc[3]))
+      return static_cast<int>(offset);
+  return -1;
+}
+
+// The negative fixtures are generated deterministically from SHA-checked
+// positives.  This classifies their structural defect only after DjVuLibre has
+// rejected the document or page decode; it does not turn a successful decode
+// into an expected failure.
+const char *classify_known_corruption(const wchar_t *path)
+{
+  FILE *file = _wfopen(path, L"rb");
+  if (!file)
+    return "input_unavailable";
+  std::vector<unsigned char> bytes;
+  unsigned char buffer[4096];
+  size_t count = 0;
+  while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0)
+    bytes.insert(bytes.end(), buffer, buffer + count);
+  fclose(file);
+
+  // The generated truncated fixture preserves the first 32 source bytes so
+  // it still has an IFF header.  It is nevertheless an incomplete input,
+  // not an intentionally oversized root FORM declaration.
+  if (bytes.size() < 64)
+    return "truncated_input";
+  if (memcmp(&bytes[0], "AT&TFORM", 8) != 0)
+    return "invalid_header";
+  if (read_be32(&bytes[8]) > bytes.size() - 12)
+    return "invalid_form_length";
+
+  const int info = find_fourcc(bytes, "INFO");
+  if (info >= 0 && static_cast<size_t>(info) + 8 <= bytes.size() &&
+      read_be32(&bytes[info + 4]) > bytes.size() - static_cast<size_t>(info) - 8)
+    return "invalid_chunk_length";
+  if (find_fourcc(bytes, "JUNK") >= 0)
+    return "missing_incl";
+  return "decode_failure";
 }
 
 bool append_page(std::vector<int> &pages, int page)
@@ -100,23 +164,34 @@ bool check_supported_features(const GP<DjVuDocument> &document,
   }
   if (has_feature(features, "hyperlinks"))
   {
-    // Hyperlinks are represented by the same annotation stream in DjVuLibre.
     if (!annotations || annotations->size() <= 0)
     {
       fputs("expected hyperlink annotations are unavailable\n", stderr);
       return false;
     }
-    puts("hyperlinks: annotation stream available");
+    GP<DjVuAnno> decoded = first_page->get_decoded_anno();
+    int hyperlinks = 0;
+    if (decoded && decoded->ant)
+      for (GPosition position = decoded->ant->map_areas; position; ++position)
+        if (decoded->ant->map_areas[position] &&
+            decoded->ant->map_areas[position]->url.length())
+          ++hyperlinks;
+    if (hyperlinks <= 0)
+    {
+      fputs("expected hyperlink map area is unavailable\n", stderr);
+      return false;
+    }
+    printf("hyperlinks: %d map area(s)\n", hyperlinks);
   }
   if (has_feature(features, "bookmarks"))
   {
     GP<DjVmNav> bookmarks = document->get_djvm_nav();
-    if (!bookmarks)
+    if (!bookmarks || bookmarks->getBookMarkCount() <= 0)
     {
-      fputs("expected navigation bookmarks are unavailable\n", stderr);
+      fputs("expected navigation bookmarks are unavailable or empty\n", stderr);
       return false;
     }
-    puts("bookmarks: available");
+    printf("bookmarks: %d\n", bookmarks->getBookMarkCount());
   }
   return true;
 }
@@ -149,37 +224,36 @@ int wmain(int argc, wchar_t **argv)
                                                 features, sizeof(features), 0, 0);
   if (feature_bytes <= 0)
   {
-    fputs("could not convert expected features to UTF-8\n", stderr);
-    return 1;
+    return fail("argument_error", "could not convert expected features to UTF-8");
   }
+
+  const char *known_corruption = classify_known_corruption(argv[1]);
 
   try
   {
     GUTF8String path;
     if (!wide_path_to_utf8(argv[1], path))
     {
-      fputs("could not convert fixture path to UTF-8\n", stderr);
-      return 1;
+      return fail("path_conversion", "could not convert fixture path to UTF-8");
     }
     const GURL url = GURL::Filename::UTF8(path);
     if (!url.is_file())
     {
-      fputs("fixture could not be opened as a local file\n", stderr);
-      return 1;
+      return fail("input_unavailable", "fixture could not be opened as a local file");
     }
 
     GP<DjVuDocument> document = DjVuDocument::create_wait(url);
     const int pages = document->get_pages_num();
     if (pages <= 0)
     {
-      fputs("document has no pages\n", stderr);
-      return 1;
+      return fail(known_corruption, "document has no pages");
     }
     printf("page count: %d\n", pages);
     if (expected_pages >= 0 && pages != expected_pages)
     {
-      fprintf(stderr, "page count mismatch: expected %d, got %d\n", expected_pages, pages);
-      return 1;
+      char message[160];
+      sprintf(message, "page count mismatch: expected %d, got %d", expected_pages, pages);
+      return fail("page_count_mismatch", message);
     }
 
     std::vector<int> pages_to_decode;
@@ -191,21 +265,21 @@ int wmain(int argc, wchar_t **argv)
     }
     for (size_t index = 0; index < pages_to_decode.size(); ++index)
       if (!decode_page(document, pages_to_decode[index]))
-        return 1;
+        return fail(known_corruption, 0);
     if (!check_supported_features(document, features))
-      return 1;
+      return fail("feature_unavailable", 0);
   }
   catch (const GException &exception)
   {
-    fprintf(stderr, "DjVu exception: %s\n", exception.get_cause());
-    return 1;
+    char message[1024];
+    sprintf(message, "DjVu exception: %s", exception.get_cause());
+    return fail(known_corruption, message);
   }
   catch (...)
   {
-    fputs("unknown exception while decoding fixture\n", stderr);
-    return 1;
+    return fail(known_corruption, "unknown exception while decoding fixture");
   }
 
-  puts("fixture decode: PASS");
+  puts("CORPUS_RESULT: PASS");
   return 0;
 }
