@@ -49,9 +49,11 @@ cmd /d /c .\tools\tests\run-real-djvu-benchmark.cmd Release x64 native
 
 It performs four runs per fixture (run zero is cold-ish), writes min/median/max
 to `tools/tests/artifacts/djvu-performance-baseline/`, and emits JSON plus a
-readable text report. GitHub Actions uploads those files only from native
-Release x64; the benchmark is informational and cannot mask a correctness
-failure.
+readable text report. In addition to individual page timings, the report has a
+deterministic sequential-navigation timing for up to three next-page
+transitions, so artifacts from before and after prefetch changes can be
+compared. GitHub Actions uploads those files only from native Release x64; the
+benchmark is informational and cannot mask a correctness failure.
 
 The runner opens each positive manifest fixture through `DjVuDocument`,
 validates its page count, and decodes the first, middle, and last pages as

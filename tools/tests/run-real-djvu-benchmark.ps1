@@ -38,7 +38,9 @@ foreach ($fixture in $manifest.files) {
 	if ($LASTEXITCODE -ne 0 -or $output -notmatch '(?m)^BENCHMARK_RESULT:\s*PASS\s*\r?$') { throw "Benchmark failed for $($fixture.id):`n$output" }
 	$opens = @([regex]::Matches($output, '(?m)^BENCHMARK_OPEN run=(\d+) ms=([0-9.]+) pages=(\d+) peak_ws=(\d+)\r?$'))
 	$decodes = @([regex]::Matches($output, '(?m)^BENCHMARK_DECODE run=(\d+) page=(first|middle|last) index=(\d+) ms=([0-9.]+) width=(\d+) height=(\d+) peak_ws=(\d+)\r?$'))
+	$sequences = @([regex]::Matches($output, '(?m)^BENCHMARK_SEQUENCE run=(\d+) transitions=(\d+) ms=([0-9.]+) peak_ws=(\d+)\r?$'))
 	if ($opens.Count -ne $Runs) { throw "Benchmark output has $($opens.Count) open samples for $($fixture.id), expected $Runs" }
+	if ($sequences.Count -ne $Runs) { throw "Benchmark output has $($sequences.Count) sequential navigation samples for $($fixture.id), expected $Runs" }
 	$pageSamples = [ordered]@{}
 	foreach ($decode in $decodes) {
 		$label = $decode.Groups[2].Value
@@ -58,7 +60,7 @@ foreach ($fixture in $manifest.files) {
 		}
 	}
 	$peak = 0L
-	foreach ($match in @($opens) + @($decodes)) { $peak = [Math]::Max($peak, [Int64]$match.Groups[$match.Groups.Count - 1].Value) }
+	foreach ($match in @($opens) + @($decodes) + @($sequences)) { $peak = [Math]::Max($peak, [Int64]$match.Groups[$match.Groups.Count - 1].Value) }
 	$pageResults = [ordered]@{}
 	foreach ($label in $pageSamples.Keys) { $pageResults[$label] = Get-Statistics ([double[]]$pageSamples[$label].ToArray()) }
 	$fixtures.Add([ordered]@{
@@ -66,6 +68,10 @@ foreach ($fixture in $manifest.files) {
 		large_document = ($fixture.id -eq 'pathogenic_bacteria_1896')
 		open = Get-Statistics ([double[]]@($opens | ForEach-Object { [double]::Parse($_.Groups[2].Value, [Globalization.CultureInfo]::InvariantCulture) }))
 		decode = $pageResults; peak_working_set_bytes = $peak
+		sequential_navigation = [ordered]@{
+			transitions = [int]$sequences[0].Groups[2].Value
+			timing = Get-Statistics ([double[]]@($sequences | ForEach-Object { [double]::Parse($_.Groups[3].Value, [Globalization.CultureInfo]::InvariantCulture) }))
+		}
 	})
 }
 
@@ -83,6 +89,8 @@ foreach ($fixture in $fixtures) {
 	$lines.Add("$($fixture.id): pages=$($fixture.observed_pages), peak_working_set_bytes=$($fixture.peak_working_set_bytes)")
 	$lines.Add(('  open ms: cold={0:N3}, min={1:N3}, median={2:N3}, max={3:N3}' -f $fixture.open.cold_ms, $fixture.open.min_ms, $fixture.open.median_ms, $fixture.open.max_ms))
 	foreach ($label in $fixture.decode.Keys) { $sample = $fixture.decode[$label]; $lines.Add(('  {0} decode ms: cold={1:N3}, min={2:N3}, median={3:N3}, max={4:N3}' -f $label, $sample.cold_ms, $sample.min_ms, $sample.median_ms, $sample.max_ms)) }
+	$sequence = $fixture.sequential_navigation
+	$lines.Add(('  sequential navigation ({0} transitions) ms: cold={1:N3}, min={2:N3}, median={3:N3}, max={4:N3}' -f $sequence.transitions, $sequence.timing.cold_ms, $sequence.timing.min_ms, $sequence.timing.median_ms, $sequence.timing.max_ms))
 }
 $lines | Set-Content -LiteralPath $textPath -Encoding UTF8
 Write-Host "DjVu performance baseline: PASS ($($fixtures.Count) fixtures)"

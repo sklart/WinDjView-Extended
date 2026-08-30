@@ -33,6 +33,7 @@ public:
 	void AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings,
 		int nDisplayMode = CDjVuView::Color);
 	void AddDecodeJob(int nPage);
+	void AddPrefetchJob(int nPage);
 	void AddReadInfoJob(int nPage);
 	void AddCleanupJob(int nPage);
 	void RemoveAllJobs();
@@ -57,7 +58,7 @@ private:
 	DjVuSource* m_pSource;
 	long m_nPaused;
 
-	enum JobType { RENDER, DECODE, READINFO, CLEANUP };
+	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
 
 	struct Job
 	{

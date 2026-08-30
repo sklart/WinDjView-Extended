@@ -1903,6 +1903,40 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove);
 }
 
+void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove)
+{
+	if (!IsValidPage(nPage))
+		return;
+
+	// This page may have been classified as out of range by the broad cache
+	// pass above. Keep it observed while its low-priority decode is pending.
+	remove.erase(std::remove(remove.begin(), remove.end(), nPage), remove.end());
+	if (std::find(add.begin(), add.end(), nPage) == add.end())
+		add.push_back(nPage);
+
+	m_pRenderThread->AddPrefetchJob(nPage);
+}
+
+void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove)
+{
+	int nFirstVisible = m_nPage;
+	int nLastVisible = m_nPage;
+	if (m_nLayout == Facing)
+	{
+		if (HasFacingPage(m_nPage))
+			nLastVisible = m_nPage + 1;
+	}
+	else if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
+	{
+		nFirstVisible = CalcTopPage();
+		nLastVisible = CalcBottomPage(nFirstVisible);
+	}
+
+	// Preserve reading direction: next page is queued before previous page.
+	AddPrefetchPage(nLastVisible + 1, add, remove);
+	AddPrefetchPage(nFirstVisible - 1, add, remove);
+}
+
 void CDjVuView::UpdateVisiblePages()
 {
 	if (m_nPageCount == 0 || m_pRenderThread == NULL || m_pRenderThread->IsPaused())
@@ -1922,6 +1956,8 @@ void CDjVuView::UpdateVisiblePages()
 		UpdatePagesCacheFacing(m_bUpdateBitmaps, add, remove);
 	else if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
 		UpdatePagesCacheContinuous(m_bUpdateBitmaps, add, remove);
+
+	ScheduleAdjacentPrefetch(add, remove);
 
 	// Notify the source so that it will keep the page in cache
 	// for us in case another thread requests it.

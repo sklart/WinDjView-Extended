@@ -19,6 +19,10 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\corpus\fetch-corpus.ps1 -ParserSelfTest
 
+      - name: Run render prefetch source regression
+        shell: pwsh
+        run: pwsh .\tools\tests\test-render-prefetch.ps1
+
   build:
     name: ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022

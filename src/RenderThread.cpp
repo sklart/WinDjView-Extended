@@ -102,6 +102,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 
 		case DECODE:
+		case PREFETCH_DECODE:
 			pThread->m_pSource->GetPage(job.nPage, pThread->m_pOwner);
 			break;
 
@@ -415,6 +416,15 @@ void CRenderThread::AddDecodeJob(int nPage)
 	AddJob(job);
 }
 
+void CRenderThread::AddPrefetchJob(int nPage)
+{
+	Job job;
+	job.nPage = nPage;
+	job.type = PREFETCH_DECODE;
+
+	AddJob(job);
+}
+
 void CRenderThread::AddReadInfoJob(int nPage)
 {
 	Job job;
@@ -436,6 +446,15 @@ void CRenderThread::AddCleanupJob(int nPage)
 void CRenderThread::AddJob(const Job& job)
 {
 	m_lock.Lock();
+
+	// Speculative decode never displaces queued visible work. A later visible
+	// request for the same page replaces its queued prefetch.
+	list<Job>::iterator existing = m_pages[job.nPage];
+	if (job.type == PREFETCH_DECODE && existing != m_jobs.end() && existing->type == RENDER)
+	{
+		m_lock.Unlock();
+		return;
+	}
 	if (m_currentJob.nPage == job.nPage && m_currentJob.type == RENDER &&
 		job.type == RENDER && job.nRotate == m_currentJob.nRotate && 
 		job.size == m_currentJob.size && job.nDisplayMode == m_currentJob.nDisplayMode &&
@@ -447,8 +466,18 @@ void CRenderThread::AddJob(const Job& job)
 
 	RemoveFromQueue(job.nPage);
 
-	m_jobs.push_front(job);
-	m_pages[job.nPage] = m_jobs.begin();
+	if (job.type == PREFETCH_DECODE)
+	{
+		m_jobs.push_back(job);
+		list<Job>::iterator it = m_jobs.end();
+		--it;
+		m_pages[job.nPage] = it;
+	}
+	else
+	{
+		m_jobs.push_front(job);
+		m_pages[job.nPage] = m_jobs.begin();
+	}
 
 	if (!IsPaused())
 		m_jobReady.SetEvent();

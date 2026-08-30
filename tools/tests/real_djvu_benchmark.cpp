@@ -115,6 +115,22 @@ int wmain(int argc, wchar_t **argv)
                image->get_width(), image->get_height(),
                static_cast<unsigned long long>(peak_working_set()));
       }
+
+	  // A small deterministic reading sequence is reported separately from the
+	  // individual-page timings. It gives prefetch work a stable before/after
+	  // baseline without turning this informational runner into a threshold.
+	  const int transitions = page_count > 1 ? min(page_count - 1, 3) : 0;
+	  const double sequence_begin = now_ms();
+	  for (int transition = 0; transition < transitions; ++transition)
+	  {
+		GP<DjVuImage> image = document->get_page(transition + 1, true);
+		if (!image || !image->wait_for_complete_decode() ||
+			image->get_width() <= 0 || image->get_height() <= 0)
+			return fail("sequential_page_decode_failed");
+	  }
+	  printf("BENCHMARK_SEQUENCE run=%d transitions=%d ms=%.3f peak_ws=%llu\n", run,
+		 transitions, now_ms() - sequence_begin,
+		 static_cast<unsigned long long>(peak_working_set()));
     }
     catch (const GException &exception)
     {
