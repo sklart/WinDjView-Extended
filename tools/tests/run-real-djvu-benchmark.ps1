@@ -45,6 +45,18 @@ foreach ($fixture in $manifest.files) {
 		if (-not $pageSamples.Contains($label)) { $pageSamples[$label] = New-Object System.Collections.Generic.List[double] }
 		$pageSamples[$label].Add([double]::Parse($decode.Groups[4].Value, [Globalization.CultureInfo]::InvariantCulture))
 	}
+	$requiredLabels = if ([int]$opens[0].Groups[3].Value -eq 1) { @('first') } else { @('first', 'middle', 'last') }
+	foreach ($label in $requiredLabels) {
+		$actualCount = if ($pageSamples.Contains($label)) { $pageSamples[$label].Count } else { 0 }
+		if ($actualCount -ne $Runs) {
+			throw "Benchmark output has $actualCount $label decode samples for $($fixture.id), expected $Runs"
+		}
+	}
+	foreach ($label in $pageSamples.Keys) {
+		if ($requiredLabels -notcontains $label) {
+			throw "Benchmark output has an unexpected $label decode sample for $($fixture.id)"
+		}
+	}
 	$peak = 0L
 	foreach ($match in @($opens) + @($decodes)) { $peak = [Math]::Max($peak, [Int64]$match.Groups[$match.Groups.Count - 1].Value) }
 	$pageResults = [ordered]@{}

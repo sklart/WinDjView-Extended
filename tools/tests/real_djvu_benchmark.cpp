@@ -49,24 +49,6 @@ bool wide_path_to_utf8(const wchar_t *wide_path, GUTF8String &path)
   return true;
 }
 
-bool append_page(std::vector<int> &pages, int page)
-{
-  for (size_t index = 0; index < pages.size(); ++index)
-    if (pages[index] == page)
-      return false;
-  pages.push_back(page);
-  return true;
-}
-
-const char *page_label(int page, int page_count)
-{
-  if (page == 0)
-    return "first";
-  if (page == page_count - 1)
-    return "last";
-  return "middle";
-}
-
 int fail(const char *message)
 {
   fprintf(stderr, "BENCHMARK_RESULT: FAIL %s\n", message);
@@ -107,11 +89,18 @@ int wmain(int argc, wchar_t **argv)
              open_ms, page_count, static_cast<unsigned long long>(peak_working_set()));
 
       std::vector<int> pages;
-      append_page(pages, 0);
+      std::vector<const char *> labels;
+      pages.push_back(0);
+      labels.push_back("first");
       if (page_count > 1)
       {
-        append_page(pages, page_count / 2);
-        append_page(pages, page_count - 1);
+        // Keep the three metric series distinct for a two-page document too:
+        // its middle and last page have the same index, but are independent
+        // measurements required by the baseline contract.
+        pages.push_back(page_count / 2);
+        labels.push_back("middle");
+        pages.push_back(page_count - 1);
+        labels.push_back("last");
       }
       for (size_t index = 0; index < pages.size(); ++index)
       {
@@ -122,7 +111,7 @@ int wmain(int argc, wchar_t **argv)
         if (!decoded || image->get_width() <= 0 || image->get_height() <= 0)
           return fail("page_decode_failed");
         printf("BENCHMARK_DECODE run=%d page=%s index=%d ms=%.3f width=%d height=%d peak_ws=%llu\n",
-               run, page_label(pages[index], page_count), pages[index], decode_ms,
+               run, labels[index], pages[index], decode_ms,
                image->get_width(), image->get_height(),
                static_cast<unsigned long long>(peak_working_set()));
       }
