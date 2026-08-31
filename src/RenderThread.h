@@ -47,6 +47,11 @@ public:
 	bool IsPaused();
 	int GetQueuedJobCount();
 	bool IsPrefetchQueued(int nPage);
+	// Snapshot/reset the real worker queue and accepted job submissions. The
+	// production cache regression keeps the worker paused while measuring these.
+	void GetQueuedJobCounts(int& render, int& decode, int& prefetchDecode);
+	void ResetSubmittedJobCounts();
+	void GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode);
 
 	void RejectCurrentJob();
 
@@ -59,6 +64,7 @@ private:
 	Observer* m_pOwner;
 	DjVuSource* m_pSource;
 	long m_nPaused;
+	int m_nSubmittedRenderJobs, m_nSubmittedDecodeJobs, m_nSubmittedPrefetchJobs;
 
 	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
 

@@ -33,7 +33,8 @@
 // CRenderThread class
 
 CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
-	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0), m_bRejectCurrentJob(false)
+	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0), m_bRejectCurrentJob(false),
+	  m_nSubmittedRenderJobs(0), m_nSubmittedDecodeJobs(0), m_nSubmittedPrefetchJobs(0)
 {
 	m_pSource->AddRef();
 
@@ -202,6 +203,38 @@ bool CRenderThread::IsPrefetchQueued(int nPage)
 		m_pages[nPage] != m_jobs.end() && m_pages[nPage]->type == PREFETCH_DECODE;
 	m_lock.Unlock();
 	return queued;
+}
+
+void CRenderThread::GetQueuedJobCounts(int& render, int& decode, int& prefetchDecode)
+{
+	render = decode = prefetchDecode = 0;
+	m_lock.Lock();
+	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+	{
+		if (it->type == RENDER)
+			++render;
+		else if (it->type == DECODE)
+			++decode;
+		else if (it->type == PREFETCH_DECODE)
+			++prefetchDecode;
+	}
+	m_lock.Unlock();
+}
+
+void CRenderThread::ResetSubmittedJobCounts()
+{
+	m_lock.Lock();
+	m_nSubmittedRenderJobs = m_nSubmittedDecodeJobs = m_nSubmittedPrefetchJobs = 0;
+	m_lock.Unlock();
+}
+
+void CRenderThread::GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode)
+{
+	m_lock.Lock();
+	render = m_nSubmittedRenderJobs;
+	decode = m_nSubmittedDecodeJobs;
+	prefetchDecode = m_nSubmittedPrefetchJobs;
+	m_lock.Unlock();
 }
 
 void CRenderThread::RemoveFromQueue(int nPage)
@@ -484,6 +517,12 @@ void CRenderThread::AddJob(const Job& job)
 		m_lock.Unlock();
 		return;
 	}
+	if (job.type == RENDER)
+		++m_nSubmittedRenderJobs;
+	else if (job.type == DECODE)
+		++m_nSubmittedDecodeJobs;
+	else if (job.type == PREFETCH_DECODE)
+		++m_nSubmittedPrefetchJobs;
 
 	RemoveFromQueue(job.nPage);
 

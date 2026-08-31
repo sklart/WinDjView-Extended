@@ -286,6 +286,17 @@ jobs:
         shell: cmd
         run: tools\tests\run-render-prefetch-regression.cmd Release x64 native tools\tests\corpus\files\watchmaker.djvu
 
+      - name: Run production bounded page-cache regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-page-cache-regression.cmd Release x64 native tools\tests\fixtures\minimal.djvu
+
+      - name: Run informational production page-cache benchmark
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        continue-on-error: true
+        shell: cmd
+        run: tools\tests\run-page-cache-regression.cmd Release x64 native tools\tests\fixtures\minimal.djvu --benchmark
+
       - name: Run real DjVu corpus regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd
