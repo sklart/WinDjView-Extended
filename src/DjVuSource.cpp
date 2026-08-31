@@ -1261,8 +1261,9 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 
 	m_lock.Lock();
 	m_prefetchPages.erase(nPage);
-	// A visible request creates and owns its regular image below.  Releasing
-	// the speculative route here prevents it from extending the page cache.
+	// A visible request adopts the speculative route when one exists.  This
+	// preserves the decoder events already in flight without making it UI cache.
+	GP<DjVuImage> pPrefetchImage = data.pPrefetchImage;
 	data.pPrefetchImage = NULL;
 	GP<DjVuImage> pImage = data.pImage;
 	if (pImage != NULL)
@@ -1333,13 +1334,22 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 
 	try
 	{
-		GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(nPage);
-		if (file)
+		if (pPrefetchImage != NULL)
 		{
-			pImage = DjVuImage::create(file);
-			file->resume_decode();
-			if (pImage && THREADMODEL != NOTHREADS)
+			pImage = pPrefetchImage;
+			if (THREADMODEL != NOTHREADS)
 				pImage->wait_for_complete_decode();
+		}
+		else
+		{
+			GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(nPage);
+			if (file)
+			{
+				pImage = DjVuImage::create(file);
+				file->resume_decode();
+				if (pImage && THREADMODEL != NOTHREADS)
+					pImage->wait_for_complete_decode();
+			}
 		}
 	}
 	catch (GException&)
