@@ -103,6 +103,9 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 
 		case DECODE:
+			pThread->m_pSource->GetPage(job.nPage, pThread->m_pOwner);
+			break;
+
 		case PREFETCH_DECODE:
 			pThread->m_pSource->StartPrefetch(job.nPage);
 			break;

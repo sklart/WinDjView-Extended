@@ -268,6 +268,7 @@ public:
 	GP<DjVuImage> GetPage(int nPage, Observer* observer = NULL);
 	void StartPrefetch(int nPage);
 	void CancelPrefetches();
+	bool IsPrefetchActive(int nPage);
 	bool IsPrefetchReady(int nPage);
 	void RemoveFromCache(int nPage, Observer* observer);
 	void ChangeObservedPages(Observer* observer,

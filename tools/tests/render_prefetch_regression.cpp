@@ -18,7 +18,29 @@ namespace
 	class RegressionObserver : public Observer
 	{
 	public:
-		virtual void OnUpdate(const Observable*, const Message*) { }
+		RegressionObserver() : m_event(::CreateEvent(NULL, TRUE, FALSE, NULL)), m_page(-1) { }
+		virtual ~RegressionObserver() { ::CloseHandle(m_event); }
+
+		virtual void OnUpdate(const Observable*, const Message* message)
+		{
+			if (message != NULL && message->code == PAGE_DECODED)
+			{
+				const PageMsg* page = static_cast<const PageMsg*>(message);
+				InterlockedExchange(&m_page, page->nPage);
+				::SetEvent(m_event);
+			}
+		}
+
+		void Reset() { InterlockedExchange(&m_page, -1); ::ResetEvent(m_event); }
+		bool WaitForDecode(int page, DWORD timeout)
+		{
+			return ::WaitForSingleObject(m_event, timeout) == WAIT_OBJECT_0 &&
+				InterlockedCompareExchange(&m_page, 0, 0) == page;
+		}
+
+	private:
+		HANDLE m_event;
+		volatile LONG m_page;
 	};
 
 	bool expect(bool condition, const char* description)
@@ -70,6 +92,28 @@ int _tmain(int argc, TCHAR** argv)
 	thread->AddDecodeJob(distant);
 	passed &= expect(thread->GetQueuedJobCount() == 1 && !thread->IsPrefetchQueued(distant),
 		"distant jump must not wait behind speculative work");
+
+	// Let one speculative request actually reach DjVuLibre, then cancel it
+	// through the same navigation cleanup used by the view.
+	thread->RemoveAllJobs();
+	thread->ResumeJobs();
+	thread->AddPrefetchJob(adjacent);
+	bool active = false;
+	for (int attempt = 0; attempt < 5000 && !active; ++attempt)
+	{
+		active = source->IsPrefetchActive(adjacent);
+		if (!active)
+			::Sleep(1);
+	}
+	passed &= expect(active, "prefetch must reach the asynchronous decoder");
+	thread->RemoveAllJobs();
+	passed &= expect(!source->IsPrefetchActive(adjacent),
+		"navigation cleanup must cancel active prefetch");
+
+	observer.Reset();
+	thread->AddDecodeJob(adjacent);
+	passed &= expect(observer.WaitForDecode(adjacent, 30000),
+		"visible decode must complete after prefetch cancellation");
 
 	thread->Stop();
 	source->Release();

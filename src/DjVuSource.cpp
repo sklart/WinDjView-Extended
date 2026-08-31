@@ -1470,6 +1470,16 @@ void DjVuSource::CancelPrefetches()
 	}
 }
 
+bool DjVuSource::IsPrefetchActive(int nPage)
+{
+	ASSERT(nPage >= 0 && nPage < m_nPageCount);
+	m_lock.Lock();
+	bool active = m_prefetchPages.find(nPage) != m_prefetchPages.end()
+		&& m_pages[nPage].pPrefetchImage != NULL;
+	m_lock.Unlock();
+	return active;
+}
+
 bool DjVuSource::IsPrefetchReady(int nPage)
 {
 	ASSERT(nPage >= 0 && nPage < m_nPageCount);
