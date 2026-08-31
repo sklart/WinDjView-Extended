@@ -111,6 +111,7 @@ struct CacheHarness
 	{
 		add.clear();
 		remove.clear();
+		view.ResetPageCacheEntryCounter();
 		thread->ResetSubmittedJobCounts();
 		if (clearJobs)
 			thread->RemoveAllJobs();
@@ -164,19 +165,42 @@ bool RunRegression(CacheHarness& harness)
 			harness.Configure(count, layouts[layoutIndex], page, page*1000, 900);
 			vector<int> add, remove;
 			harness.Update(add, remove);
+			const int initialProcessed = harness.view.GetProcessedPageCacheEntries();
 			passed &= Expect(!add.empty(), "working cache window must observe pages");
 			passed &= Expect((int)(add.size() + remove.size()) < min(count + 3, 64),
 				"ordinary update must not scan the entire document");
+			passed &= Expect(initialProcessed < min(count + 3, 64),
+				"production page-cache entry counter must remain bounded");
 			passed &= Expect(Contains(add, page), "current page must be observed");
 			passed &= Expect(HasLegacyWorkingWindow(harness.view, add),
 				"cache selection must retain every legacy render/decode-window page");
 			harness.ApplyObservation(add, remove);
 
-			// A resize and a sequential scroll keep only a bounded current window.
-			harness.Configure(count, layouts[layoutIndex], page, page*1000 + 500, 1300);
-			harness.Update(add, remove);
+			// Stateful scroll: do not clear observed pages or the worker queue
+			// between updates.
+			harness.view.m_ptScrollPos.y = (layouts[layoutIndex] == CDjVuView::Continuous ||
+				layouts[layoutIndex] == CDjVuView::ContinuousFacing) ? page*1000 + 500 : 0;
+			harness.Update(add, remove, false);
+			const int scrollProcessed = harness.view.GetProcessedPageCacheEntries();
 			passed &= Expect((int)(add.size() + remove.size()) < min(count + 3, 64),
-				"resize/scroll update must remain bounded");
+				"stateful scroll update must remain bounded");
+			passed &= Expect(scrollProcessed < min(count + 3, 64),
+				"stateful scroll must not scan all page-cache entries");
+			passed &= Expect(Contains(add, page) && !Contains(remove, page),
+				"stateful scroll must retain the active cache page");
+			harness.ApplyObservation(add, remove);
+
+			// Stateful resize follows the scroll without any reset.
+			harness.view.m_szViewport.cy = 1300;
+			harness.Update(add, remove, false);
+			const int resizeProcessed = harness.view.GetProcessedPageCacheEntries();
+			passed &= Expect((int)(add.size() + remove.size()) < min(count + 3, 64),
+				"stateful resize update must remain bounded");
+			passed &= Expect(resizeProcessed < min(count + 3, 64),
+				"stateful resize must not scan all page-cache entries");
+			passed &= Expect(Contains(add, page) && !Contains(remove, page),
+				"stateful resize must retain the active cache page");
+			harness.ApplyObservation(add, remove);
 		}
 	}
 
@@ -184,11 +208,15 @@ bool RunRegression(CacheHarness& harness)
 	harness.Configure(4096, CDjVuView::Continuous, 8, 8000, 900);
 	vector<int> add, remove;
 	harness.Update(add, remove, false);
+	passed &= Expect(harness.view.GetProcessedPageCacheEntries() < 64,
+		"large-document initial update must process only its cache window");
 	harness.ApplyObservation(add, remove);
 	passed &= Expect(harness.view.m_observedPages.find(8) != harness.view.m_observedPages.end(), "initial page must be observed");
 	harness.view.m_nPage = 3500;
 	harness.view.m_ptScrollPos.y = 3500000;
 	harness.Update(add, remove);
+	passed &= Expect(harness.view.GetProcessedPageCacheEntries() < 64,
+		"distant jump must process old observers plus the new cache window only");
 	passed &= Expect(Contains(remove, 8), "distant jump must release old observed page");
 	harness.ApplyObservation(add, remove);
 	passed &= Expect(!Contains(vector<int>(harness.view.m_observedPages.begin(), harness.view.m_observedPages.end()), 8),
@@ -210,7 +238,7 @@ bool RunRegression(CacheHarness& harness)
 void RunBenchmark(CacheHarness& harness)
 {
 	const int updates = 100;
-	int totalEntries = 0, totalRender = 0, totalDecode = 0, totalPrefetch = 0;
+	int totalProcessed = 0, totalRender = 0, totalDecode = 0, totalPrefetch = 0;
 	LARGE_INTEGER frequency, begin, end;
 	QueryPerformanceFrequency(&frequency);
 	harness.Configure(4096, CDjVuView::ContinuousFacing, 0, 0, 900);
@@ -223,7 +251,7 @@ void RunBenchmark(CacheHarness& harness)
 		harness.view.m_szViewport.cy = (i & 1) ? 900 : 1300;
 		vector<int> add, remove;
 		harness.Update(add, remove);
-		totalEntries += (int)(add.size() + remove.size());
+		totalProcessed += harness.view.GetProcessedPageCacheEntries();
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
@@ -237,7 +265,7 @@ void RunBenchmark(CacheHarness& harness)
 		harness.view.m_szViewport.cy = 900;
 		vector<int> add, remove;
 		harness.Update(add, remove);
-		totalEntries += (int)(add.size() + remove.size());
+		totalProcessed += harness.view.GetProcessedPageCacheEntries();
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
@@ -252,7 +280,7 @@ void RunBenchmark(CacheHarness& harness)
 		harness.view.m_szViewport.cy = 900;
 		vector<int> add, remove;
 		harness.Update(add, remove);
-		totalEntries += (int)(add.size() + remove.size());
+		totalProcessed += harness.view.GetProcessedPageCacheEntries();
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
@@ -260,8 +288,8 @@ void RunBenchmark(CacheHarness& harness)
 	}
 	QueryPerformanceCounter(&end);
 	const double elapsed = 1000.0 * (end.QuadPart - begin.QuadPart) / frequency.QuadPart;
-	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d\n",
-		updates * 3, elapsed, totalEntries, totalRender, totalDecode, totalPrefetch);
+	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_page_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d\n",
+		updates * 3, elapsed, totalProcessed, totalRender, totalDecode, totalPrefetch);
 }
 }
 

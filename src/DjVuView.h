@@ -211,6 +211,9 @@ protected:
 	// Pages currently observed by this view. Cache updates revisit this small
 	// set when releasing old cache ownership instead of scanning the document.
 	set<int> m_observedPages;
+	int m_nProcessedPageCacheEntries;
+	void ResetPageCacheEntryCounter() { m_nProcessedPageCacheEntries = 0; }
+	int GetProcessedPageCacheEntries() const { return m_nProcessedPageCacheEntries; }
 
 	int m_nPage, m_nPageCount;
 	long m_nPendingPage;

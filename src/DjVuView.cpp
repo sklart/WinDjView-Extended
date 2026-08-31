@@ -291,7 +291,8 @@ CDjVuView::CDjVuView()
 	  m_bHoverIsCustom(false), m_bDraggingRect(false), m_nSelectionPage(-1),
 	  m_pHoverAnno(NULL), m_pClickedAnno(NULL), m_bDraggingLink(false),
 	  m_bPopupMenu(false), m_bClickedCustom(false), m_bUpdateBitmaps(false),
-	  m_nWhitePoint(15), m_nMinWhiteMargins(20), m_bMouseNavigation(false)
+	  m_nWhitePoint(15), m_nMinWhiteMargins(20), m_bMouseNavigation(false),
+	  m_nProcessedPageCacheEntries(0)
 {
 	m_historyPoint = m_history.end();
 	m_strForSearch = "";
@@ -1749,6 +1750,7 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
 		vector<int>& add, vector<int>& remove)
 {
+	++m_nProcessedPageCacheEntries;
 	// Pages visible on screen are put to the front of the rendering queue.
 	// Pages which are within 2 screens from the view are put to the back
 	// of the rendering queue.
@@ -1804,6 +1806,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 		vector<int>& add, vector<int>& remove)
 {
+	++m_nProcessedPageCacheEntries;
 	// Current page and adjacent are rendered, next +- 9 pages are decoded.
 	Page& page = m_pages[nPage];
 	long nPageSize = page.szBitmap.cx * page.szBitmap.cy;
@@ -1852,6 +1855,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 		vector<int>& add, vector<int>& remove)
 {
+	++m_nProcessedPageCacheEntries;
 	// Current page and adjacent are rendered, next +- 9 pages are decoded.
 	Page& page = m_pages[nPage];
 	long nPageSize = page.szBitmap.cx * page.szBitmap.cy;
