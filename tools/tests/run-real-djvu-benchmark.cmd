@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 set "CONFIGURATION=%~1"
 set "PLATFORM=%~2"
 set "BUILD_FLAVOR=%~3"
