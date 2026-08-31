@@ -1261,6 +1261,9 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 
 	m_lock.Lock();
 	m_prefetchPages.erase(nPage);
+	// A visible request creates and owns its regular image below.  Releasing
+	// the speculative route here prevents it from extending the page cache.
+	data.pPrefetchImage = NULL;
 	GP<DjVuImage> pImage = data.pImage;
 	if (pImage != NULL)
 	{
@@ -1411,8 +1414,23 @@ void DjVuSource::StartPrefetch(int nPage)
 	try
 	{
 		GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(nPage);
-		if (file)
-			file->resume_decode(false);
+		if (!file)
+			return;
+
+		// DjVuImage::connect installs the route which receives decoder events.
+		// Keeping it alive is required for an asynchronous resume_decode().
+		GP<DjVuImage> image = DjVuImage::create(file);
+
+		m_lock.Lock();
+		if (m_prefetchPages.find(nPage) == m_prefetchPages.end())
+		{
+			m_lock.Unlock();
+			return;
+		}
+		m_pages[nPage].pPrefetchImage = image;
+		m_lock.Unlock();
+
+		file->resume_decode(false);
 	}
 	catch (GException&)
 	{
@@ -1424,6 +1442,8 @@ void DjVuSource::CancelPrefetches()
 	set<int> pages;
 	m_lock.Lock();
 	pages.swap(m_prefetchPages);
+	for (set<int>::const_iterator it = pages.begin(); it != pages.end(); ++it)
+		m_pages[*it].pPrefetchImage = NULL;
 	m_lock.Unlock();
 
 	for (set<int>::const_iterator it = pages.begin(); it != pages.end(); ++it)
@@ -1444,7 +1464,8 @@ bool DjVuSource::IsPrefetchReady(int nPage)
 {
 	ASSERT(nPage >= 0 && nPage < m_nPageCount);
 	m_lock.Lock();
-	bool pending = m_prefetchPages.find(nPage) != m_prefetchPages.end();
+	bool pending = m_prefetchPages.find(nPage) != m_prefetchPages.end()
+		&& m_pages[nPage].pPrefetchImage != NULL;
 	m_lock.Unlock();
 	if (!pending)
 		return false;

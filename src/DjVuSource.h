@@ -322,6 +322,9 @@ protected:
 		PageData() : hDecodingThread(NULL), nOrigThreadPriority(THREAD_PRIORITY_NORMAL) {}
 
 		GP<DjVuImage> pImage;
+		// Keeps the asynchronous DjVuFile route alive while a speculative
+		// decode is in flight.  It is deliberately separate from the UI cache.
+		GP<DjVuImage> pPrefetchImage;
 		PageInfo info;
 
 		HANDLE hDecodingThread;
