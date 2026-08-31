@@ -77,17 +77,17 @@ int fail(const char *message)
 
 int wmain(int argc, wchar_t **argv)
 {
-  if (argc != 4)
+  if (argc != 4 && argc != 5)
   {
-    fputs("usage: real_djvu_benchmark <fixture> <fixture-id> <runs>\n", stderr);
+    fputs("usage: real_djvu_benchmark <fixture> <fixture-id> <runs> [--prefetch]\n", stderr);
     return 2;
   }
+  const bool prefetch_only = argc == 5;
+  if (prefetch_only && wcscmp(argv[4], L"--prefetch") != 0)
+    return fail("unknown_mode");
   const int runs = _wtoi(argv[3]);
   if (runs < 2 || runs > 32)
     return fail("runs_must_be_between_2_and_32");
-
-  if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
-    return fail("mfc_initialization");
 
   GUTF8String path;
   if (!wide_path_to_utf8(argv[1], path))
@@ -95,6 +95,50 @@ int wmain(int argc, wchar_t **argv)
   const GURL url = GURL::Filename::UTF8(path);
   if (!url.is_file())
     return fail("input_unavailable");
+
+  if (prefetch_only)
+  {
+    if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
+      return fail("mfc_initialization");
+
+    for (int run = 0; run < runs; ++run)
+    {
+      BenchmarkApplication application;
+      BenchmarkObserver observer;
+      DjVuSource::SetApplication(&application);
+      DjVuSource *source = DjVuSource::FromFile(argv[1]);
+      if (source == NULL)
+        return fail("prefetch_source_open");
+      const int page_count = source->GetPageCount();
+      const int miss_page = page_count > 1 ? 1 : 0;
+      const int hit_page = page_count > 2 ? 2 : 0;
+      CRenderThread *render_thread = new CRenderThread(source, &observer);
+      const double miss_begin = now_ms();
+      GP<DjVuImage> miss_image = source->GetPage(miss_page, NULL);
+      const double miss_ms = now_ms() - miss_begin;
+      if (!miss_image || miss_image->get_width() <= 0 || miss_image->get_height() <= 0)
+        return fail("prefetch_miss_decode");
+
+      render_thread->AddPrefetchJob(hit_page);
+      const double wait_begin = now_ms();
+      while (!source->IsPrefetchReady(hit_page) && now_ms() - wait_begin < 30000.0)
+        Sleep(1);
+      if (!source->IsPrefetchReady(hit_page))
+        return fail("prefetch_timeout");
+      const double hit_begin = now_ms();
+      GP<DjVuImage> hit_image = source->GetPage(hit_page, NULL);
+      const double hit_ms = now_ms() - hit_begin;
+      if (!hit_image || hit_image->get_width() <= 0 || hit_image->get_height() <= 0)
+        return fail("prefetch_hit_decode");
+      printf("BENCHMARK_PREFETCH run=%d miss_ms=%.3f hit_ms=%.3f peak_ws=%llu\n", run,
+             miss_ms, hit_ms, static_cast<unsigned long long>(peak_working_set()));
+      render_thread->Stop();
+      source->Release();
+      DjVuSource::SetApplication(NULL);
+    }
+    puts("BENCHMARK_RESULT: PASS");
+    return 0;
+  }
 
   for (int run = 0; run < runs; ++run)
   {
@@ -153,37 +197,6 @@ int wmain(int argc, wchar_t **argv)
 		 transitions, now_ms() - sequence_begin,
 		 static_cast<unsigned long long>(peak_working_set()));
 
-      BenchmarkApplication application;
-      BenchmarkObserver observer;
-      DjVuSource::SetApplication(&application);
-      DjVuSource *source = DjVuSource::FromFile(argv[1]);
-      if (source == NULL)
-        return fail("prefetch_source_open");
-      CRenderThread *render_thread = new CRenderThread(source, &observer);
-      const int miss_page = page_count > 1 ? 1 : 0;
-      const int hit_page = page_count > 2 ? 2 : 0;
-      const double miss_begin = now_ms();
-      GP<DjVuImage> miss_image = source->GetPage(miss_page, NULL);
-      const double miss_ms = now_ms() - miss_begin;
-      if (!miss_image || miss_image->get_width() <= 0 || miss_image->get_height() <= 0)
-        return fail("prefetch_miss_decode");
-
-      render_thread->AddPrefetchJob(hit_page);
-      const double wait_begin = now_ms();
-      while (!source->IsPrefetchReady(hit_page) && now_ms() - wait_begin < 30000.0)
-        Sleep(1);
-      if (!source->IsPrefetchReady(hit_page))
-        return fail("prefetch_timeout");
-      const double hit_begin = now_ms();
-      GP<DjVuImage> hit_image = source->GetPage(hit_page, NULL);
-      const double hit_ms = now_ms() - hit_begin;
-      if (!hit_image || hit_image->get_width() <= 0 || hit_image->get_height() <= 0)
-        return fail("prefetch_hit_decode");
-      printf("BENCHMARK_PREFETCH run=%d miss_ms=%.3f hit_ms=%.3f peak_ws=%llu\n", run,
-             miss_ms, hit_ms, static_cast<unsigned long long>(peak_working_set()));
-      render_thread->Stop();
-      source->Release();
-      DjVuSource::SetApplication(NULL);
     }
     catch (const GException &exception)
     {

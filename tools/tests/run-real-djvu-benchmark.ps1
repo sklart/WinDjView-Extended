@@ -34,8 +34,11 @@ foreach ($fixture in $manifest.files) {
 	if ($fixture.expected_result -eq 'fail') { continue }
 	$fixturePath = Join-Path $manifestRoot $fixture.file
 	if (-not (Test-Path -LiteralPath $fixturePath -PathType Leaf)) { throw "Benchmark fixture is missing: $($fixture.id)" }
-	$output = & $TestExecutable $fixturePath $fixture.id $Runs 2>&1 | Out-String
-	if ($LASTEXITCODE -ne 0 -or $output -notmatch '(?m)^BENCHMARK_RESULT:\s*PASS\s*\r?$') { throw "Benchmark failed for $($fixture.id):`n$output" }
+	$directOutput = & $TestExecutable $fixturePath $fixture.id $Runs 2>&1 | Out-String
+	if ($LASTEXITCODE -ne 0 -or $directOutput -notmatch '(?m)^BENCHMARK_RESULT:\s*PASS\s*\r?$') { throw "Benchmark failed for $($fixture.id):`n$directOutput" }
+	$prefetchOutput = & $TestExecutable $fixturePath $fixture.id $Runs --prefetch 2>&1 | Out-String
+	if ($LASTEXITCODE -ne 0 -or $prefetchOutput -notmatch '(?m)^BENCHMARK_RESULT:\s*PASS\s*\r?$') { throw "Prefetch benchmark failed for $($fixture.id):`n$prefetchOutput" }
+	$output = $directOutput + $prefetchOutput
 	$opens = @([regex]::Matches($output, '(?m)^BENCHMARK_OPEN run=(\d+) ms=([0-9.]+) pages=(\d+) peak_ws=(\d+)\r?$'))
 	$decodes = @([regex]::Matches($output, '(?m)^BENCHMARK_DECODE run=(\d+) page=(first|middle|last) index=(\d+) ms=([0-9.]+) width=(\d+) height=(\d+) peak_ws=(\d+)\r?$'))
 	$sequences = @([regex]::Matches($output, '(?m)^BENCHMARK_SEQUENCE run=(\d+) transitions=(\d+) ms=([0-9.]+) peak_ws=(\d+)\r?$'))
