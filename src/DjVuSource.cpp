@@ -1260,6 +1260,7 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 	PageData& data = m_pages[nPage];
 
 	m_lock.Lock();
+	m_prefetchPages.erase(nPage);
 	GP<DjVuImage> pImage = data.pImage;
 	if (pImage != NULL)
 	{
@@ -1394,6 +1395,70 @@ GP<DjVuImage> DjVuSource::GetPage(int nPage, Observer* observer)
 	return pImage;
 }
 
+void DjVuSource::StartPrefetch(int nPage)
+{
+	ASSERT(nPage >= 0 && nPage < m_nPageCount);
+
+	m_lock.Lock();
+	if (m_pages[nPage].pImage != NULL || m_prefetchPages.find(nPage) != m_prefetchPages.end())
+	{
+		m_lock.Unlock();
+		return;
+	}
+	m_prefetchPages.insert(nPage);
+	m_lock.Unlock();
+
+	try
+	{
+		GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(nPage);
+		if (file)
+			file->resume_decode(false);
+	}
+	catch (GException&)
+	{
+	}
+}
+
+void DjVuSource::CancelPrefetches()
+{
+	set<int> pages;
+	m_lock.Lock();
+	pages.swap(m_prefetchPages);
+	m_lock.Unlock();
+
+	for (set<int>::const_iterator it = pages.begin(); it != pages.end(); ++it)
+	{
+		try
+		{
+			GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(*it);
+			if (file)
+				file->stop_decode(false);
+		}
+		catch (GException&)
+		{
+		}
+	}
+}
+
+bool DjVuSource::IsPrefetchReady(int nPage)
+{
+	ASSERT(nPage >= 0 && nPage < m_nPageCount);
+	m_lock.Lock();
+	bool pending = m_prefetchPages.find(nPage) != m_prefetchPages.end();
+	m_lock.Unlock();
+	if (!pending)
+		return false;
+
+	try
+	{
+		GP<DjVuFile> file = m_pDjVuDoc->get_djvu_file(nPage);
+		return file != NULL && file->is_decode_ok();
+	}
+	catch (GException&)
+	{
+		return false;
+	}
+}
 void DjVuSource::MoveSource(int nPage, CPoint& ptMove)
 {
 	ASSERT(nPage >= 0 && nPage < m_nPageCount);

@@ -281,6 +281,11 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\corpus\fetch-corpus.ps1
 
+      - name: Run render prefetch queue regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-render-prefetch-regression.cmd Release x64 native tools\tests\corpus\files\watchmaker.djvu
+
       - name: Run real DjVu corpus regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd

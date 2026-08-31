@@ -266,6 +266,9 @@ public:
 	static void SetApplication(IApplication* pApp) { pApplication = pApp; }
 
 	GP<DjVuImage> GetPage(int nPage, Observer* observer = NULL);
+	void StartPrefetch(int nPage);
+	void CancelPrefetches();
+	bool IsPrefetchReady(int nPage);
 	void RemoveFromCache(int nPage, Observer* observer);
 	void ChangeObservedPages(Observer* observer,
 			const vector<int>& add, const vector<int>& remove);
@@ -340,6 +343,7 @@ protected:
 	bool m_bHasText;
 
 	vector<PageData> m_pages;
+	set<int> m_prefetchPages;
 	DocSettings* m_pSettings;
 	DictionaryInfo m_dictInfo;
 

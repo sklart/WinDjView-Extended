@@ -15,9 +15,13 @@ Require-SourcePattern 'src\RenderThread.h' 'enum JobType \{ RENDER, DECODE, PREF
 Require-SourcePattern 'src\RenderThread.cpp' 'job\.type == PREFETCH_DECODE.*existing->type == RENDER' 'visible-job priority guard'
 Require-SourcePattern 'src\RenderThread.cpp' 'if \(job\.type == PREFETCH_DECODE\)\s*\{\s*m_jobs\.push_back\(job\)' 'low-priority queue insertion'
 Require-SourcePattern 'src\RenderThread.cpp' 'RemoveFromQueue\(job\.nPage\)' 'per-page job de-duplication'
+Require-SourcePattern 'src\RenderThread.cpp' 'm_pSource->StartPrefetch\(job\.nPage\)' 'non-blocking speculative decode'
+Require-SourcePattern 'src\RenderThread.cpp' 'm_pSource->CancelPrefetches\(\)' 'prefetch cancellation on navigation and close'
 Require-SourcePattern 'src\DjVuView.cpp' 'AddPrefetchPage\(nLastVisible \+ 1, add, remove\);\s*AddPrefetchPage\(nFirstVisible - 1, add, remove\);' 'next/previous prefetch order'
 Require-SourcePattern 'src\DjVuView.cpp' 'remove\.erase\(std::remove\(remove\.begin\(\), remove\.end\(\), nPage\), remove\.end\(\)\)' 'prefetch cache retention'
 Require-SourcePattern 'src\DjVuView.cpp' 'm_pRenderThread->RemoveAllJobs\(\);' 'stale queued job cleanup'
 Require-SourcePattern 'src\DjVuView.cpp' 'ScheduleAdjacentPrefetch\(add, remove\);\s*// Notify the source' 'prefetch observer update'
+Require-SourcePattern 'src\DjVuSource.cpp' 'file->resume_decode\(false\)' 'asynchronous prefetch start'
+Require-SourcePattern 'src\DjVuSource.cpp' 'file->stop_decode\(false\)' 'asynchronous prefetch cancellation'
 
 Write-Host 'Render prefetch source regression: PASS'

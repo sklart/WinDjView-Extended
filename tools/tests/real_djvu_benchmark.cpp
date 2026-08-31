@@ -1,6 +1,9 @@
 // Performance baseline helper for the real DjVu corpus.  It deliberately
 // shares the decoder path with the regression helper but has no correctness
 // assertions beyond ensuring that a timed decode completed successfully.
+#include "../../src/stdafx.h"
+#include "../../src/DjVuSource.h"
+#include "../../src/RenderThread.h"
 #include "DjVuDocument.h"
 #include "DjVuImage.h"
 #include "GException.h"
@@ -18,6 +21,21 @@ using namespace DJVU;
 #endif
 
 namespace {
+
+class BenchmarkApplication : public IApplication
+{
+public:
+  virtual bool LoadDocSettings(const CString &, DocSettings *) { return false; }
+  virtual bool GetCropPages() { return false; }
+  virtual DictionaryInfo *GetDictionaryInfo(const CString &, bool) { return NULL; }
+  virtual void ReportFatalError() { }
+};
+
+class BenchmarkObserver : public Observer
+{
+public:
+  virtual void OnUpdate(const Observable *, const Message *) { }
+};
 
 double now_ms()
 {
@@ -67,6 +85,9 @@ int wmain(int argc, wchar_t **argv)
   const int runs = _wtoi(argv[3]);
   if (runs < 2 || runs > 32)
     return fail("runs_must_be_between_2_and_32");
+
+  if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0))
+    return fail("mfc_initialization");
 
   GUTF8String path;
   if (!wide_path_to_utf8(argv[1], path))
@@ -128,9 +149,41 @@ int wmain(int argc, wchar_t **argv)
 			image->get_width() <= 0 || image->get_height() <= 0)
 			return fail("sequential_page_decode_failed");
 	  }
-	  printf("BENCHMARK_SEQUENCE run=%d transitions=%d ms=%.3f peak_ws=%llu\n", run,
+      printf("BENCHMARK_SEQUENCE run=%d transitions=%d ms=%.3f peak_ws=%llu\n", run,
 		 transitions, now_ms() - sequence_begin,
 		 static_cast<unsigned long long>(peak_working_set()));
+
+      BenchmarkApplication application;
+      BenchmarkObserver observer;
+      DjVuSource::SetApplication(&application);
+      DjVuSource *source = DjVuSource::FromFile(argv[1]);
+      if (source == NULL)
+        return fail("prefetch_source_open");
+      CRenderThread *render_thread = new CRenderThread(source, &observer);
+      const int miss_page = page_count > 1 ? 1 : 0;
+      const int hit_page = page_count > 2 ? 2 : 0;
+      const double miss_begin = now_ms();
+      GP<DjVuImage> miss_image = source->GetPage(miss_page, NULL);
+      const double miss_ms = now_ms() - miss_begin;
+      if (!miss_image || miss_image->get_width() <= 0 || miss_image->get_height() <= 0)
+        return fail("prefetch_miss_decode");
+
+      render_thread->AddPrefetchJob(hit_page);
+      const double wait_begin = now_ms();
+      while (!source->IsPrefetchReady(hit_page) && now_ms() - wait_begin < 30000.0)
+        Sleep(1);
+      if (!source->IsPrefetchReady(hit_page))
+        return fail("prefetch_timeout");
+      const double hit_begin = now_ms();
+      GP<DjVuImage> hit_image = source->GetPage(hit_page, NULL);
+      const double hit_ms = now_ms() - hit_begin;
+      if (!hit_image || hit_image->get_width() <= 0 || hit_image->get_height() <= 0)
+        return fail("prefetch_hit_decode");
+      printf("BENCHMARK_PREFETCH run=%d miss_ms=%.3f hit_ms=%.3f peak_ws=%llu\n", run,
+             miss_ms, hit_ms, static_cast<unsigned long long>(peak_working_set()));
+      render_thread->Stop();
+      source->Release();
+      DjVuSource::SetApplication(NULL);
     }
     catch (const GException &exception)
     {

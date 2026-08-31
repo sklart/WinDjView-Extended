@@ -39,8 +39,10 @@ foreach ($fixture in $manifest.files) {
 	$opens = @([regex]::Matches($output, '(?m)^BENCHMARK_OPEN run=(\d+) ms=([0-9.]+) pages=(\d+) peak_ws=(\d+)\r?$'))
 	$decodes = @([regex]::Matches($output, '(?m)^BENCHMARK_DECODE run=(\d+) page=(first|middle|last) index=(\d+) ms=([0-9.]+) width=(\d+) height=(\d+) peak_ws=(\d+)\r?$'))
 	$sequences = @([regex]::Matches($output, '(?m)^BENCHMARK_SEQUENCE run=(\d+) transitions=(\d+) ms=([0-9.]+) peak_ws=(\d+)\r?$'))
+	$prefetches = @([regex]::Matches($output, '(?m)^BENCHMARK_PREFETCH run=(\d+) miss_ms=([0-9.]+) hit_ms=([0-9.]+) peak_ws=(\d+)\r?$'))
 	if ($opens.Count -ne $Runs) { throw "Benchmark output has $($opens.Count) open samples for $($fixture.id), expected $Runs" }
 	if ($sequences.Count -ne $Runs) { throw "Benchmark output has $($sequences.Count) sequential navigation samples for $($fixture.id), expected $Runs" }
+	if ($prefetches.Count -ne $Runs) { throw "Benchmark output has $($prefetches.Count) prefetch hit/miss samples for $($fixture.id), expected $Runs" }
 	$pageSamples = [ordered]@{}
 	foreach ($decode in $decodes) {
 		$label = $decode.Groups[2].Value
@@ -60,7 +62,7 @@ foreach ($fixture in $manifest.files) {
 		}
 	}
 	$peak = 0L
-	foreach ($match in @($opens) + @($decodes) + @($sequences)) { $peak = [Math]::Max($peak, [Int64]$match.Groups[$match.Groups.Count - 1].Value) }
+	foreach ($match in @($opens) + @($decodes) + @($sequences) + @($prefetches)) { $peak = [Math]::Max($peak, [Int64]$match.Groups[$match.Groups.Count - 1].Value) }
 	$pageResults = [ordered]@{}
 	foreach ($label in $pageSamples.Keys) { $pageResults[$label] = Get-Statistics ([double[]]$pageSamples[$label].ToArray()) }
 	$fixtures.Add([ordered]@{
@@ -71,6 +73,10 @@ foreach ($fixture in $manifest.files) {
 		sequential_navigation = [ordered]@{
 			transitions = [int]$sequences[0].Groups[2].Value
 			timing = Get-Statistics ([double[]]@($sequences | ForEach-Object { [double]::Parse($_.Groups[3].Value, [Globalization.CultureInfo]::InvariantCulture) }))
+		}
+		prefetch_navigation = [ordered]@{
+			miss = Get-Statistics ([double[]]@($prefetches | ForEach-Object { [double]::Parse($_.Groups[2].Value, [Globalization.CultureInfo]::InvariantCulture) }))
+			hit = Get-Statistics ([double[]]@($prefetches | ForEach-Object { [double]::Parse($_.Groups[3].Value, [Globalization.CultureInfo]::InvariantCulture) }))
 		}
 	})
 }
@@ -91,6 +97,8 @@ foreach ($fixture in $fixtures) {
 	foreach ($label in $fixture.decode.Keys) { $sample = $fixture.decode[$label]; $lines.Add(('  {0} decode ms: cold={1:N3}, min={2:N3}, median={3:N3}, max={4:N3}' -f $label, $sample.cold_ms, $sample.min_ms, $sample.median_ms, $sample.max_ms)) }
 	$sequence = $fixture.sequential_navigation
 	$lines.Add(('  sequential navigation ({0} transitions) ms: cold={1:N3}, min={2:N3}, median={3:N3}, max={4:N3}' -f $sequence.transitions, $sequence.timing.cold_ms, $sequence.timing.min_ms, $sequence.timing.median_ms, $sequence.timing.max_ms))
+	$prefetch = $fixture.prefetch_navigation
+	$lines.Add(('  prefetch miss ms: median={0:N3}; hit ms: median={1:N3}' -f $prefetch.miss.median_ms, $prefetch.hit.median_ms))
 }
 $lines | Set-Content -LiteralPath $textPath -Encoding UTF8
 Write-Host "DjVu performance baseline: PASS ($($fixtures.Count) fixtures)"

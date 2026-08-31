@@ -45,6 +45,8 @@ public:
 	void PauseJobs();
 	void ResumeJobs();
 	bool IsPaused();
+	int GetQueuedJobCount();
+	bool IsPrefetchQueued(int nPage);
 
 	void RejectCurrentJob();
 

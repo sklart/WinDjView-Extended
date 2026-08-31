@@ -65,6 +65,7 @@ void CRenderThread::Stop()
 	m_bRejectCurrentJob = true;
 	PauseJobs();
 	m_lock.Unlock();
+	m_pSource->CancelPrefetches();
 
 	m_stopping.Unlock();
 }
@@ -103,7 +104,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 
 		case DECODE:
 		case PREFETCH_DECODE:
-			pThread->m_pSource->GetPage(job.nPage, pThread->m_pOwner);
+			pThread->m_pSource->StartPrefetch(job.nPage);
 			break;
 
 		case READINFO:
@@ -181,6 +182,23 @@ void CRenderThread::ResumeJobs()
 bool CRenderThread::IsPaused()
 {
 	return (InterlockedExchangeAdd(&m_nPaused, 0) == 1);
+}
+
+int CRenderThread::GetQueuedJobCount()
+{
+	m_lock.Lock();
+	int count = (int)m_jobs.size();
+	m_lock.Unlock();
+	return count;
+}
+
+bool CRenderThread::IsPrefetchQueued(int nPage)
+{
+	m_lock.Lock();
+	bool queued = nPage >= 0 && nPage < (int)m_pages.size() &&
+		m_pages[nPage] != m_jobs.end() && m_pages[nPage]->type == PREFETCH_DECODE;
+	m_lock.Unlock();
+	return queued;
 }
 
 void CRenderThread::RemoveFromQueue(int nPage)
@@ -493,6 +511,11 @@ void CRenderThread::RemoveAllJobs()
 	m_pages.assign(m_pSource->GetPageCount(), m_jobs.end());
 
 	m_lock.Unlock();
+
+	// A speculative decode is owned by DjVuLibre, not this worker. Cancel it
+	// after dropping queued jobs so a distant navigation cannot consume CPU
+	// ahead of the next visible render.
+	m_pSource->CancelPrefetches();
 }
 
 void CRenderThread::RejectCurrentJob()
