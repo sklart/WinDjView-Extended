@@ -1690,7 +1690,24 @@ void CDjVuView::UpdatePagesCacheSingle(bool bUpdateImages,
 {
 	ASSERT(m_nLayout == SinglePage);
 
-	for (int nDiff = m_nPageCount; nDiff >= 0; --nDiff)
+	set<int> desired;
+	desired.insert(0);
+	desired.insert(m_nPageCount - 1);
+	for (int nPage = max(0, m_nPage - 10); nPage <= min(m_nPageCount - 1, m_nPage + 10); ++nPage)
+		desired.insert(nPage);
+
+	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
+	{
+		if (desired.find(*it) == desired.end())
+			UpdatePageCacheSingle(*it, bUpdateImages, add, remove);
+	}
+
+	// Submit the outer pages first so nearby pages keep their queue priority.
+	if (abs(m_nPage) > 10)
+		UpdatePageCacheSingle(0, bUpdateImages, add, remove);
+	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
+		UpdatePageCacheSingle(m_nPageCount - 1, bUpdateImages, add, remove);
+	for (int nDiff = 10; nDiff >= 0; --nDiff)
 	{
 		if (m_nPage - nDiff >= 0)
 			UpdatePageCacheSingle(m_nPage - nDiff, bUpdateImages, add, remove);
@@ -1704,7 +1721,23 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 {
 	ASSERT(m_nLayout == Facing);
 
-	for (int nDiff = m_nPageCount; nDiff >= 0; --nDiff)
+	set<int> desired;
+	desired.insert(0);
+	desired.insert(m_nPageCount - 1);
+	for (int nPage = max(0, m_nPage - 10); nPage <= min(m_nPageCount - 1, m_nPage + 10); ++nPage)
+		desired.insert(nPage);
+
+	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
+	{
+		if (desired.find(*it) == desired.end())
+			UpdatePageCacheFacing(*it, bUpdateImages, add, remove);
+	}
+
+	if (abs(m_nPage) > 10)
+		UpdatePageCacheFacing(0, bUpdateImages, add, remove);
+	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
+		UpdatePageCacheFacing(m_nPageCount - 1, bUpdateImages, add, remove);
+	for (int nDiff = 10; nDiff >= 0; --nDiff)
 	{
 		if (m_nPage - nDiff >= 0)
 			UpdatePageCacheFacing(m_nPage - nDiff, bUpdateImages, add, remove);
@@ -1873,14 +1906,41 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 
 	int nTopPage = CalcTopPage();
 	int nBottomPage = CalcBottomPage(nTopPage);
+	int nScrollTop = GetScrollPosition().y;
+	int nCacheTop = nTopPage;
+	int nCacheBottom = nBottomPage;
+	const int nCacheTopLimit = nScrollTop - 10*rcViewport.Height();
+	const int nCacheBottomLimit = nScrollTop + 11*rcViewport.Height();
 
-	for (int nDiff = m_nPageCount; nDiff >= 1; --nDiff)
+	// Page rectangles are vertically ordered. Expand from the visible pages
+	// only until the unchanged ten-screen decode window is exhausted.
+	while (nCacheTop > 0 && m_pages[nCacheTop - 1].rcDisplay.bottom > nCacheTopLimit)
+		--nCacheTop;
+	while (nCacheBottom + 1 < m_nPageCount && m_pages[nCacheBottom + 1].rcDisplay.top < nCacheBottomLimit)
+		++nCacheBottom;
+
+	set<int> desired;
+	desired.insert(0);
+	desired.insert(m_nPageCount - 1);
+	for (int nPage = nCacheTop; nPage <= nCacheBottom; ++nPage)
+		desired.insert(nPage);
+
+	// A page outside this window only needs a final visit if this view had
+	// previously observed it. This handles distant jumps without an O(N) scan.
+	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
 	{
-		if (nTopPage - nDiff >= 0)
-			UpdatePageCache(rcViewport.Size(), nTopPage - nDiff, bUpdateImages, add, remove);
-		if (nBottomPage + nDiff < m_nPageCount)
-			UpdatePageCache(rcViewport.Size(), nBottomPage + nDiff, bUpdateImages, add, remove);
+		if (desired.find(*it) == desired.end())
+			UpdatePageCache(rcViewport.Size(), *it, bUpdateImages, add, remove);
 	}
+
+	if (nCacheTop > 0)
+		UpdatePageCache(rcViewport.Size(), 0, bUpdateImages, add, remove);
+	if (nCacheBottom < m_nPageCount - 1)
+		UpdatePageCache(rcViewport.Size(), m_nPageCount - 1, bUpdateImages, add, remove);
+	for (int nPage = nCacheTop; nPage < nTopPage; ++nPage)
+		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove);
+	for (int nPage = nCacheBottom; nPage > nBottomPage; --nPage)
+		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove);
 
 	int nLastPage = m_nPage;
 	int nMaxSize = -1;
@@ -1947,8 +2007,8 @@ void CDjVuView::UpdateVisiblePages()
 
 	// Collect page numbera that we want to be in cache.
 	vector<int> add, remove;
-	add.reserve(m_nPageCount);
-	remove.reserve(m_nPageCount);
+	add.reserve(32);
+	remove.reserve(32);
 
 	if (m_nLayout == SinglePage)
 		UpdatePagesCacheSingle(m_bUpdateBitmaps, add, remove);
@@ -1958,6 +2018,13 @@ void CDjVuView::UpdateVisiblePages()
 		UpdatePagesCacheContinuous(m_bUpdateBitmaps, add, remove);
 
 	ScheduleAdjacentPrefetch(add, remove);
+
+	// Mirror ChangeObservedPages locally. The next update will only revisit
+	// these pages when it needs to release cache ownership.
+	for (size_t i = 0; i < remove.size(); ++i)
+		m_observedPages.erase(remove[i]);
+	for (size_t j = 0; j < add.size(); ++j)
+		m_observedPages.insert(add[j]);
 
 	// Notify the source so that it will keep the page in cache
 	// for us in case another thread requests it.

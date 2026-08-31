@@ -476,10 +476,10 @@ void CRenderThread::AddJob(const Job& job)
 		m_lock.Unlock();
 		return;
 	}
-	if (m_currentJob.nPage == job.nPage && m_currentJob.type == RENDER &&
-		job.type == RENDER && job.nRotate == m_currentJob.nRotate && 
+	if (m_currentJob.nPage == job.nPage && m_currentJob.type == job.type &&
+		(job.type != RENDER || (job.nRotate == m_currentJob.nRotate &&
 		job.size == m_currentJob.size && job.nDisplayMode == m_currentJob.nDisplayMode &&
-		job.displaySettings == m_currentJob.displaySettings)
+		job.displaySettings == m_currentJob.displaySettings)))
 	{
 		m_lock.Unlock();
 		return;

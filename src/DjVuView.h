@@ -208,6 +208,9 @@ protected:
 
 	CCriticalSection m_dataLock;
 	set<CDIB*> m_bitmaps;
+	// Pages currently observed by this view. Cache updates revisit this small
+	// set when releasing old cache ownership instead of scanning the document.
+	set<int> m_observedPages;
 
 	int m_nPage, m_nPageCount;
 	long m_nPendingPage;
