@@ -1441,6 +1441,15 @@ void DjVuSource::StartPrefetch(int nPage)
 		m_lock.Unlock();
 
 		file->resume_decode(false);
+
+		// CancelPrefetches() can run between the initial registration and the
+		// asynchronous resume.  Do not leave that stale decode running.
+		m_lock.Lock();
+		bool stillRegistered = m_prefetchPages.find(nPage) != m_prefetchPages.end()
+			&& m_pages[nPage].pPrefetchImage == image;
+		m_lock.Unlock();
+		if (!stillRegistered)
+			file->stop_decode(false);
 	}
 	catch (GException&)
 	{

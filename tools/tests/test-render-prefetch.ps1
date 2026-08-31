@@ -24,6 +24,7 @@ Require-SourcePattern 'src\DjVuView.cpp' 'm_pRenderThread->RemoveAllJobs\(\);' '
 Require-SourcePattern 'src\DjVuView.cpp' 'ScheduleAdjacentPrefetch\(add, remove\);\s*// Notify the source' 'prefetch observer update'
 Require-SourcePattern 'src\DjVuSource.cpp' 'file->resume_decode\(false\)' 'asynchronous prefetch start'
 Require-SourcePattern 'src\DjVuSource.cpp' 'file->stop_decode\(false\)' 'asynchronous prefetch cancellation'
+Require-SourcePattern 'src\DjVuSource.cpp' 'file->resume_decode\(false\);\s*// CancelPrefetches\(\) can run[\s\S]*?file->stop_decode\(false\);' 'post-resume cancellation race guard'
 Require-SourcePattern 'src\DjVuSource.cpp' 'bool DjVuSource::IsPrefetchActive\(int nPage\)' 'active prefetch runtime inspection'
 
 Write-Host 'Render prefetch source regression: PASS'

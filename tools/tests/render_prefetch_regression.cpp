@@ -2,6 +2,8 @@
 #include "../../src/DjVuSource.h"
 #include "../../src/RenderThread.h"
 #include "../../src/libdjvu/DataPool.h"
+#include "../../src/libdjvu/DjVuFile.h"
+#include <process.h>
 #include <stdio.h>
 
 namespace
@@ -48,6 +50,36 @@ namespace
 		if (!condition)
 			fprintf(stderr, "prefetch regression failed: %s\n", description);
 		return condition;
+	}
+
+	struct PrefetchRace
+	{
+		DjVuSource* source;
+		int page;
+		HANDLE started;
+	};
+
+	unsigned int __stdcall StartPrefetchProc(void* data)
+	{
+		PrefetchRace* race = static_cast<PrefetchRace*>(data);
+		::SetEvent(race->started);
+		race->source->StartPrefetch(race->page);
+		return 0;
+	}
+
+	bool WaitForDecodeStop(DjVuSource* source, int page, DWORD timeout)
+	{
+		GP<DjVuFile> file = source->GetDjVuDoc()->get_djvu_file(page);
+		if (!file)
+			return false;
+		const DWORD start = ::GetTickCount();
+		while (file->is_decoding())
+		{
+			if (::GetTickCount() - start >= timeout)
+				return false;
+			::Sleep(1);
+		}
+		return true;
 	}
 }
 
@@ -109,6 +141,36 @@ int _tmain(int argc, TCHAR** argv)
 	thread->RemoveAllJobs();
 	passed &= expect(!source->IsPrefetchActive(adjacent),
 		"navigation cleanup must cancel active prefetch");
+	passed &= expect(WaitForDecodeStop(source, adjacent, 5000),
+		"cancelled prefetch must not keep DjVuLibre decoding");
+
+	// Race the producer against cancellation repeatedly.  Cancellation may land
+	// before or after resume_decode(false); both paths must leave no active job.
+	for (int attempt = 0; attempt < 32; ++attempt)
+	{
+		HANDLE started = ::CreateEvent(NULL, TRUE, FALSE, NULL);
+		PrefetchRace race = { source, adjacent, started };
+		uintptr_t handle = _beginthreadex(NULL, 0, StartPrefetchProc, &race, 0, NULL);
+		passed &= expect(handle != 0 && ::WaitForSingleObject(started, 5000) == WAIT_OBJECT_0,
+			"prefetch race worker must start");
+		for (int cancel = 0; cancel < 8; ++cancel)
+		{
+			source->CancelPrefetches();
+			::Sleep(0);
+		}
+		if (handle != 0)
+		{
+			passed &= expect(::WaitForSingleObject((HANDLE)handle, 5000) == WAIT_OBJECT_0,
+				"prefetch race worker must finish");
+			::CloseHandle((HANDLE)handle);
+		}
+		::CloseHandle(started);
+		source->CancelPrefetches();
+		passed &= expect(!source->IsPrefetchActive(adjacent),
+			"raced cancellation must clear prefetch registration");
+		passed &= expect(WaitForDecodeStop(source, adjacent, 5000),
+			"raced cancellation must stop speculative decode");
+	}
 
 	observer.Reset();
 	thread->AddDecodeJob(adjacent);
