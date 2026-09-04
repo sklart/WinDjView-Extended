@@ -216,6 +216,8 @@ protected:
 	int GetProcessedPageCacheEntries() const { return m_nProcessedPageCacheEntries; }
 	int m_nBitmapCacheHits, m_nBitmapCacheMisses, m_nBitmapCacheEvictions;
 	long m_nBitmapCacheClock;
+	map<int, __int64> m_bitmapCacheBytes;
+	__int64 m_nRetainedBitmapBytes;
 	void ResetBitmapCacheCounters();
 	void GetBitmapCacheCounters(int& hits, int& misses, int& evictions) const;
 	int GetRetainedBitmapCount() const;
@@ -278,11 +280,11 @@ protected:
 
 		void Init(DjVuSource* pSource, int nPage, bool bNeedText = false, bool bNeedAnno = false)
 		{
-			// A refreshed PageInfo can represent changed page content; no retained
-			// raster is valid across that boundary.
-			if (info.bDecoded)
+			PageInfo updated = pSource->GetPageInfo(nPage, bNeedText, bNeedAnno);
+			if (info.szPage != updated.szPage || info.nDPI != updated.nDPI ||
+				info.nInitialRotate != updated.nInitialRotate)
 				DeleteBitmap();
-			info.Update(pSource->GetPageInfo(nPage, bNeedText, bNeedAnno));
+			info.Update(updated);
 		}
 
 		PageInfo info;

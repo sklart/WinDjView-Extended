@@ -293,7 +293,7 @@ CDjVuView::CDjVuView()
 	  m_bPopupMenu(false), m_bClickedCustom(false), m_bUpdateBitmaps(false),
 	  m_nWhitePoint(15), m_nMinWhiteMargins(20), m_bMouseNavigation(false),
 	  m_nProcessedPageCacheEntries(0), m_nBitmapCacheHits(0), m_nBitmapCacheMisses(0),
-	  m_nBitmapCacheEvictions(0), m_nBitmapCacheClock(0)
+	  m_nBitmapCacheEvictions(0), m_nBitmapCacheClock(0), m_nRetainedBitmapBytes(0)
 {
 	m_historyPoint = m_history.end();
 	m_strForSearch = "";
@@ -1760,19 +1760,12 @@ void CDjVuView::GetBitmapCacheCounters(int& hits, int& misses, int& evictions) c
 
 int CDjVuView::GetRetainedBitmapCount() const
 {
-	int count = 0;
-	for (int nPage = 0; nPage < m_nPageCount; ++nPage)
-		if (m_pages[nPage].pBitmap != NULL) ++count;
-	return count;
+	return (int)m_bitmapCacheBytes.size();
 }
 
 __int64 CDjVuView::GetRetainedBitmapBytes() const
 {
-	__int64 bytes = 0;
-	for (int nPage = 0; nPage < m_nPageCount; ++nPage)
-		if (m_pages[nPage].pBitmap != NULL)
-			bytes += (__int64)m_pages[nPage].pBitmap->GetWidth()*m_pages[nPage].pBitmap->GetHeight()*m_pages[nPage].pBitmap->GetBitsPerPixel()/8;
-	return bytes;
+	return m_nRetainedBitmapBytes;
 }
 
 bool CDjVuView::HasReusableBitmap(Page& page) const
@@ -1787,6 +1780,12 @@ bool CDjVuView::HasReusableBitmap(Page& page) const
 
 void CDjVuView::SetBitmapIdentity(Page& page)
 {
+	int nPage = (int)(&page - &m_pages[0]);
+	map<int, __int64>::iterator it = m_bitmapCacheBytes.find(nPage);
+	if (it != m_bitmapCacheBytes.end()) m_nRetainedBitmapBytes -= it->second;
+	__int64 bytes = page.pBitmap == NULL ? 0 : (__int64)page.pBitmap->GetWidth()*page.pBitmap->GetHeight()*page.pBitmap->GetBitsPerPixel()/8;
+	if (bytes) m_bitmapCacheBytes[nPage] = bytes, m_nRetainedBitmapBytes += bytes;
+	else if (it != m_bitmapCacheBytes.end()) m_bitmapCacheBytes.erase(it);
 	page.bBitmapIdentity = page.pBitmap != NULL;
 	page.szBitmapIdentity = page.szBitmap;
 	page.nBitmapRotate = m_nRotate;
@@ -1799,13 +1798,15 @@ void CDjVuView::PruneBitmapCache()
 {
 	const int kMaxBitmaps = 16;
 	const __int64 kMaxBytes = 64LL*1024*1024;
-	while (GetRetainedBitmapCount() > kMaxBitmaps || GetRetainedBitmapBytes() > kMaxBytes)
+	while ((int)m_bitmapCacheBytes.size() > kMaxBitmaps || m_nRetainedBitmapBytes > kMaxBytes)
 	{
 		int victim = -1; long oldest = LONG_MAX;
-		for (int nPage = 0; nPage < m_nPageCount; ++nPage)
-			if (m_pages[nPage].pBitmap != NULL && m_pages[nPage].nBitmapLastUsed < oldest)
-				victim = nPage, oldest = m_pages[nPage].nBitmapLastUsed;
+		for (map<int, __int64>::iterator it = m_bitmapCacheBytes.begin(); it != m_bitmapCacheBytes.end(); ++it)
+			if (m_pages[it->first].nBitmapLastUsed < oldest)
+				victim = it->first, oldest = m_pages[it->first].nBitmapLastUsed;
 		if (victim == -1) break;
+		m_nRetainedBitmapBytes -= m_bitmapCacheBytes[victim];
+		m_bitmapCacheBytes.erase(victim);
 		m_pages[victim].DeleteBitmap();
 		++m_nBitmapCacheEvictions;
 	}
@@ -1834,7 +1835,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 	else if (page.rcDisplay.top < nTop + 3*szViewport.cy &&
 			 page.rcDisplay.bottom > nTop - 2*szViewport.cy)
 	{
-		if (!HasReusableBitmap(page))
+		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
 			page.DeleteBitmap();
@@ -1887,7 +1888,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 	else if (nPageSize < 3000000 && abs(nPage - m_nPage) <= 2 ||
 			 abs(nPage - m_nPage) <= 1)
 	{
-		if (!HasReusableBitmap(page))
+		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
 			page.DeleteBitmap();
@@ -1938,7 +1939,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 	else if (nPageSize < 1500000 && nPage >= m_nPage - 4 && nPage <= m_nPage + 5 ||
 			 nPage >= m_nPage - 2 && nPage <= m_nPage + 3)
 	{
-		if (!HasReusableBitmap(page))
+		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
 			page.DeleteBitmap();

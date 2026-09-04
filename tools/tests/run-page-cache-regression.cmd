@@ -12,7 +12,8 @@ if "%FIXTURE%"=="" set "FIXTURE=tools\tests\fixtures\minimal.djvu"
 if /I not "%CONFIGURATION%"=="Release" exit /b 2
 if /I not "%PLATFORM%"=="x64" exit /b 2
 if /I not "%BUILD_FLAVOR%"=="native" exit /b 2
-for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%I"
+for %%I in ("%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe") do set "VSWHERE=%%~sI"
+for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set "VSROOT=%%I"
 if not defined VSROOT exit /b 1
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
