@@ -17,13 +17,23 @@ for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version "[17.0,18.0)" -
 if not defined VSROOT exit /b 1
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
+if not exist "%VSROOT%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" (
+	for %%I in ("%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe") do set "CMAKE=%%~sI"
+)
+msbuild src\WinDjView.Native.vcxproj /nologo /t:Rebuild /m /p:Configuration=Release /p:Platform=x64
+if errorlevel 1 exit /b %errorlevel%
 set "JPEG_BUILD=src\third_party\libjpeg-turbo\build\Release_x64"
 set "TEST_BASENAME=tools\tests\page_cache_regression-Release-x64-native"
 set "OBJECT_DIR=src\Release\x64"
-if not exist "%OBJECT_DIR%\DjVuView.obj" set "OBJECT_DIR=src\Release_x64"
 set "APP_OBJECT_NAMES=AnnotationDlg AppSettings BookmarkDlg BookmarksView CropPagesDlg DjVuDoc DjVuSource DjVuView DocPropertiesDlg Drawing FindDlg FullscreenWnd Global GotoPageDlg InstallDicDlg MagnifyWnd MainFrm MDIChild MyBitmapButton MyColorPicker MyComboBox MyDialog MyDocManager MyDocTemplate MyEdit MyFileDialog MyGdiPlus MyScrollView MyStatusBar MyTheme MyToolBar MyTreeView NavPane PageIndexWnd PathUtil PositionParser PrintDlg ProgressDlg RenderThread Scaling SearchResultsView SettingsAdvancedPage SettingsDictPage SettingsDisplayPage SettingsDlg SettingsGeneralPage stdafx TabbedMDIWnd ThumbnailsThread ThumbnailsView UpdateDlg WinDjView XMLParser ZoomDlg"
 set "APP_OBJECTS="
-for %%F in (%APP_OBJECT_NAMES%) do set "APP_OBJECTS=!APP_OBJECTS! %OBJECT_DIR%\%%F.obj"
+for %%F in (%APP_OBJECT_NAMES%) do (
+	if not exist "%OBJECT_DIR%\%%F.obj" (
+		echo Missing v143 app object: "%OBJECT_DIR%\%%F.obj" 1>&2
+		exit /b 3
+	)
+	set "APP_OBJECTS=!APP_OBJECTS! %OBJECT_DIR%\%%F.obj"
+)
 lib /nologo /out:"%TEST_BASENAME%-app.lib" !APP_OBJECTS!
 if errorlevel 1 exit /b %errorlevel%
 set "DJVU_LIBRARY=src\Release_x64\libdjvu64.lib"
