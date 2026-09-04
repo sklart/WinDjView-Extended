@@ -292,7 +292,8 @@ CDjVuView::CDjVuView()
 	  m_pHoverAnno(NULL), m_pClickedAnno(NULL), m_bDraggingLink(false),
 	  m_bPopupMenu(false), m_bClickedCustom(false), m_bUpdateBitmaps(false),
 	  m_nWhitePoint(15), m_nMinWhiteMargins(20), m_bMouseNavigation(false),
-	  m_nProcessedPageCacheEntries(0)
+	  m_nProcessedPageCacheEntries(0), m_nBitmapCacheHits(0), m_nBitmapCacheMisses(0),
+	  m_nBitmapCacheEvictions(0), m_nBitmapCacheClock(0)
 {
 	m_historyPoint = m_history.end();
 	m_strForSearch = "";
@@ -411,7 +412,7 @@ void CDjVuView::OnDraw(CDC* pDC)
 				for (list<Annotation>::iterator lit = pageSettings.anno.begin(); lit != pageSettings.anno.end(); ++lit)
 					DrawAnnotation(&m_offscreenDC, *lit, nPage, &(*lit) == m_pHoverAnno);
 			}
-			// красная линия
+			// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
 			if (m_nRedLineType != None && m_RedLine->nPage == nPage)
 			{
 				int nRotate = (m_nRotate + page.info.nInitialRotate) % 4;
@@ -440,7 +441,7 @@ void CDjVuView::OnDraw(CDC* pDC)
 
 				DrawAnnotation(&m_offscreenDC, redLine, m_RedLine->nPage, false);
 			}
-			//изменение цвета фона
+			//пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
 			if (m_displaySettings.bChangePagesColor)
 			{
 				Annotation pageAnno = Annotation();
@@ -481,7 +482,7 @@ void CDjVuView::OnDraw(CDC* pDC)
 			// Draw transparent text on top of the image to assist dictionaries and
 			// other programs that hook to TextOut to find text under mouse pointer.
 			//if (m_nRedLineType == None)
-			//	DrawTransparentText(&m_offscreenDC, nPage); - отключил, т.к. вызывает баг с линией-аннотацией на разворотах
+			//	DrawTransparentText(&m_offscreenDC, nPage); - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅ.пїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 			pDC->RestoreDC(nSaveDC);
 		}
@@ -1747,6 +1748,69 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 	}
 }
 
+void CDjVuView::ResetBitmapCacheCounters()
+{
+	m_nBitmapCacheHits = m_nBitmapCacheMisses = m_nBitmapCacheEvictions = 0;
+}
+
+void CDjVuView::GetBitmapCacheCounters(int& hits, int& misses, int& evictions) const
+{
+	hits = m_nBitmapCacheHits; misses = m_nBitmapCacheMisses; evictions = m_nBitmapCacheEvictions;
+}
+
+int CDjVuView::GetRetainedBitmapCount() const
+{
+	int count = 0;
+	for (int nPage = 0; nPage < m_nPageCount; ++nPage)
+		if (m_pages[nPage].pBitmap != NULL) ++count;
+	return count;
+}
+
+__int64 CDjVuView::GetRetainedBitmapBytes() const
+{
+	__int64 bytes = 0;
+	for (int nPage = 0; nPage < m_nPageCount; ++nPage)
+		if (m_pages[nPage].pBitmap != NULL)
+			bytes += (__int64)m_pages[nPage].pBitmap->GetWidth()*m_pages[nPage].pBitmap->GetHeight()*m_pages[nPage].pBitmap->GetBitsPerPixel()/8;
+	return bytes;
+}
+
+bool CDjVuView::HasReusableBitmap(Page& page) const
+{
+	if (page.pBitmap == NULL || !page.bBitmapIdentity || page.pBitmap->GetSize() != page.szBitmap ||
+		page.szBitmapIdentity != page.szBitmap || page.nBitmapRotate != m_nRotate ||
+		page.nBitmapDisplayMode != m_nDisplayMode || page.bitmapDisplaySettings != m_displaySettings)
+		return false;
+	page.nBitmapLastUsed = ++const_cast<CDjVuView*>(this)->m_nBitmapCacheClock;
+	return true;
+}
+
+void CDjVuView::SetBitmapIdentity(Page& page)
+{
+	page.bBitmapIdentity = page.pBitmap != NULL;
+	page.szBitmapIdentity = page.szBitmap;
+	page.nBitmapRotate = m_nRotate;
+	page.nBitmapDisplayMode = m_nDisplayMode;
+	page.bitmapDisplaySettings = m_displaySettings;
+	page.nBitmapLastUsed = ++m_nBitmapCacheClock;
+}
+
+void CDjVuView::PruneBitmapCache()
+{
+	const int kMaxBitmaps = 16;
+	const __int64 kMaxBytes = 64LL*1024*1024;
+	while (GetRetainedBitmapCount() > kMaxBitmaps || GetRetainedBitmapBytes() > kMaxBytes)
+	{
+		int victim = -1; long oldest = LONG_MAX;
+		for (int nPage = 0; nPage < m_nPageCount; ++nPage)
+			if (m_pages[nPage].pBitmap != NULL && m_pages[nPage].nBitmapLastUsed < oldest)
+				victim = nPage, oldest = m_pages[nPage].nBitmapLastUsed;
+		if (victim == -1) break;
+		m_pages[victim].DeleteBitmap();
+		++m_nBitmapCacheEvictions;
+	}
+}
+
 void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
 		vector<int>& add, vector<int>& remove)
 {
@@ -1770,20 +1834,22 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 	else if (page.rcDisplay.top < nTop + 3*szViewport.cy &&
 			 page.rcDisplay.bottom > nTop - 2*szViewport.cy)
 	{
-		if (page.pBitmap == NULL || page.szBitmap != page.pBitmap->GetSize() && bUpdateImages)
+		if (!HasReusableBitmap(page))
 		{
+			++m_nBitmapCacheMisses;
+			page.DeleteBitmap();
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
 			InvalidatePage(nPage);
 		}
+		else
+			++m_nBitmapCacheHits;
 		add.push_back(nPage);
 	}
 	else
 	{
-		page.DeleteBitmap();
-
 		if (m_nType != Magnify && (page.rcDisplay.top < nTop + 11*szViewport.cy
 				&& page.rcDisplay.bottom > nTop - 10*szViewport.cy
 				|| nPage == 0 || nPage == m_nPageCount - 1))
@@ -1821,20 +1887,22 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 	else if (nPageSize < 3000000 && abs(nPage - m_nPage) <= 2 ||
 			 abs(nPage - m_nPage) <= 1)
 	{
-		if (page.pBitmap == NULL || page.szBitmap != page.pBitmap->GetSize() && bUpdateImages)
+		if (!HasReusableBitmap(page))
 		{
+			++m_nBitmapCacheMisses;
+			page.DeleteBitmap();
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
 			InvalidatePage(nPage);
 		}
+		else
+			++m_nBitmapCacheHits;
 		add.push_back(nPage);
 	}
 	else
 	{
-		page.DeleteBitmap();
-
 		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
 		{
 			m_pRenderThread->AddDecodeJob(nPage);
@@ -1870,20 +1938,22 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 	else if (nPageSize < 1500000 && nPage >= m_nPage - 4 && nPage <= m_nPage + 5 ||
 			 nPage >= m_nPage - 2 && nPage <= m_nPage + 3)
 	{
-		if (page.pBitmap == NULL || page.szBitmap != page.pBitmap->GetSize() && bUpdateImages)
+		if (!HasReusableBitmap(page))
 		{
+			++m_nBitmapCacheMisses;
+			page.DeleteBitmap();
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
 			InvalidatePage(nPage);
 		}
+		else
+			++m_nBitmapCacheHits;
 		add.push_back(nPage);
 	}
 	else
 	{
-		page.DeleteBitmap();
-
 		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
 		{
 			m_pRenderThread->AddDecodeJob(nPage);
@@ -2033,6 +2103,7 @@ void CDjVuView::UpdateVisiblePages()
 	// Notify the source so that it will keep the page in cache
 	// for us in case another thread requests it.
 	m_pSource->ChangeObservedPages(this, add, remove);
+	PruneBitmapCache();
 
 	m_pRenderThread->ResumeJobs();
 }
@@ -4449,6 +4520,7 @@ LRESULT CDjVuView::OnPageRendered(WPARAM wParam, LPARAM lParam)
 	page.DeleteBitmap();
 	page.pBitmap = pBitmap;
 	page.bBitmapRendered = true;
+	SetBitmapIdentity(page);
 
 	long nPendingPage = InterlockedExchangeAdd(&m_nPendingPage, 0);
 	if (InvalidatePage(nPage) && nPage != nPendingPage)
@@ -5354,14 +5426,14 @@ void CDjVuView::OnFindString()
 			int nResult = contentsTree->SearchInContents(strFind, pDlg->m_bMatchCase, pDlg->m_bWholeWordsOnly, false); 
 			switch (nResult)
 			{
-			case 1:	// совпадение есть	
+			case 1:	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ	
 				return;
 
-			case 2: // совпадения были выше по дереву
+			case 2: // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 				GetMainFrame()->HilightStatusMessage(LoadString(IDS_SEARCH_CONTENTS_WRAPPED));
 				return;
 
-				//case 0: совпадений нет
+				//case 0: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
 			} 
 		}
 		else
@@ -5640,14 +5712,14 @@ void CDjVuView::OnFindPrev()
 			int nResult = contentsTree->SearchInContents(strFind, pDlg->m_bMatchCase, pDlg->m_bWholeWordsOnly, true); 
 			switch (nResult)
 			{
-			case 1:	// совпадение есть	
+			case 1:	// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ	
 				return;
 
-			case 2: // совпадения были выше по дереву
+			case 2: // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 				GetMainFrame()->HilightStatusMessage(LoadString(IDS_SEARCH_CONTENTS_WRAPPED));
 				return;
 
-				//case 0: совпадений нет
+				//case 0: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
 			} 
 		}
 		else
@@ -7010,7 +7082,7 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 {
 	int nPageNum = cgiLink.search("&pageno=");
 	int nPageTitle = cgiLink.search("&page=");
-	//если искать только &showposition, то Num присылать >=1
+	//пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ &showposition, пїЅпїЅ Num пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ >=1
 	if (nPageNum == -1 && nPageTitle == -1 && Num == -1) 
 		return false;
 	if (Num == -1)
@@ -7174,7 +7246,7 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 		Y = nPosY; //(int)((1 - ky) * szPage.cy);
 		break;
 
-	case 1: //лево
+	case 1: //пїЅпїЅпїЅпїЅ
 		X = szPage.cy - nPosY; //(int)((1 - ky) * szPage.cy);
 		Y = nPosX; //(int)((1 - kx) * szPage.cx);
 		break;
@@ -7184,7 +7256,7 @@ bool CDjVuView::ParseCGI(GUTF8String& cgiLink, int& Num, int& X, int& Y, bool &b
 		Y = szPage.cy - nPosY; //(int)(ky * szPage.cy);
 		break;
 
-	case 3: //право
+	case 3: //пїЅпїЅпїЅпїЅпїЅ
 		X = nPosY; //(int)(ky * szPage.cy);
 		Y = szPage.cx - nPosX; //(int)(kx * szPage.cx);
 		break;
@@ -7757,7 +7829,7 @@ void CDjVuView::GetNormalizedText(wstring& text, bool bSelected, int nMaxLength,
 				 nWordPos < text.length() && text[nWordPos] <= 0x20;
 				 ++nWordPos)
 			{
-				if (wcschr(L"\n\r\013\035\037\038", text[nWordPos]) != NULL) //добавил 037: const char DjVuTXT::end_of_paragraph = 037; // US: Unit Separator
+				if (wcschr(L"\n\r\013\035\037\038", text[nWordPos]) != NULL) //пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 037: const char DjVuTXT::end_of_paragraph = 037; // US: Unit Separator
 					bFoundEOL = true;
 			}
 
@@ -9275,7 +9347,7 @@ void CDjVuView::GetTextWithoutHyphen(GUTF8String& text)
 			nWordPos < wtext.length() && wtext[nWordPos] <= 0x20;
 			++nWordPos)
 		{
-			if (wcschr(L"\n\r\013\035\037\038", wtext[nWordPos]) != NULL) //добавил 037: const char DjVuTXT::end_of_paragraph = 037; // US: Unit Separator
+			if (wcschr(L"\n\r\013\035\037\038", wtext[nWordPos]) != NULL) //пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 037: const char DjVuTXT::end_of_paragraph = 037; // US: Unit Separator
 				bFoundEOL = true;
 		}
 
@@ -9331,7 +9403,7 @@ void CDjVuView::GetTextWithoutHyphen(GUTF8String& text)
 size_t CDjVuView::FindHyphen(wstring& wtext, size_t off)
 {
 	size_t nHyphen = wtext.find(L'-', off);
-	size_t nHyphen2 = wtext.find(L'¬', off);
+	size_t nHyphen2 = wtext.find(L'пїЅ', off);
 	return nHyphen < nHyphen2 ? nHyphen : nHyphen2;
 }
 
@@ -9852,8 +9924,8 @@ GUTF8String CDjVuView::ChangeYoYe(const GUTF8String& text, bool bReplaceNBS)
 {
 	if (text.length() > 0)
 	{
-		CString strYo = _T("Ё");
-		CString nbSpace = CString((wchar_t)0xA0); //замена неразрывного пробела на обычный
+		CString strYo = _T("пїЅ");
+		CString nbSpace = CString((wchar_t)0xA0); //пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 		GUTF8String strFind = MakeUTF8String(strYo);
 		GUTF8String strFind2 = MakeUTF8String(nbSpace);
@@ -9862,7 +9934,7 @@ GUTF8String CDjVuView::ChangeYoYe(const GUTF8String& text, bool bReplaceNBS)
 		if (text.search(strFind) > -1 || bNeedReplaceNBS)
 		{
 			CString str = MakeCString(text);
-			str.Replace(strYo,_T("Е"));
+			str.Replace(strYo,_T("пїЅ"));
 			if (bNeedReplaceNBS)
 				str.Replace(nbSpace,_T(" "));
 
@@ -9926,22 +9998,22 @@ GUTF8String CDjVuView::TrimEnding(const GUTF8String& text, bool bOnlySpace)
 		MakeWString(text,wtext);
 		size_t nLastPos = wtext.length() - 1;
 		size_t nBeforeLast = nLastPos - 1;
-		if (wcschr(L"АОЬИЫ", wtext[nLastPos]) != NULL)
+		if (wcschr(L"пїЅпїЅпїЅпїЅпїЅ", wtext[nLastPos]) != NULL)
 		{
 			strResult = MakeUTF8String(wtext.substr(0, nLastPos));
 		}
-		else if (wcschr(L"Й", wtext[nLastPos]) != NULL && wcschr(L"ОИЫ", wtext[nBeforeLast]) != NULL)
+		else if (wcschr(L"пїЅ", wtext[nLastPos]) != NULL && wcschr(L"пїЅпїЅпїЅ", wtext[nBeforeLast]) != NULL)
 		{
 			strResult = MakeUTF8String(wtext.substr(0, nBeforeLast));
 		}
-		else if (wcschr(L"Я", wtext[nLastPos]) != NULL)
+		else if (wcschr(L"пїЅ", wtext[nLastPos]) != NULL)
 		{
-			size_t n = wcschr(L"АЯ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
+			size_t n = wcschr(L"пїЅпїЅ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
 			strResult = MakeUTF8String(wtext.substr(0, n));
 		}
-		else if (wcschr(L"Е", wtext[nLastPos]) != NULL)
+		else if (wcschr(L"пїЅ", wtext[nLastPos]) != NULL)
 		{
-			size_t n = wcschr(L"ОЕИЫ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
+			size_t n = wcschr(L"пїЅпїЅпїЅпїЅ", wtext[nBeforeLast]) != NULL ? nBeforeLast : nLastPos;
 			strResult = MakeUTF8String(wtext.substr(0, n));
 		}
 	}

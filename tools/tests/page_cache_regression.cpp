@@ -112,6 +112,7 @@ struct CacheHarness
 		add.clear();
 		remove.clear();
 		view.ResetPageCacheEntryCounter();
+		view.ResetBitmapCacheCounters();
 		thread->ResetSubmittedJobCounts();
 		if (clearJobs)
 			thread->RemoveAllJobs();
@@ -122,6 +123,15 @@ struct CacheHarness
 		else
 			view.UpdatePagesCacheContinuous(true, add, remove);
 		view.ScheduleAdjacentPrefetch(add, remove);
+		view.PruneBitmapCache();
+	}
+
+	void SeedBitmap(int page)
+	{
+		CDjVuView::Page& pageData = view.m_pages[page];
+		pageData.DeleteBitmap();
+		pageData.pBitmap = CDIB::CreateDIB(pageData.szBitmap.cx, pageData.szBitmap.cy, 24);
+		view.SetBitmapIdentity(pageData);
 	}
 };
 
@@ -232,6 +242,66 @@ bool RunRegression(CacheHarness& harness)
 	harness.thread->GetQueuedJobCounts(render2, decode2, prefetch2);
 	passed &= Expect(render1 == render2 && decode1 == decode2 && prefetch1 == prefetch2,
 		"repeated update must not duplicate render/decode/prefetch jobs");
+
+	// Fixed-zoom A -> B -> A: a retained DIB must suppress A's second render.
+	harness.Configure(500, CDjVuView::SinglePage, 10, 0, 900);
+	for (int page = 8; page <= 12; ++page)
+		harness.SeedBitmap(page);
+	harness.Update(add, remove);
+	int renderA, decodeA, prefetchA, hits, misses, evictions;
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	harness.view.GetBitmapCacheCounters(hits, misses, evictions);
+	passed &= Expect(renderA == 0 && hits > 0, "initial retained A bitmap must be a cache hit");
+	harness.ApplyObservation(add, remove);
+	harness.view.m_nPage = 100;
+	harness.Update(add, remove, false);
+	harness.ApplyObservation(add, remove);
+	harness.SeedBitmap(100);
+	harness.view.m_nPage = 10;
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	harness.view.GetBitmapCacheCounters(hits, misses, evictions);
+	passed &= Expect(renderA == 0 && hits > 0, "A -> B -> A must reuse A without a render job");
+
+	// An identical update and a resize that keeps target pixels must reuse.
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	passed &= Expect(renderA == 0, "identical viewport update must not submit render jobs");
+	harness.view.m_szViewport.cy = 1200;
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	passed &= Expect(renderA == 0, "resize without target-size change must reuse bitmap");
+
+	// Every render-identity change invalidates the retained bitmap.
+	harness.view.m_pages[10].szBitmap = CSize(700, 875);
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	passed &= Expect(renderA > 0, "zoom target-size change must submit a new render");
+	harness.SeedBitmap(10);
+	++harness.view.m_nRotate;
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	passed &= Expect(renderA > 0, "rotation must not reuse an old bitmap");
+	harness.SeedBitmap(10);
+	harness.view.m_displaySettings.bInvertColors = !harness.view.m_displaySettings.bInvertColors;
+	harness.Update(add, remove, false);
+	harness.thread->GetSubmittedJobCounts(renderA, decodeA, prefetchA);
+	passed &= Expect(renderA > 0, "display settings must not reuse an old bitmap");
+
+	// Retention is bounded independently of the synthetic document size.
+	const int bitmapCounts[] = { 500, 4096 };
+	for (int countIndex = 0; countIndex < 2; ++countIndex)
+	{
+		harness.Configure(bitmapCounts[countIndex], CDjVuView::SinglePage, 0, 0, 900);
+		for (int page = 0; page < 40; ++page)
+		{
+			harness.SeedBitmap(page);
+			harness.view.PruneBitmapCache();
+		}
+		passed &= Expect(harness.view.GetRetainedBitmapCount() <= 16 &&
+			harness.view.GetRetainedBitmapBytes() <= 64LL*1024*1024,
+			"retained bitmap cache must remain bounded");
+	}
 	return passed;
 }
 
@@ -239,6 +309,7 @@ void RunBenchmark(CacheHarness& harness)
 {
 	const int updates = 100;
 	int totalProcessed = 0, totalRender = 0, totalDecode = 0, totalPrefetch = 0;
+	int totalHits = 0, totalMisses = 0, totalEvictions = 0;
 	LARGE_INTEGER frequency, begin, end;
 	QueryPerformanceFrequency(&frequency);
 	harness.Configure(4096, CDjVuView::ContinuousFacing, 0, 0, 900);
@@ -255,6 +326,9 @@ void RunBenchmark(CacheHarness& harness)
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		int hits, misses, evictions;
+		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
+		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
 		harness.ApplyObservation(add, remove);
 	}
 	for (int i = 0; i < updates; ++i)
@@ -269,6 +343,9 @@ void RunBenchmark(CacheHarness& harness)
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		int hits, misses, evictions;
+		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
+		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
 		harness.ApplyObservation(add, remove);
 	}
 	for (int i = 0; i < updates; ++i)
@@ -284,12 +361,16 @@ void RunBenchmark(CacheHarness& harness)
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		int hits, misses, evictions;
+		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
+		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
 		harness.ApplyObservation(add, remove);
 	}
 	QueryPerformanceCounter(&end);
 	const double elapsed = 1000.0 * (end.QuadPart - begin.QuadPart) / frequency.QuadPart;
-	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_page_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d\n",
-		updates * 3, elapsed, totalProcessed, totalRender, totalDecode, totalPrefetch);
+	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_page_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d bitmap_cache_hits=%d bitmap_cache_misses=%d bitmap_evictions=%d retained_bitmap_count=%d retained_bitmap_bytes=%I64d\n",
+		updates * 3, elapsed, totalProcessed, totalRender, totalDecode, totalPrefetch,
+		totalHits, totalMisses, totalEvictions, harness.view.GetRetainedBitmapCount(), harness.view.GetRetainedBitmapBytes());
 }
 }
 

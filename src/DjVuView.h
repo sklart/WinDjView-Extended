@@ -214,6 +214,12 @@ protected:
 	int m_nProcessedPageCacheEntries;
 	void ResetPageCacheEntryCounter() { m_nProcessedPageCacheEntries = 0; }
 	int GetProcessedPageCacheEntries() const { return m_nProcessedPageCacheEntries; }
+	int m_nBitmapCacheHits, m_nBitmapCacheMisses, m_nBitmapCacheEvictions;
+	long m_nBitmapCacheClock;
+	void ResetBitmapCacheCounters();
+	void GetBitmapCacheCounters(int& hits, int& misses, int& evictions) const;
+	int GetRetainedBitmapCount() const;
+	__int64 GetRetainedBitmapBytes() const;
 
 	int m_nPage, m_nPageCount;
 	long m_nPendingPage;
@@ -257,7 +263,9 @@ protected:
 	{
 		Page() :
 			szBitmap(0, 0), ptOffset(0, 0), pBitmap(NULL), nSelStart(-1), nSelEnd(-1),
-			bHasSize(false), bBitmapRendered(false), bIsFindResult(false) {}
+			bHasSize(false), bBitmapRendered(false), bIsFindResult(false),
+			bBitmapIdentity(false), nBitmapRotate(0), nBitmapDisplayMode(Color),
+			nBitmapLastUsed(0) {}
 		~Page() { delete pBitmap; }
 
 		CSize GetSize(int nRotate) const
@@ -270,6 +278,10 @@ protected:
 
 		void Init(DjVuSource* pSource, int nPage, bool bNeedText = false, bool bNeedAnno = false)
 		{
+			// A refreshed PageInfo can represent changed page content; no retained
+			// raster is valid across that boundary.
+			if (info.bDecoded)
+				DeleteBitmap();
 			info.Update(pSource->GetPageInfo(nPage, bNeedText, bNeedAnno));
 		}
 
@@ -281,6 +293,11 @@ protected:
 		CDIB* pBitmap;
 		bool bBitmapRendered;
 		bool bIsFindResult;
+		bool bBitmapIdentity;
+		CSize szBitmapIdentity;
+		int nBitmapRotate, nBitmapDisplayMode;
+		CDisplaySettings bitmapDisplaySettings;
+		long nBitmapLastUsed;
 
 		DjVuSelection selection;
 		int nSelStart, nSelEnd;
@@ -290,6 +307,7 @@ protected:
 			delete pBitmap;
 			pBitmap = NULL;
 			bBitmapRendered = false;
+			bBitmapIdentity = false;
 		}
 	};
 	vector<Page> m_pages;
@@ -359,6 +377,9 @@ protected:
 	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
+	bool HasReusableBitmap(Page& page) const;
+	void SetBitmapIdentity(Page& page);
+	void PruneBitmapCache();
 	bool IsViewNextpageEnabled();
 	bool IsViewPreviouspageEnabled() const;
 	void ClearSelection(int nPage = -1);
