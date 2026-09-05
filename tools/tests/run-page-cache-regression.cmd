@@ -13,10 +13,33 @@ if /I not "%CONFIGURATION%"=="Release" exit /b 2
 if /I not "%PLATFORM%"=="x64" exit /b 2
 if /I not "%BUILD_FLAVOR%"=="native" exit /b 2
 for %%I in ("%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe") do set "VSWHERE=%%~sI"
-for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.VC.14.44.17.14.MFC -requires Microsoft.VisualStudio.Component.VC.14.44.17.14.ATL -property installationPath') do set "VSROOT=%%I"
-if not defined VSROOT exit /b 1
+for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version "[17.0,18.0)" -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set "VSROOT=%%I"
+if not defined VSROOT (
+	echo Visual Studio 2022 C++ tools were not found. 1>&2
+	exit /b 1
+)
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
+if /I not "%VCToolsVersion:~0,5%"=="14.44" (
+	echo Expected MSVC 14.44, found "%VCToolsVersion%". 1>&2
+	exit /b 1
+)
+if not exist "%VCToolsInstallDir%atlmfc\include\afxwin.h" (
+	echo MFC for MSVC %VCToolsVersion% is not installed. 1>&2
+	exit /b 1
+)
+if not exist "%VCToolsInstallDir%atlmfc\include\atlbase.h" (
+	echo ATL for MSVC %VCToolsVersion% is not installed. 1>&2
+	exit /b 1
+)
+if not exist "%VCToolsInstallDir%atlmfc\lib\x64\mfc140u.lib" (
+	echo MFC x64 libraries for MSVC %VCToolsVersion% are not installed. 1>&2
+	exit /b 1
+)
+if not exist "%VCToolsInstallDir%atlmfc\lib\x64\atls.lib" (
+	echo ATL x64 libraries for MSVC %VCToolsVersion% are not installed. 1>&2
+	exit /b 1
+)
 where cl
 where link
 cl /Bv
