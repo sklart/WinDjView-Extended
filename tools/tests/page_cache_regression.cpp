@@ -77,6 +77,7 @@ public:
 	{
 		ClearObserved();
 		thread->RemoveAllJobs();
+		view.DeleteBitmaps();
 		source->m_nPageCount = count;
 		view.m_nPageCount = count;
 		view.m_nLayout = layout;
@@ -125,11 +126,13 @@ public:
 		view.PruneBitmapCache();
 	}
 
-	void SeedBitmap(int page)
+	void SeedBitmap(int page, int width = -1, int height = -1, int bitsPerPixel = 24)
 	{
 		CDjVuView::Page& pageData = view.m_pages[page];
-		pageData.DeleteBitmap();
-		pageData.pBitmap = CDIB::CreateDIB(pageData.szBitmap.cx, pageData.szBitmap.cy, 24);
+		view.DeleteCachedBitmap(pageData);
+		if (width > 0 && height > 0)
+			pageData.szBitmap = CSize(width, height);
+		pageData.pBitmap = CDIB::CreateDIB(pageData.szBitmap.cx, pageData.szBitmap.cy, bitsPerPixel);
 		view.SetBitmapIdentity(pageData);
 	}
 
@@ -297,14 +300,53 @@ bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harne
 	{
 		harness.Configure(bitmapCounts[countIndex], CDjVuView::SinglePage, 0, 0, 900);
 		for (int page = 0; page < 40; ++page)
-		{
 			harness.SeedBitmap(page);
-			harness.view.PruneBitmapCache();
-		}
 		passed &= Expect(harness.view.GetRetainedBitmapCount() <= 16 &&
 			harness.view.GetRetainedBitmapBytes() <= 64LL*1024*1024,
-			"retained bitmap cache must remain bounded");
+			"each completed bitmap must enforce the retained-cache limit immediately");
 	}
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	for (int page = 0; page < 8; ++page)
+		harness.SeedBitmap(page, 3000, 1000, 24);
+	passed &= Expect(harness.view.GetRetainedBitmapBytes() <= 64LL*1024*1024,
+		"completed large bitmaps must enforce the byte limit immediately");
+
+	// Cache bookkeeping must be updated at the same time as the DIB lifetime.
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	harness.SeedBitmap(0);
+	const __int64 retainedBytes = harness.view.GetRetainedBitmapBytes();
+	harness.view.DeleteCachedBitmap(harness.view.m_pages[0]);
+	passed &= Expect(retainedBytes > 0 && harness.view.GetRetainedBitmapCount() == 0 &&
+		harness.view.GetRetainedBitmapBytes() == 0 && harness.view.m_pages[0].pBitmap == NULL,
+		"bitmap deletion must immediately unregister retained bytes and identity");
+	harness.SeedBitmap(0, 801, 3, 24);
+	const __int64 firstReplacementBytes = harness.view.GetRetainedBitmapBytes();
+	harness.SeedBitmap(0, 803, 3, 24);
+	passed &= Expect(harness.view.GetRetainedBitmapCount() == 1 &&
+		harness.view.GetRetainedBitmapBytes() != firstReplacementBytes,
+		"replacing a bitmap must not leave stale cache bookkeeping");
+
+	// DIB rows are DWORD aligned: 24-bit width 1 uses four bytes per row.
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	harness.SeedBitmap(0, 1, 7, 24);
+	passed &= Expect(harness.view.GetRetainedBitmapBytes() == 28,
+		"24-bit DIB storage must include DWORD row alignment");
+	harness.SeedBitmap(0, 1, 7, 32);
+	passed &= Expect(harness.view.GetRetainedBitmapBytes() == 28,
+		"32-bit DIB storage must use the actual aligned stride");
+
+	// A copied DIB with a different render identity must not become reusable.
+	CacheView copySource;
+	copySource.m_pages.assign(1, CDjVuView::Page());
+	copySource.m_nPageCount = 1;
+	copySource.m_pages[0].szBitmap = CSize(800, 1000);
+	copySource.m_pages[0].pBitmap = CDIB::CreateDIB(800, 1000, 24);
+	copySource.SetBitmapIdentity(copySource.m_pages[0]);
+	++copySource.m_nRotate;
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	harness.view.CopyBitmapFrom(&copySource, 0);
+	passed &= Expect(harness.view.m_pages[0].pBitmap == NULL && harness.view.GetRetainedBitmapCount() == 0,
+		"CopyBitmapFrom must discard a DIB with a mismatched identity");
 	return passed;
 }
 

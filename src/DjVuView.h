@@ -284,15 +284,6 @@ protected:
 			return sz;
 		}
 
-		void Init(DjVuSource* pSource, int nPage, bool bNeedText = false, bool bNeedAnno = false)
-		{
-			PageInfo updated = pSource->GetPageInfo(nPage, bNeedText, bNeedAnno);
-			if (info.szPage != updated.szPage || info.nDPI != updated.nDPI ||
-				info.nInitialRotate != updated.nInitialRotate)
-				DeleteBitmap();
-			info.Update(updated);
-		}
-
 		PageInfo info;
 		bool bHasSize;
 		CPoint ptOffset;
@@ -319,6 +310,7 @@ protected:
 		}
 	};
 	vector<Page> m_pages;
+	void InitPage(Page& page, int nPage, bool bNeedText = false, bool bNeedAnno = false);
 
 	void PreparePageRect(const CSize& szBounds, int nPage);
 	void PreparePageRectFacing(const CSize& szBounds, int nPage);
@@ -388,6 +380,9 @@ protected:
 	bool HasReusableBitmap(Page& page) const;
 	void SetBitmapIdentity(Page& page);
 	void PruneBitmapCache();
+	void DeleteCachedBitmap(Page& page);
+	void UnregisterBitmapCacheEntry(Page& page);
+	__int64 GetBitmapStorageBytes(const CDIB* pBitmap) const;
 	bool IsViewNextpageEnabled();
 	bool IsViewPreviouspageEnabled() const;
 	void ClearSelection(int nPage = -1);

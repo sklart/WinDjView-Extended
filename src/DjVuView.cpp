@@ -1018,7 +1018,7 @@ void CDjVuView::OnInitialUpdate()
 			m_fZoom = 100.0;
 
 		Page& page = m_pages[0];
-		page.Init(m_pSource, 0, false, true);
+		InitPage(page, 0, false, true);
 		if (page.info.pAnt != NULL)
 		{
 			ReadZoomSettings(page.info.pAnt);
@@ -1186,13 +1186,13 @@ void CDjVuView::RenderPage(int nPage, int nTimeout, bool bUpdateWindow)
 		m_nPage = nPage;
 
 		if (!page.info.bDecoded)
-			page.Init(m_pSource, nPage);
+			InitPage(page, nPage);
 
 		if (m_nLayout == Facing && nPage < m_nPageCount - 1)
 		{
 			Page& nextPage = m_pages[nPage + 1];
 			if (!nextPage.info.bDecoded)
-				nextPage.Init(m_pSource, nPage + 1);
+				InitPage(nextPage, nPage + 1);
 		}
 
 		UpdateLayout();
@@ -1266,7 +1266,7 @@ void CDjVuView::DeleteBitmaps(bool bReloadSize)
 {
 	for (int nPage = 0; nPage < m_nPageCount; ++nPage)
 	{
-		m_pages[nPage].DeleteBitmap();
+		DeleteCachedBitmap(m_pages[nPage]);
 		if (bReloadSize)
 		{
 			m_pages[nPage].info.bDecoded = false;
@@ -1748,6 +1748,15 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 	}
 }
 
+void CDjVuView::InitPage(Page& page, int nPage, bool bNeedText, bool bNeedAnno)
+{
+	PageInfo updated = m_pSource->GetPageInfo(nPage, bNeedText, bNeedAnno);
+	if (page.info.szPage != updated.szPage || page.info.nDPI != updated.nDPI ||
+		page.info.nInitialRotate != updated.nInitialRotate)
+		DeleteCachedBitmap(page);
+	page.info.Update(updated);
+}
+
 void CDjVuView::ResetBitmapCacheCounters()
 {
 	m_nBitmapCacheHits = m_nBitmapCacheMisses = m_nBitmapCacheEvictions = 0;
@@ -1780,18 +1789,54 @@ bool CDjVuView::HasReusableBitmap(Page& page) const
 
 void CDjVuView::SetBitmapIdentity(Page& page)
 {
-	int nPage = (int)(&page - &m_pages[0]);
-	map<int, __int64>::iterator it = m_bitmapCacheBytes.find(nPage);
-	if (it != m_bitmapCacheBytes.end()) m_nRetainedBitmapBytes -= it->second;
-	__int64 bytes = page.pBitmap == NULL ? 0 : (__int64)page.pBitmap->GetWidth()*page.pBitmap->GetHeight()*page.pBitmap->GetBitsPerPixel()/8;
-	if (bytes) m_bitmapCacheBytes[nPage] = bytes, m_nRetainedBitmapBytes += bytes;
-	else if (it != m_bitmapCacheBytes.end()) m_bitmapCacheBytes.erase(it);
+	UnregisterBitmapCacheEntry(page);
 	page.bBitmapIdentity = page.pBitmap != NULL;
+	if (page.pBitmap == NULL)
+		return;
+
+	const int nPage = (int)(&page - &m_pages[0]);
+	const __int64 bytes = GetBitmapStorageBytes(page.pBitmap);
+	if (bytes > 0)
+	{
+		m_bitmapCacheBytes[nPage] = bytes;
+		m_nRetainedBitmapBytes += bytes;
+	}
 	page.szBitmapIdentity = page.szBitmap;
 	page.nBitmapRotate = m_nRotate;
 	page.nBitmapDisplayMode = m_nDisplayMode;
 	page.bitmapDisplaySettings = m_displaySettings;
 	page.nBitmapLastUsed = ++m_nBitmapCacheClock;
+	PruneBitmapCache();
+}
+
+__int64 CDjVuView::GetBitmapStorageBytes(const CDIB* pBitmap) const
+{
+	if (pBitmap == NULL || pBitmap->GetWidth() <= 0 || pBitmap->GetHeight() <= 0 ||
+		pBitmap->GetBitsPerPixel() <= 0)
+		return 0;
+	const unsigned __int64 bitsPerLine = (unsigned __int64)pBitmap->GetWidth()*pBitmap->GetBitsPerPixel();
+	const unsigned __int64 stride = ((bitsPerLine + 31) & ~31ULL) / 8;
+	const unsigned __int64 height = (unsigned __int64)pBitmap->GetHeight();
+	if (stride > 0x7fffffffffffffffULL/height)
+		return 0x7fffffffffffffffLL;
+	return (__int64)(stride*height);
+}
+
+void CDjVuView::UnregisterBitmapCacheEntry(Page& page)
+{
+	int nPage = (int)(&page - &m_pages[0]);
+	map<int, __int64>::iterator it = m_bitmapCacheBytes.find(nPage);
+	if (it != m_bitmapCacheBytes.end())
+	{
+		m_nRetainedBitmapBytes -= it->second;
+		m_bitmapCacheBytes.erase(it);
+	}
+}
+
+void CDjVuView::DeleteCachedBitmap(Page& page)
+{
+	UnregisterBitmapCacheEntry(page);
+	page.DeleteBitmap();
 }
 
 void CDjVuView::PruneBitmapCache()
@@ -1805,9 +1850,7 @@ void CDjVuView::PruneBitmapCache()
 			if (m_pages[it->first].nBitmapLastUsed < oldest)
 				victim = it->first, oldest = m_pages[it->first].nBitmapLastUsed;
 		if (victim == -1) break;
-		m_nRetainedBitmapBytes -= m_bitmapCacheBytes[victim];
-		m_bitmapCacheBytes.erase(victim);
-		m_pages[victim].DeleteBitmap();
+		DeleteCachedBitmap(m_pages[victim]);
 		++m_nBitmapCacheEvictions;
 	}
 }
@@ -1838,7 +1881,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
-			page.DeleteBitmap();
+			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
@@ -1891,7 +1934,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
-			page.DeleteBitmap();
+			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
@@ -1942,7 +1985,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
 			++m_nBitmapCacheMisses;
-			page.DeleteBitmap();
+			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
@@ -3353,7 +3396,7 @@ CPoint CDjVuView::ScreenToDjVu(int nPage, const CPoint& point, bool bClip)
 {
 	Page& page = m_pages[nPage];
 	if (!page.info.bDecoded)
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 	CSize szPage = page.GetSize(m_nRotate);
 
 	double fRatioX = szPage.cx / (1.0*page.szBitmap.cx);
@@ -3439,7 +3482,7 @@ int CDjVuView::GetTextPosFromPoint(int nPage, const CPoint& point, bool bReturnB
 {
 	Page& page = m_pages[nPage];
 	if (page.info.bHasText && !page.info.bTextDecoded)
-		page.Init(m_pSource, nPage, true);
+		InitPage(page, nPage, true);
 
 	if (page.info.pText == NULL)
 		return 0;
@@ -3944,7 +3987,7 @@ void CDjVuView::SelectTextRange(int nPage, int nStart, int nEnd,
 		if (pWaitCursor == NULL)
 			pWaitCursor = new CWaitCursor();
 
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 		bInfoLoaded = true;
 	}
 
@@ -3953,7 +3996,7 @@ void CDjVuView::SelectTextRange(int nPage, int nStart, int nEnd,
 		if (pWaitCursor == NULL)
 			pWaitCursor = new CWaitCursor();
 
-		page.Init(m_pSource, nPage, true);
+		InitPage(page, nPage, true);
 	}
 
 	if (page.info.pText == NULL)
@@ -4518,7 +4561,7 @@ LRESULT CDjVuView::OnPageRendered(WPARAM wParam, LPARAM lParam)
 	OnPageDecoded(nPage, true);
 
 	Page& page = m_pages[nPage];
-	page.DeleteBitmap();
+	DeleteCachedBitmap(page);
 	page.pBitmap = pBitmap;
 	page.bBitmapRendered = true;
 	SetBitmapIdentity(page);
@@ -4609,7 +4652,7 @@ LRESULT CDjVuView::OnPageDecoded(WPARAM wParam, LPARAM lParam)
 	Page& page = m_pages[nPage];
 	bool bHadInfo = page.info.bDecoded;
 
-	page.Init(m_pSource, nPage);
+	InitPage(page, nPage);
 
 	if (!bHadInfo)
 	{
@@ -4829,7 +4872,7 @@ void CDjVuView::UpdatePageSize(const CSize& szBounds, int nPage)
 	if (!page.info.bDecoded || !page.bHasSize)
 	{
 		if (!page.info.bDecoded)
-			page.Init(m_pSource, nPage);
+			InitPage(page, nPage);
 
 		page.szBitmap = CalcPageSize(szBounds, page.GetSize(m_nRotate), page.info.nDPI);
 		m_bNeedUpdate = true;
@@ -4847,7 +4890,7 @@ void CDjVuView::UpdatePageSizeFacing(const CSize& szBounds, int nPage)
 	if (!pPage->info.bDecoded || !pPage->bHasSize)
 	{
 		if (!pPage->info.bDecoded)
-			pPage->Init(m_pSource, nLeftPage);
+			InitPage(*pPage, nLeftPage);
 
 		bUpdated = true;
 		m_bNeedUpdate = true;
@@ -4856,7 +4899,7 @@ void CDjVuView::UpdatePageSizeFacing(const CSize& szBounds, int nPage)
 	if (pNextPage != NULL && (!pNextPage->info.bDecoded || !pNextPage->bHasSize))
 	{
 		if (!pNextPage->info.bDecoded)
-			pNextPage->Init(m_pSource, nRightPage);
+			InitPage(*pNextPage, nRightPage);
 
 		bUpdated = true;
 		m_bNeedUpdate = true;
@@ -5095,7 +5138,7 @@ void CDjVuView::DoExportPage(int nPage, bool bCrop, GRect rect)
 
 	Page& page = m_pages[nPage];
 	if (!page.info.bDecoded)
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 
 	GP<DjVuImage> pImage = m_pSource->GetPage(nPage, NULL);
 	if (pImage == NULL)
@@ -5264,7 +5307,7 @@ unsigned int __stdcall CDjVuView::ExportThreadProc(void* pvData)
 
 		Page& page = pView->m_pages[nPage];
 		if (!page.info.bDecoded)
-			page.Init(pView->m_pSource, nPage);
+			pView->InitPage(page, nPage);
 
 		GP<DjVuImage> pImage = pView->m_pSource->GetPage(nPage, NULL);
 		if (pImage == NULL)
@@ -5487,7 +5530,7 @@ void CDjVuView::OnFindString()
 				if (!page.info.bDecoded)
 					m_bNeedUpdate = true;
 
-				page.Init(m_pSource, nPage, true);
+				InitPage(page, nPage, true);
 			}
 
 			if (page.info.pText != NULL)
@@ -5773,7 +5816,7 @@ void CDjVuView::OnFindPrev()
 				if (!page.info.bDecoded)
 					m_bNeedUpdate = true;
 
-				page.Init(m_pSource, nPage, true);
+				InitPage(page, nPage, true);
 			}
 
 			if (page.info.pText != NULL)
@@ -6025,7 +6068,7 @@ void CDjVuView::OnFindAll()
 				if (!page.info.bDecoded)
 					m_bNeedUpdate = true;
 
-				page.Init(m_pSource, nPage, true);
+				InitPage(page, nPage, true);
 			}
 
 			if (page.info.pText == NULL)
@@ -6536,7 +6579,7 @@ CRect CDjVuView::TranslatePageRect(int nPage, GRect rect, bool bToDisplay, bool 
 {
 	Page& page = m_pages[nPage];
 	if (!page.info.bDecoded)
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 	CSize szPage = page.GetSize(m_nRotate);
 
 	int nRotate = (m_nRotate + page.info.nInitialRotate) % 4;
@@ -6921,7 +6964,7 @@ bool CDjVuView::FindBookmarkTitle(GUTF8String strBookmarkTitle, int nPage, Bookm
 		if (!page.info.bDecoded)
 			m_bNeedUpdate = true;
 
-		page.Init(m_pSource, nPage, true);
+		InitPage(page, nPage, true);
 	}
 	if (page.nSelEnd != -1)
 	{
@@ -7690,7 +7733,7 @@ void CDjVuView::OnEditCopy()
 	{
 		Page& page = m_pages[m_nSelectionPage];
 		if (!page.info.bDecoded)
-			page.Init(m_pSource, m_nSelectionPage);
+			InitPage(page, m_nSelectionPage);
 
 		GP<DjVuImage> pImage = m_pSource->GetPage(m_nSelectionPage, NULL);
 		if (pImage == NULL)
@@ -7786,7 +7829,7 @@ void CDjVuView::GetNormalizedText(wstring& text, bool bSelected, int nMaxLength,
 		{
 			if (!page.info.bDecoded || page.info.bHasText && !page.info.bTextDecoded)
 			{
-				page.Init(m_pSource, nPage, true);
+				InitPage(page, nPage, true);
 				m_bNeedUpdate = true;
 			}
 
@@ -8109,18 +8152,27 @@ void CDjVuView::CopyBitmapsFrom(CDjVuView* pFrom, bool bMove)
 
 		if (page.pBitmap == NULL && srcPage.pBitmap != NULL)
 		{
+			bool bReusable = srcPage.bBitmapIdentity && srcPage.pBitmap->GetSize() == page.szBitmap &&
+				srcPage.szBitmapIdentity == page.szBitmap && srcPage.nBitmapRotate == m_nRotate &&
+				srcPage.nBitmapDisplayMode == m_nDisplayMode && srcPage.bitmapDisplaySettings == m_displaySettings;
 			if (bMove)
 			{
+				pFrom->UnregisterBitmapCacheEntry(srcPage);
 				page.pBitmap = srcPage.pBitmap;
 				page.bBitmapRendered = true;
 				srcPage.pBitmap = NULL;
 				srcPage.bBitmapRendered = false;
+				srcPage.bBitmapIdentity = false;
 			}
 			else
 			{
 				page.pBitmap = CDIB::CreateDIB(srcPage.pBitmap);
 				page.bBitmapRendered = true;
 			}
+			if (bReusable && page.pBitmap != NULL)
+				SetBitmapIdentity(page);
+			else
+				DeleteCachedBitmap(page);
 		}
 	}
 }
@@ -8136,6 +8188,13 @@ void CDjVuView::CopyBitmapFrom(CDjVuView* pFrom, int nPage)
 	{
 		page.pBitmap = CDIB::CreateDIB(srcPage.pBitmap);
 		page.bBitmapRendered = true;
+		if (srcPage.bBitmapIdentity && page.pBitmap != NULL &&
+			page.pBitmap->GetSize() == page.szBitmap && srcPage.szBitmapIdentity == page.szBitmap &&
+			srcPage.nBitmapRotate == m_nRotate && srcPage.nBitmapDisplayMode == m_nDisplayMode &&
+			srcPage.bitmapDisplaySettings == m_displaySettings)
+			SetBitmapIdentity(page);
+		else
+			DeleteCachedBitmap(page);
 	}
 }
 
@@ -9615,7 +9674,7 @@ CRect CDjVuView::CheckWhiteMargins(int nPage)
 
 	Page& page = m_pages[nPage];
 	if (!page.info.bDecoded)
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 
 	GP<DjVuImage> pImage = m_pSource->GetPage(nPage, NULL);
 	if (pImage == NULL)
@@ -10174,7 +10233,7 @@ void CDjVuView::SelectRectRange(int nPage, list<GRect>& rects,
 		if (pWaitCursor == NULL)
 			pWaitCursor = new CWaitCursor();
 
-		page.Init(m_pSource, nPage);
+		InitPage(page, nPage);
 		bInfoLoaded = true;
 	}
 
