@@ -3,16 +3,12 @@
 // CRenderThread.  The DjVuSource page table is expanded synthetically, so no
 // decoder work is needed while the actual cache-selection code is exercised.
 #include "../../src/stdafx.h"
-#define protected public
 #include "../../src/DjVuView.h"
 #include "../../src/DjVuSource.h"
 #include "../../src/RenderThread.h"
-#undef protected
 
 #include <stdio.h>
 
-namespace
-{
 class RegressionApplication : public IApplication
 {
 public:
@@ -35,13 +31,16 @@ bool Expect(bool condition, const char* text)
 	return condition;
 }
 
-struct CacheHarness
+class PageCacheRegressionHarness
 {
+	// CDjVuView grants this test-only harness access without changing the
+	// access level encoded in production CDjVuView member symbols.
+public:
 	DjVuSource* source;
 	CacheView view;
 	CRenderThread* thread;
 
-	CacheHarness(const CString& fixture) : source(DjVuSource::FromFile(fixture)), thread(NULL)
+	PageCacheRegressionHarness(const CString& fixture) : source(DjVuSource::FromFile(fixture)), thread(NULL)
 	{
 		// The paused thread only records production jobs. Its source page table
 		// can safely be synthetic because no queued job is allowed to execute.
@@ -55,7 +54,7 @@ struct CacheHarness
 		view.m_pRenderThread = thread;
 	}
 
-	~CacheHarness()
+	~PageCacheRegressionHarness()
 	{
 		ClearObserved();
 		view.m_pRenderThread = NULL;
@@ -85,8 +84,8 @@ struct CacheHarness
 		view.m_bUpdateBitmaps = true;
 		view.m_ptScrollPos = CPoint(0, scrollY);
 		view.m_szViewport = CSize(800, viewportHeight);
-		view.m_pages.assign(count, CDjVuView::Page());
-		for (int i = 0; i < count; ++i)
+		view.m_pages.assign(4096, CDjVuView::Page());
+		for (int i = 0; i < 4096; ++i)
 		{
 			CDjVuView::Page& pageData = view.m_pages[i];
 			pageData.info.bDecoded = true;
@@ -133,6 +132,10 @@ struct CacheHarness
 		pageData.pBitmap = CDIB::CreateDIB(pageData.szBitmap.cx, pageData.szBitmap.cy, 24);
 		view.SetBitmapIdentity(pageData);
 	}
+
+	static bool HasLegacyWorkingWindow(const CacheView& view, const vector<int>& add);
+	static bool RunRegression(PageCacheRegressionHarness& harness);
+	static void RunBenchmark(PageCacheRegressionHarness& harness);
 };
 
 bool Contains(const vector<int>& pages, int page)
@@ -140,7 +143,7 @@ bool Contains(const vector<int>& pages, int page)
 	return find(pages.begin(), pages.end(), page) != pages.end();
 }
 
-bool HasLegacyWorkingWindow(const CacheView& view, const vector<int>& add)
+bool PageCacheRegressionHarness::HasLegacyWorkingWindow(const CacheView& view, const vector<int>& add)
 {
 	const int scrollTop = view.GetScrollPosition().y;
 	const int viewportHeight = view.GetViewportSize().cy;
@@ -159,7 +162,7 @@ bool HasLegacyWorkingWindow(const CacheView& view, const vector<int>& add)
 	return true;
 }
 
-bool RunRegression(CacheHarness& harness)
+bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harness)
 {
 	bool passed = true;
 	const int layouts[] = { CDjVuView::SinglePage, CDjVuView::Facing,
@@ -305,7 +308,7 @@ bool RunRegression(CacheHarness& harness)
 	return passed;
 }
 
-void RunBenchmark(CacheHarness& harness)
+void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harness)
 {
 	const int updates = 100;
 	int totalProcessed = 0, totalRender = 0, totalDecode = 0, totalPrefetch = 0;
@@ -372,8 +375,6 @@ void RunBenchmark(CacheHarness& harness)
 		updates * 3, elapsed, totalProcessed, totalRender, totalDecode, totalPrefetch,
 		totalHits, totalMisses, totalEvictions, harness.view.GetRetainedBitmapCount(), harness.view.GetRetainedBitmapBytes());
 }
-}
-
 int _tmain(int argc, TCHAR** argv)
 {
 	if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0) || argc < 2 || argc > 3)
@@ -381,12 +382,12 @@ int _tmain(int argc, TCHAR** argv)
 	const bool benchmarkOnly = argc == 3 && _tcscmp(argv[2], _T("--benchmark")) == 0;
 	RegressionApplication application;
 	DjVuSource::SetApplication(&application);
-	CacheHarness harness(argv[1]);
+	PageCacheRegressionHarness harness(argv[1]);
 	if (harness.source == NULL)
 		return 1;
 	if (benchmarkOnly)
-		RunBenchmark(harness);
-	else if (!RunRegression(harness))
+		PageCacheRegressionHarness::RunBenchmark(harness);
+	else if (!PageCacheRegressionHarness::RunRegression(harness))
 		return 1;
 	DjVuSource::SetApplication(NULL);
 	puts(benchmarkOnly ? "PAGE_CACHE_BENCHMARK_RESULT: PASS" : "Page cache production regression: PASS");

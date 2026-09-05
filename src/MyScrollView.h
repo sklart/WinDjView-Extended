@@ -25,6 +25,9 @@ class CMyAnchorWnd;
 
 class CMyScrollView : public CView
 {
+#ifdef PAGE_CACHE_REGRESSION_TEST
+	friend class PageCacheRegressionHarness;
+#endif
 	DECLARE_DYNAMIC(CMyScrollView)
 public:
 	CMyScrollView();

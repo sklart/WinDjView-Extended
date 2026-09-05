@@ -17,6 +17,9 @@ for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version "[17.0,18.0)" -
 if not defined VSROOT exit /b 1
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
+where cl
+where link
+cl /Bv
 if not exist "%VSROOT%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" (
 	for %%I in ("%ProgramFiles%\Microsoft Visual Studio\18\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe") do set "CMAKE=%%~sI"
 )
@@ -40,7 +43,7 @@ set "DJVU_LIBRARY=src\Release_x64\libdjvu64.lib"
 if not exist "%DJVU_LIBRARY%" set "DJVU_LIBRARY=src\libdjvu\libdjvu64.lib"
 set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\build\Release_x64\jpeg-static.lib"
 if not exist "%JPEG_LIBRARY%" set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\jpeg64.lib"
-cl /nologo /W4 /EHsc /MT /DNDEBUG /DWIN32 /D_WINDOWS /D_CONSOLE /DHAS_WCTYPE=1 /DTHREADMODEL=WINTHREADS /DDO_CHANGELOCALE=0 /DWIN32_MONITOR /DNEED_JPEG_DECODER /DLIBDJVU_STATIC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /D_SECURE_SCL=0 /D_UNICODE /DUNICODE /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\page_cache_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%TEST_BASENAME%-app.lib" "%DJVU_LIBRARY%" "%JPEG_LIBRARY%" advapi32.lib psapi.lib msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /MANIFEST:NO
+cl /nologo /W4 /EHsc /MT /DNDEBUG /DPAGE_CACHE_REGRESSION_TEST /DWIN32 /D_WINDOWS /D_CONSOLE /DHAS_WCTYPE=1 /DTHREADMODEL=WINTHREADS /DDO_CHANGELOCALE=0 /DWIN32_MONITOR /DNEED_JPEG_DECODER /DLIBDJVU_STATIC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /D_SECURE_SCL=0 /D_UNICODE /DUNICODE /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\page_cache_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%TEST_BASENAME%-app.lib" "%DJVU_LIBRARY%" "%JPEG_LIBRARY%" advapi32.lib psapi.lib msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /link /LTCG /MANIFEST:NO
 if errorlevel 1 exit /b %errorlevel%
 "%TEST_BASENAME%.exe" "%FIXTURE%" %MODE%
 exit /b %errorlevel%

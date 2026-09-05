@@ -257,6 +257,9 @@ struct IApplication
 
 class DjVuSource : public RefCount, public Observable
 {
+#ifdef PAGE_CACHE_REGRESSION_TEST
+	friend class PageCacheRegressionHarness;
+#endif
 public:
 	~DjVuSource();
 	virtual void Release();

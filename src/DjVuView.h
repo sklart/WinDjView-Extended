@@ -29,6 +29,9 @@ class CMainFrame;
 class CMDIChild;
 class CPrintDlg;
 class CRenderThread;
+#ifdef PAGE_CACHE_REGRESSION_TEST
+class PageCacheRegressionHarness;
+#endif
 
 inline bool IsStandardZoom(int nZoomType, double fZoom)
 {
@@ -41,6 +44,9 @@ bool HitResult(const GPList<DjVmNav::DjVuBookMark>& bookmarks,GUTF8String& text,
 
 class CDjVuView : public CMyScrollView, public Observer, public Observable
 {
+#ifdef PAGE_CACHE_REGRESSION_TEST
+	friend class PageCacheRegressionHarness;
+#endif
 protected: // create from serialization only
 	CDjVuView();
 	DECLARE_DYNCREATE(CDjVuView)
