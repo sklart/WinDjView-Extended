@@ -2157,7 +2157,7 @@ void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove
 	m_pRenderThread->AddPrefetchJob(nPage);
 }
 
-void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove)
+void CDjVuView::GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const
 {
 	int nFirstVisible = m_nPage;
 	int nLastVisible = m_nPage;
@@ -2171,10 +2171,18 @@ void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove)
 		nFirstVisible = CalcTopPage();
 		nLastVisible = CalcBottomPage(nFirstVisible);
 	}
+	nNextPage = nLastVisible + 1;
+	nPreviousPage = nFirstVisible - 1;
+}
+
+void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove)
+{
+	int nNextPage, nPreviousPage;
+	GetAdjacentPrefetchPages(nNextPage, nPreviousPage);
 
 	// Preserve reading direction: next page is queued before previous page.
-	AddPrefetchPage(nLastVisible + 1, add, remove);
-	AddPrefetchPage(nFirstVisible - 1, add, remove);
+	AddPrefetchPage(nNextPage, add, remove);
+	AddPrefetchPage(nPreviousPage, add, remove);
 }
 
 void CDjVuView::UpdateVisiblePages()
@@ -2198,11 +2206,23 @@ void CDjVuView::UpdateVisiblePages()
 
 	ScheduleAdjacentPrefetch(add, remove);
 
-	// Keep queued work only for the cache window and its adjacent prefetch
-	// pages.  Unlike RemoveAllJobs(), this preserves useful requests that are
-	// still in range and marks a running out-of-range render as obsolete.
-	set<int> schedulerPages(add.begin(), add.end());
-	m_pRenderThread->DiscardJobsOutside(schedulerPages);
+	// Reconcile work by semantic type. Cleanup is retained for pages leaving
+	// the cache; read-info has its own need set; only speculative prefetch is
+	// constrained to the two adjacent pages.
+	CRenderThread::JobWindows windows;
+	windows.renderPages.insert(add.begin(), add.end());
+	windows.decodePages = windows.renderPages;
+	for (set<int>::const_iterator it = windows.decodePages.begin(); it != windows.decodePages.end(); ++it)
+		if (!m_pages[*it].info.bDecoded)
+			windows.readInfoPages.insert(*it);
+	windows.cleanupPages.insert(remove.begin(), remove.end());
+	int nNextPage, nPreviousPage;
+	GetAdjacentPrefetchPages(nNextPage, nPreviousPage);
+	if (IsValidPage(nNextPage))
+		windows.prefetchPages.insert(nNextPage);
+	if (IsValidPage(nPreviousPage))
+		windows.prefetchPages.insert(nPreviousPage);
+	m_pRenderThread->ReconcileJobs(windows);
 
 	// Mirror ChangeObservedPages locally. The next update will only revisit
 	// these pages when it needs to release cache ownership.

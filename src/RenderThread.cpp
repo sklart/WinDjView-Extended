@@ -302,24 +302,44 @@ void CRenderThread::GetSchedulerMetrics(SchedulerMetrics& metrics)
 	m_lock.Unlock();
 }
 
-void CRenderThread::DiscardJobsOutside(const set<int>& pages)
+void CRenderThread::ReconcileJobs(const JobWindows& windows)
 {
 	bool cancelPrefetches = false;
 	m_lock.Lock();
 	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); )
 	{
-		if (pages.find(it->nPage) != pages.end())
+		const set<int>* pages = NULL;
+		switch (it->type)
+		{
+		case RENDER: pages = &windows.renderPages; break;
+		case DECODE: pages = &windows.decodePages; break;
+		case PREFETCH_DECODE: pages = &windows.prefetchPages; break;
+		case READINFO: pages = &windows.readInfoPages; break;
+		case CLEANUP: pages = &windows.cleanupPages; break;
+		}
+		bool keep = pages != NULL && pages->find(it->nPage) != pages->end();
+		if (it->type == CLEANUP &&
+			(windows.renderPages.find(it->nPage) != windows.renderPages.end() ||
+			 windows.decodePages.find(it->nPage) != windows.decodePages.end()))
+			keep = false;
+		if (keep)
 		{
 			++it;
 			continue;
 		}
-		if (it->type == PREFETCH_DECODE)
+		const JobType type = it->type;
+		if (type == PREFETCH_DECODE)
 			cancelPrefetches = true;
 		m_pages[it->nPage] = m_jobs.end();
 		it = m_jobs.erase(it);
-		++m_nObsoleteJobsRemoved;
+		if (type == RENDER || type == DECODE || type == PREFETCH_DECODE)
+			++m_nObsoleteJobsRemoved;
 	}
-	if (m_currentJob.nPage != -1 && pages.find(m_currentJob.nPage) == pages.end())
+	if (m_currentJob.nPage != -1 &&
+		((m_currentJob.type == RENDER &&
+			windows.renderPages.find(m_currentJob.nPage) == windows.renderPages.end()) ||
+		 (m_currentJob.type == PREFETCH_DECODE &&
+			windows.prefetchPages.find(m_currentJob.nPage) == windows.prefetchPages.end())))
 	{
 		if (!m_bRejectCurrentJob)
 		{
@@ -622,6 +642,7 @@ void CRenderThread::AddJob(const Job& job)
 		m_lock.Unlock();
 		return;
 	}
+	bool replacingCurrentRender = false;
 	if (m_currentJob.nPage == job.nPage && m_currentJob.type == job.type)
 	{
 		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
@@ -631,17 +652,22 @@ void CRenderThread::AddJob(const Job& job)
 		}
 		// Rendering is not interrupted. The worker safely drops its result and
 		// the replacement request below is the only one that will be notified.
-		m_bRejectCurrentJob = true;
-		++m_nObsoleteJobsRejected;
+		if (!m_bRejectCurrentJob)
+		{
+			m_bRejectCurrentJob = true;
+			++m_nObsoleteJobsRejected;
+		}
+		replacingCurrentRender = true;
 	}
-	if (m_currentJob.nPage == job.nPage && m_currentJob.priority < job.priority)
+	if (m_currentJob.nPage == job.nPage && m_currentJob.priority < job.priority &&
+		!replacingCurrentRender)
 	{
 		m_lock.Unlock();
 		return;
 	}
 	if (existing != m_jobs.end())
 	{
-		if (existing->priority < job.priority)
+		if (existing->priority < job.priority && job.type != CLEANUP)
 		{
 			m_lock.Unlock();
 			return;

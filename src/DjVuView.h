@@ -388,6 +388,7 @@ protected:
 	void UpdatePagesCacheFacing(bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void UpdatePagesCacheContinuous(bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove);
+	void GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const;
 	void AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove);
 	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
 		vector<int>& add, vector<int>& remove, bool bCurrentPage = false);

@@ -124,28 +124,39 @@ int _tmain(int argc, TCHAR** argv)
 			jobs[3].priority == CRenderThread::AdjacentPrefetch && jobs[4].priority == CRenderThread::Background,
 			"current and visible renders must precede decode, prefetch, and maintenance");
 
-		// Zoom/rotation-style replacement keeps only the latest identity for the
-		// page, and a distant jump drops all obsolete queued foreground work.
+		// Reconciliation is semantic: leaving work is removed by type, while
+		// cleanup/read-info remain when their own windows still require them.
 		thread->RemoveAllJobs();
 		thread->ResetSchedulerMetrics();
 		thread->AddJob(0, 0, CSize(800, 1000), displaySettings);
-		thread->AddJob(0, 1, CSize(1200, 1500), displaySettings);
+		thread->AddDecodeJob(1);
+		thread->AddPrefetchJob(2);
+		thread->AddReadInfoJob(3);
+		thread->AddCleanupJob(4);
+		CRenderThread::JobWindows windows;
+		windows.decodePages.insert(1);
+		windows.prefetchPages.insert(2);
+		windows.readInfoPages.insert(3);
+		windows.cleanupPages.insert(4);
+		thread->ReconcileJobs(windows);
 		thread->GetQueuedJobInfo(jobs);
 		CRenderThread::SchedulerMetrics metrics;
 		thread->GetSchedulerMetrics(metrics);
-		passed &= expect(jobs.size() == 1 && jobs[0].size == CSize(1200, 1500) &&
-			metrics.obsoleteJobsRemoved >= 1,
-			"new render identity must replace the obsolete queued render");
+		passed &= expect(jobs.size() == 4 && metrics.obsoleteJobsRemoved == 1,
+			"obsolete render must be removed while needed decode/prefetch/read-info/cleanup remain");
 
-		thread->AddJob(1, 0, CSize(800, 1000), displaySettings);
-		thread->AddJob(2, 0, CSize(800, 1000), displaySettings);
-		set<int> currentWindow;
-		currentWindow.insert(2);
-		thread->DiscardJobsOutside(currentWindow);
+		// Re-entering the cache window cancels a queued cleanup before it can
+		// remove a page that is again required by foreground work.
+		windows = CRenderThread::JobWindows();
+		windows.renderPages.insert(4);
+		thread->ReconcileJobs(windows);
 		thread->GetQueuedJobInfo(jobs);
 		thread->GetSchedulerMetrics(metrics);
-		passed &= expect(jobs.size() == 1 && jobs[0].nPage == 2 && metrics.obsoleteJobsRemoved >= 3,
-			"A -> B -> C and distant jump must discard obsolete queued renders");
+		bool cleanupCancelled = true;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			cleanupCancelled &= !(jobs[job].nPage == 4 && jobs[job].type == CRenderThread::CLEANUP);
+		passed &= expect(cleanupCancelled,
+			"page re-entry must cancel its stale cleanup request");
 		thread->RemoveAllJobs();
 
 		// Exercise the live worker path as well: a render that has already left
@@ -166,9 +177,9 @@ int _tmain(int argc, TCHAR** argv)
 			if (!running)
 				::Sleep(1);
 		}
-		set<int> jumpedWindow;
-		jumpedWindow.insert(targetPage);
-		thread->DiscardJobsOutside(jumpedWindow);
+		windows = CRenderThread::JobWindows();
+		windows.renderPages.insert(targetPage);
+		thread->ReconcileJobs(windows);
 		thread->PauseJobs();
 		thread->AddJob(targetPage, 0, CSize(800, 1000), displaySettings,
 			CDjVuView::Color, CRenderThread::CurrentPageRender);
@@ -178,6 +189,46 @@ int _tmain(int argc, TCHAR** argv)
 			jobs[0].priority == CRenderThread::CurrentPageRender && metrics.obsoleteJobsRejected > 0,
 			"live jump must reject the stale render and queue the new foreground page next");
 		thread->RemoveAllJobs();
+		bool drained = false;
+		for (int attempt = 0; attempt < 30000 && !drained; ++attempt)
+		{
+			drained = !thread->GetCurrentJobInfo(current);
+			if (!drained)
+				::Sleep(1);
+		}
+		passed &= expect(drained, "rejected render must finish before the next live-worker scenario");
+
+		// A changed identity must still enqueue a replacement when the old
+		// running request was CurrentPageRender and the new one is visible-only.
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(runningPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ResumeJobs();
+		running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == runningPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		thread->PauseJobs();
+		thread->AddJob(runningPage, 1, CSize(800, 1000), displaySettings,
+			CDjVuView::Color, CRenderThread::VisibleRender);
+		thread->GetQueuedJobInfo(jobs);
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(running && jobs.size() == 1 && jobs[0].nPage == runningPage &&
+			jobs[0].priority == CRenderThread::VisibleRender && metrics.obsoleteJobsRejected > 0,
+			"changed current render identity must queue its visible replacement");
+		thread->RemoveAllJobs();
+		drained = false;
+		for (int attempt = 0; attempt < 30000 && !drained; ++attempt)
+		{
+			drained = !thread->GetCurrentJobInfo(current);
+			if (!drained)
+				::Sleep(1);
+		}
+		passed &= expect(drained, "replacement scenario must release the worker before later tests");
 	}
 
 	thread->AddPrefetchJob(adjacent);

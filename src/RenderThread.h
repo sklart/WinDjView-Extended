@@ -50,6 +50,15 @@ public:
 		DWORD currentPageResultElapsedMs;
 	};
 
+	struct JobWindows
+	{
+		set<int> renderPages;
+		set<int> decodePages;
+		set<int> prefetchPages;
+		set<int> readInfoPages;
+		set<int> cleanupPages;
+	};
+
 	CRenderThread(DjVuSource* pSource, Observer* pOwner);
 	void Stop();
 
@@ -79,7 +88,7 @@ public:
 	bool GetCurrentJobInfo(JobInfo& job);
 	void ResetSchedulerMetrics();
 	void GetSchedulerMetrics(SchedulerMetrics& metrics);
-	void DiscardJobsOutside(const set<int>& pages);
+	void ReconcileJobs(const JobWindows& windows);
 
 	void RejectCurrentJob();
 
