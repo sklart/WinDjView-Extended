@@ -130,7 +130,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 
 		pThread->m_lock.Lock();
 		bool bNotify = (!pThread->m_bRejectCurrentJob);
-		if (bNotify && job.type == RENDER && job.priority == CurrentPageRender &&
+		if (bNotify && job.type == RENDER && pThread->m_currentJob.priority == CurrentPageRender &&
 			pThread->m_bAwaitingCurrentPageResult)
 		{
 			pThread->m_dwCurrentPageResultElapsed = ::GetTickCount() - pThread->m_dwCurrentPageRequest;
@@ -276,6 +276,14 @@ bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
 	}
 	m_lock.Unlock();
 	return active;
+}
+
+bool CRenderThread::IsCurrentJobRejected()
+{
+	m_lock.Lock();
+	bool rejected = m_currentJob.nPage != -1 && m_bRejectCurrentJob;
+	m_lock.Unlock();
+	return rejected;
 }
 
 void CRenderThread::ResetSchedulerMetrics()
@@ -598,7 +606,7 @@ void CRenderThread::AddDecodeJob(int nPage)
 
 bool CRenderThread::HasSameRenderIdentity(const Job& left, const Job& right) const
 {
-	return left.nRotate == right.nRotate && left.size == right.size &&
+	return left.nPage == right.nPage && left.nRotate == right.nRotate && left.size == right.size &&
 		left.nDisplayMode == right.nDisplayMode && left.displaySettings == right.displaySettings;
 }
 
@@ -651,6 +659,21 @@ void CRenderThread::AddJob(const Job& job)
 	{
 		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
 		{
+			if (job.type == RENDER && m_bRejectCurrentJob)
+			{
+				// The same render became useful again before completion. Reuse its
+				// work rather than queueing a duplicate, but only for an exact
+				// render identity match.
+				m_bRejectCurrentJob = false;
+				if (job.priority == CurrentPageRender && m_currentJob.priority != CurrentPageRender)
+				{
+					m_currentJob.priority = CurrentPageRender;
+					m_dwCurrentPageRequest = ::GetTickCount();
+					m_dwCurrentPageResultElapsed = 0;
+					m_nJobsExecutedBeforeCurrentPage = 0;
+					m_bAwaitingCurrentPageResult = true;
+				}
+			}
 			m_lock.Unlock();
 			return;
 		}

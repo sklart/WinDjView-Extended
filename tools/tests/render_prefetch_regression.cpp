@@ -20,8 +20,9 @@ namespace
 	class RegressionObserver : public Observer
 	{
 	public:
-		RegressionObserver() : m_event(::CreateEvent(NULL, TRUE, FALSE, NULL)), m_page(-1) { }
-		virtual ~RegressionObserver() { ::CloseHandle(m_event); }
+		RegressionObserver() : m_event(::CreateEvent(NULL, TRUE, FALSE, NULL)),
+			m_renderEvent(::CreateEvent(NULL, TRUE, FALSE, NULL)), m_page(-1), m_renderPage(-1), m_renderCount(0) { }
+		virtual ~RegressionObserver() { ::CloseHandle(m_event); ::CloseHandle(m_renderEvent); }
 
 		virtual void OnUpdate(const Observable*, const Message* message)
 		{
@@ -31,6 +32,14 @@ namespace
 				InterlockedExchange(&m_page, page->nPage);
 				::SetEvent(m_event);
 			}
+			else if (message != NULL && message->code == PAGE_RENDERED)
+			{
+				const BitmapMsg* bitmap = static_cast<const BitmapMsg*>(message);
+				delete bitmap->pDIB;
+				InterlockedExchange(&m_renderPage, bitmap->nPage);
+				InterlockedIncrement(&m_renderCount);
+				::SetEvent(m_renderEvent);
+			}
 		}
 
 		void Reset() { InterlockedExchange(&m_page, -1); ::ResetEvent(m_event); }
@@ -39,10 +48,24 @@ namespace
 			return ::WaitForSingleObject(m_event, timeout) == WAIT_OBJECT_0 &&
 				InterlockedCompareExchange(&m_page, 0, 0) == page;
 		}
+		void ResetRender()
+		{
+			InterlockedExchange(&m_renderPage, -1);
+			InterlockedExchange(&m_renderCount, 0);
+			::ResetEvent(m_renderEvent);
+		}
+		bool WaitForRender(int page, DWORD timeout)
+		{
+			return ::WaitForSingleObject(m_renderEvent, timeout) == WAIT_OBJECT_0 &&
+				InterlockedCompareExchange(&m_renderPage, 0, 0) == page;
+		}
+		long GetRenderCount() const { return InterlockedCompareExchange(&m_renderCount, 0, 0); }
 
 	private:
 		HANDLE m_event;
+		HANDLE m_renderEvent;
 		volatile LONG m_page;
+		volatile LONG m_renderPage, m_renderCount;
 	};
 
 	bool expect(bool condition, const char* description)
@@ -378,6 +401,86 @@ int _tmain(int argc, TCHAR** argv)
 		thread->PauseJobs();
 		passed &= expect(drained && source->IsPageCached(cleanupPage, &observer),
 			"cancelled cleanup must not remove a page that re-entered the cache window");
+		thread->RemoveAllJobs();
+
+		// Re-entry with exactly the same identity revives the running render.
+		// A CurrentPage upgrade and a following Visible downgrade must not create
+		// replacement work or leave the result rejected.
+		observer.ResetRender();
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::VisibleRender);
+		thread->ResumeJobs();
+		running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == cleanupPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		windows = CRenderThread::JobWindows();
+		thread->ReconcileJobs(windows);
+		thread->PauseJobs();
+		thread->AddCleanupJob(cleanupPage);
+		windows.renderPages.insert(cleanupPage);
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ReconcileJobs(windows);
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::VisibleRender);
+		thread->GetQueuedJobInfo(jobs);
+		thread->GetSchedulerMetrics(metrics);
+		bool hasCleanupOrReplacement = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			hasCleanupOrReplacement |= jobs[job].nPage == cleanupPage;
+		passed &= expect(running && !thread->IsCurrentJobRejected() && !hasCleanupOrReplacement &&
+			metrics.obsoleteJobsRejected == 1,
+			"same-identity re-entry must revive the rejected render without duplicate work");
+		thread->ResumeJobs();
+		passed &= expect(observer.WaitForRender(cleanupPage, 30000) && observer.GetRenderCount() == 1,
+			"revived same-identity render must deliver its bitmap result exactly once");
+		thread->PauseJobs();
+
+		// A changed identity cannot revive the old raster. The old render remains
+		// rejected, cleanup is cancelled by re-entry, and one replacement wins.
+		observer.ResetRender();
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ResumeJobs();
+		running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == cleanupPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		windows = CRenderThread::JobWindows();
+		thread->ReconcileJobs(windows);
+		thread->PauseJobs();
+		thread->AddCleanupJob(cleanupPage);
+		CDisplaySettings changedSettings = displaySettings;
+		changedSettings.bInvertColors = !changedSettings.bInvertColors;
+		windows.renderPages.insert(cleanupPage);
+		thread->AddJob(cleanupPage, 1, CSize(800, 1000), changedSettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ReconcileJobs(windows);
+		thread->GetQueuedJobInfo(jobs);
+		int replacementCount = 0;
+		bool cleanupQueued = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+		{
+			replacementCount += jobs[job].nPage == cleanupPage && jobs[job].type == CRenderThread::RENDER;
+			cleanupQueued |= jobs[job].nPage == cleanupPage && jobs[job].type == CRenderThread::CLEANUP;
+		}
+		passed &= expect(running && thread->IsCurrentJobRejected() && replacementCount == 1 && !cleanupQueued,
+			"changed identity must retain rejection and queue exactly one replacement");
+		thread->ResumeJobs();
+		passed &= expect(observer.WaitForRender(cleanupPage, 30000) && observer.GetRenderCount() == 1,
+			"changed-identity replacement must discard A and deliver only B");
+		thread->PauseJobs();
 		thread->RemoveAllJobs();
 	}
 

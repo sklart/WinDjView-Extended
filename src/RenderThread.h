@@ -86,6 +86,7 @@ public:
 	void GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode);
 	void GetQueuedJobInfo(vector<JobInfo>& jobs);
 	bool GetCurrentJobInfo(JobInfo& job);
+	bool IsCurrentJobRejected();
 	void ResetSchedulerMetrics();
 	void GetSchedulerMetrics(SchedulerMetrics& metrics);
 	void ReconcileJobs(const JobWindows& windows);
