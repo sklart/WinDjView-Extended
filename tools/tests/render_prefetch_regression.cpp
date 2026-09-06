@@ -159,6 +159,64 @@ int _tmain(int argc, TCHAR** argv)
 			"page re-entry must cancel its stale cleanup request");
 		thread->RemoveAllJobs();
 
+		// cleanupPages contains new requests, not the complete lifetime of
+		// queued cleanup. An unrelated update must not silently drop it.
+		GP<DjVuImage> cachedPage = source->GetPage(4, &observer);
+		passed &= expect(cachedPage != NULL && source->IsPageCached(4, &observer),
+			"cleanup regression fixture page must be cached by the observer");
+		thread->ResetSchedulerMetrics();
+		thread->AddCleanupJob(4);
+		windows = CRenderThread::JobWindows();
+		windows.renderPages.insert(0); // Unrelated viewport/cache work.
+		thread->ReconcileJobs(windows);
+		thread->GetQueuedJobInfo(jobs);
+		bool cleanupRetained = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			cleanupRetained |= jobs[job].nPage == 4 && jobs[job].type == CRenderThread::CLEANUP;
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(cleanupRetained && metrics.obsoleteJobsRemoved == 0,
+			"unrelated reconciliation must retain pending cleanup without obsolete metrics");
+		for (int page = 0; page < 3; ++page)
+		{
+			thread->AddJob(page, 0, CSize(800, 1000), displaySettings,
+				CDjVuView::Color, CRenderThread::VisibleRender);
+			windows = CRenderThread::JobWindows();
+			windows.renderPages.insert(page);
+			thread->ReconcileJobs(windows);
+		}
+		thread->GetQueuedJobInfo(jobs);
+		cleanupRetained = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			cleanupRetained |= jobs[job].nPage == 4 && jobs[job].type == CRenderThread::CLEANUP;
+		passed &= expect(cleanupRetained && jobs.size() == 2 &&
+			jobs[0].type == CRenderThread::RENDER && jobs[1].type == CRenderThread::CLEANUP,
+			"fast scroll must retain cleanup, bound the queue, and keep foreground first");
+		thread->ResumeJobs();
+		bool cleanupExecuted = false;
+		for (int attempt = 0; attempt < 30000 && !cleanupExecuted; ++attempt)
+		{
+			thread->GetQueuedJobInfo(jobs);
+			bool queuedCleanup = false;
+			for (size_t job = 0; job < jobs.size(); ++job)
+				queuedCleanup |= jobs[job].nPage == 4 && jobs[job].type == CRenderThread::CLEANUP;
+			CRenderThread::JobInfo current;
+			bool runningCleanup = thread->GetCurrentJobInfo(current) &&
+				current.nPage == 4 && current.type == CRenderThread::CLEANUP;
+			cleanupExecuted = !source->IsPageCached(4, &observer) && !queuedCleanup && !runningCleanup;
+			if (!cleanupExecuted)
+				::Sleep(1);
+		}
+		thread->PauseJobs();
+		passed &= expect(cleanupExecuted,
+			"retained cleanup must execute RemoveFromCache and then leave the queue");
+		thread->AddReadInfoJob(3);
+		thread->AddCleanupJob(4);
+		thread->ResetSchedulerMetrics();
+		thread->RemoveAllJobs();
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(metrics.obsoleteJobsRemoved == 0,
+			"RemoveAllJobs must not count read-info or cleanup as obsolete work");
+
 		// Exercise the live worker path as well: a render that has already left
 		// the queue is not interrupted, but a viewport jump rejects its result
 		// and leaves the new foreground page first in the queue.

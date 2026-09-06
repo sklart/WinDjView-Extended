@@ -315,12 +315,16 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		case DECODE: pages = &windows.decodePages; break;
 		case PREFETCH_DECODE: pages = &windows.prefetchPages; break;
 		case READINFO: pages = &windows.readInfoPages; break;
-		case CLEANUP: pages = &windows.cleanupPages; break;
 		}
-		bool keep = pages != NULL && pages->find(it->nPage) != pages->end();
+		// cleanupPages contains requests made by this update, not a whitelist.
+		// Once cache ownership has been released, cleanup must run unless the
+		// page returns to an active/cache window before the worker reaches it.
+		bool keep = it->type == CLEANUP ||
+			(pages != NULL && pages->find(it->nPage) != pages->end());
 		if (it->type == CLEANUP &&
 			(windows.renderPages.find(it->nPage) != windows.renderPages.end() ||
-			 windows.decodePages.find(it->nPage) != windows.decodePages.end()))
+			 windows.decodePages.find(it->nPage) != windows.decodePages.end() ||
+			 windows.readInfoPages.find(it->nPage) != windows.readInfoPages.end()))
 			keep = false;
 		if (keep)
 		{
@@ -720,7 +724,9 @@ void CRenderThread::RemoveAllJobs()
 {
 	m_lock.Lock();
 
-	m_nObsoleteJobsRemoved += (int)m_jobs.size();
+	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+		if (it->type == RENDER || it->type == DECODE || it->type == PREFETCH_DECODE)
+			++m_nObsoleteJobsRemoved;
 	m_jobs.clear();
 	m_pages.assign(m_pSource->GetPageCount(), m_jobs.end());
 
