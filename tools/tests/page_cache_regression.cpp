@@ -339,19 +339,19 @@ bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harne
 	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
 	CDjVuView::Page& asyncPage = harness.view.m_pages[0];
 	asyncPage.szBitmap = CSize(800, 1000);
-	const RenderIdentity renderA(0, asyncPage.szBitmap, harness.view.m_nRotate,
+	const RenderIdentity renderIdentityA(0, asyncPage.szBitmap, harness.view.m_nRotate,
 		harness.view.m_nDisplayMode, harness.view.m_displaySettings);
 	asyncPage.szBitmap = CSize(700, 875);
 	++harness.view.m_nRotate;
-	const RenderIdentity renderB(0, asyncPage.szBitmap, harness.view.m_nRotate,
+	const RenderIdentity renderIdentityB(0, asyncPage.szBitmap, harness.view.m_nRotate,
 		harness.view.m_nDisplayMode, harness.view.m_displaySettings);
 	bool acceptedA = harness.view.AcceptRenderedBitmap(0,
-		CDIB::CreateDIB(renderA.size.cx, renderA.size.cy, 24), renderA);
+		CDIB::CreateDIB(renderIdentityA.size.cx, renderIdentityA.size.cy, 24), renderIdentityA);
 	passed &= Expect(!acceptedA && asyncPage.pBitmap == NULL &&
 		harness.view.GetRetainedBitmapCount() == 0,
 		"stale async render A must not become the current reusable bitmap");
 	bool acceptedB = harness.view.AcceptRenderedBitmap(0,
-		CDIB::CreateDIB(renderB.size.cx, renderB.size.cy, 24), renderB);
+		CDIB::CreateDIB(renderIdentityB.size.cx, renderIdentityB.size.cy, 24), renderIdentityB);
 	passed &= Expect(acceptedB && asyncPage.pBitmap != NULL &&
 		harness.view.HasReusableBitmap(asyncPage),
 		"current async render B must be accepted with its own identity");
