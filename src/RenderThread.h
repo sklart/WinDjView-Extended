@@ -76,6 +76,7 @@ public:
 	void ResetSubmittedJobCounts();
 	void GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode);
 	void GetQueuedJobInfo(vector<JobInfo>& jobs);
+	bool GetCurrentJobInfo(JobInfo& job);
 	void ResetSchedulerMetrics();
 	void GetSchedulerMetrics(SchedulerMetrics& metrics);
 	void DiscardJobsOutside(const set<int>& pages);

@@ -264,6 +264,20 @@ void CRenderThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
 	m_lock.Unlock();
 }
 
+bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
+{
+	m_lock.Lock();
+	bool active = m_currentJob.nPage != -1;
+	if (active)
+	{
+		JobInfo current = { m_currentJob.nPage, m_currentJob.type,
+			m_currentJob.priority, m_currentJob.size };
+		job = current;
+	}
+	m_lock.Unlock();
+	return active;
+}
+
 void CRenderThread::ResetSchedulerMetrics()
 {
 	m_lock.Lock();
@@ -290,6 +304,7 @@ void CRenderThread::GetSchedulerMetrics(SchedulerMetrics& metrics)
 
 void CRenderThread::DiscardJobsOutside(const set<int>& pages)
 {
+	bool cancelPrefetches = false;
 	m_lock.Lock();
 	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); )
 	{
@@ -298,16 +313,28 @@ void CRenderThread::DiscardJobsOutside(const set<int>& pages)
 			++it;
 			continue;
 		}
+		if (it->type == PREFETCH_DECODE)
+			cancelPrefetches = true;
 		m_pages[it->nPage] = m_jobs.end();
 		it = m_jobs.erase(it);
 		++m_nObsoleteJobsRemoved;
 	}
 	if (m_currentJob.nPage != -1 && pages.find(m_currentJob.nPage) == pages.end())
 	{
-		m_bRejectCurrentJob = true;
-		++m_nObsoleteJobsRejected;
+		if (!m_bRejectCurrentJob)
+		{
+			m_bRejectCurrentJob = true;
+			++m_nObsoleteJobsRejected;
+		}
+		if (m_currentJob.type == PREFETCH_DECODE)
+			cancelPrefetches = true;
 	}
 	m_lock.Unlock();
+
+	// Prefetch decoding belongs to DjVuLibre.  It is safe to cancel only when
+	// this viewport update actually discarded speculative work.
+	if (cancelPrefetches)
+		m_pSource->CancelPrefetches();
 }
 
 void CRenderThread::RemoveFromQueue(int nPage)

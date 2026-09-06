@@ -389,7 +389,8 @@ protected:
 	void UpdatePagesCacheContinuous(bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove);
 	void AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove);
-	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
+	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
+		vector<int>& add, vector<int>& remove, bool bCurrentPage = false);
 	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	bool HasReusableBitmap(Page& page) const;

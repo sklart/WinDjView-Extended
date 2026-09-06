@@ -1913,7 +1913,7 @@ void CDjVuView::PruneBitmapCache()
 }
 
 void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, bool bCurrentPage)
 {
 	++m_nProcessedPageCacheEntries;
 	// Pages visible on screen are put to the front of the rendering queue.
@@ -1943,7 +1943,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
-				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
+				bCurrentPage || nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
 			InvalidatePage(nPage);
 		}
 		else
@@ -2137,8 +2137,10 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 		}
 	}
 
-	// Push to the front of the queue a page with the largest visible area
-	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove);
+	// The largest visible page is the foreground render in continuous layouts.
+	// Repeating this request promotes an already queued visible render without
+	// changing the cache window.
+	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove, true);
 }
 
 void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove)
@@ -2181,9 +2183,8 @@ void CDjVuView::UpdateVisiblePages()
 		return;
 
 	m_pRenderThread->PauseJobs();
-	m_pRenderThread->RemoveAllJobs();
 
-	// Collect page numbera that we want to be in cache.
+	// Collect page numbers that we want to be in cache.
 	vector<int> add, remove;
 	add.reserve(32);
 	remove.reserve(32);
@@ -2196,6 +2197,12 @@ void CDjVuView::UpdateVisiblePages()
 		UpdatePagesCacheContinuous(m_bUpdateBitmaps, add, remove);
 
 	ScheduleAdjacentPrefetch(add, remove);
+
+	// Keep queued work only for the cache window and its adjacent prefetch
+	// pages.  Unlike RemoveAllJobs(), this preserves useful requests that are
+	// still in range and marks a running out-of-range render as obsolete.
+	set<int> schedulerPages(add.begin(), add.end());
+	m_pRenderThread->DiscardJobsOutside(schedulerPages);
 
 	// Mirror ChangeObservedPages locally. The next update will only revisit
 	// these pages when it needs to release cache ownership.

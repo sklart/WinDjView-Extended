@@ -147,6 +147,37 @@ int _tmain(int argc, TCHAR** argv)
 		passed &= expect(jobs.size() == 1 && jobs[0].nPage == 2 && metrics.obsoleteJobsRemoved >= 3,
 			"A -> B -> C and distant jump must discard obsolete queued renders");
 		thread->RemoveAllJobs();
+
+		// Exercise the live worker path as well: a render that has already left
+		// the queue is not interrupted, but a viewport jump rejects its result
+		// and leaves the new foreground page first in the queue.
+		const int runningPage = source->GetPageCount() > 11 ? 10 : 0;
+		const int targetPage = source->GetPageCount() > 11 ? 11 : last;
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(runningPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ResumeJobs();
+		CRenderThread::JobInfo current;
+		bool running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == runningPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		set<int> jumpedWindow;
+		jumpedWindow.insert(targetPage);
+		thread->DiscardJobsOutside(jumpedWindow);
+		thread->PauseJobs();
+		thread->AddJob(targetPage, 0, CSize(800, 1000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->GetQueuedJobInfo(jobs);
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(running && !jobs.empty() && jobs[0].nPage == targetPage &&
+			jobs[0].priority == CRenderThread::CurrentPageRender && metrics.obsoleteJobsRejected > 0,
+			"live jump must reject the stale render and queue the new foreground page next");
+		thread->RemoveAllJobs();
 	}
 
 	thread->AddPrefetchJob(adjacent);
