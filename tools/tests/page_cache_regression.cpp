@@ -311,6 +311,51 @@ bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harne
 	passed &= Expect(harness.view.GetRetainedBitmapBytes() <= 64LL*1024*1024,
 		"completed large bitmaps must enforce the byte limit immediately");
 
+	// The displayed page is pinned.  A single DIB larger than the retained
+	// budget must survive, while every non-visible retained DIB is evicted.
+	// Otherwise an oversized page would be rendered, immediately discarded,
+	// and rendered again on the next cache update.
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	harness.SeedBitmap(0, 5000, 5000, 24); // 75,000,000 bytes, larger than 64 MiB.
+	for (int page = 1; page <= 4; ++page)
+		harness.SeedBitmap(page, 800, 1000, 24);
+	passed &= Expect(harness.view.m_pages[0].pBitmap != NULL &&
+		harness.view.HasReusableBitmap(harness.view.m_pages[0]) &&
+		harness.view.GetRetainedBitmapBytes() > 64LL*1024*1024,
+		"an oversized active bitmap must not evict itself");
+	bool invisibleBitmapsEvicted = true;
+	for (int page = 1; page <= 4; ++page)
+		invisibleBitmapsEvicted &= harness.view.m_pages[page].pBitmap == NULL;
+	passed &= Expect(invisibleBitmapsEvicted,
+		"an oversized active bitmap must evict all retained invisible bitmaps");
+	harness.Update(add, remove);
+	passed &= Expect(harness.view.m_pages[0].pBitmap != NULL &&
+		harness.view.HasReusableBitmap(harness.view.m_pages[0]),
+		"an oversized active bitmap must survive a production cache update");
+
+	// A render result carries the request identity.  If A finishes after the
+	// view has requested B, A must be discarded rather than inheriting B's
+	// current identity and entering the reusable bitmap cache.
+	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
+	CDjVuView::Page& asyncPage = harness.view.m_pages[0];
+	asyncPage.szBitmap = CSize(800, 1000);
+	const RenderIdentity renderA(0, asyncPage.szBitmap, harness.view.m_nRotate,
+		harness.view.m_nDisplayMode, harness.view.m_displaySettings);
+	asyncPage.szBitmap = CSize(700, 875);
+	++harness.view.m_nRotate;
+	const RenderIdentity renderB(0, asyncPage.szBitmap, harness.view.m_nRotate,
+		harness.view.m_nDisplayMode, harness.view.m_displaySettings);
+	bool acceptedA = harness.view.AcceptRenderedBitmap(0,
+		CDIB::CreateDIB(renderA.size.cx, renderA.size.cy, 24), renderA);
+	passed &= Expect(!acceptedA && asyncPage.pBitmap == NULL &&
+		harness.view.GetRetainedBitmapCount() == 0,
+		"stale async render A must not become the current reusable bitmap");
+	bool acceptedB = harness.view.AcceptRenderedBitmap(0,
+		CDIB::CreateDIB(renderB.size.cx, renderB.size.cy, 24), renderB);
+	passed &= Expect(acceptedB && asyncPage.pBitmap != NULL &&
+		harness.view.HasReusableBitmap(asyncPage),
+		"current async render B must be accepted with its own identity");
+
 	// Cache bookkeeping must be updated at the same time as the DIB lifetime.
 	harness.Configure(500, CDjVuView::SinglePage, 0, 0, 900);
 	harness.SeedBitmap(0);

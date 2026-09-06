@@ -334,6 +334,7 @@ CDjVuView::~CDjVuView()
 	for (set<CDIB*>::iterator it = m_bitmaps.begin(); it != m_bitmaps.end(); ++it)
 		delete *it;
 	m_bitmaps.clear();
+	m_bitmapIdentities.clear();
 
 	m_dataLock.Unlock();
 
@@ -1787,6 +1788,28 @@ bool CDjVuView::HasReusableBitmap(Page& page) const
 	return true;
 }
 
+bool CDjVuView::IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const
+{
+	return identity.nPage >= 0 && identity.nPage < m_nPageCount &&
+		identity.size == page.szBitmap && identity.nRotate == m_nRotate &&
+		identity.nDisplayMode == m_nDisplayMode && identity.displaySettings == m_displaySettings;
+}
+
+bool CDjVuView::IsBitmapPinned(int nPage) const
+{
+	if (nPage == m_nPage)
+		return true;
+	if (m_nLayout == Facing && HasFacingPage(m_nPage) && nPage == m_nPage + 1)
+		return true;
+	if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
+	{
+		const CRect& display = m_pages[nPage].rcDisplay;
+		const int top = GetScrollPosition().y;
+		return display.top < top + GetViewportSize().cy && display.bottom > top;
+	}
+	return false;
+}
+
 void CDjVuView::SetBitmapIdentity(Page& page)
 {
 	UnregisterBitmapCacheEntry(page);
@@ -1839,6 +1862,38 @@ void CDjVuView::DeleteCachedBitmap(Page& page)
 	page.DeleteBitmap();
 }
 
+bool CDjVuView::AcceptRenderedBitmap(int nPage, CDIB* pBitmap, const RenderIdentity& identity)
+{
+	if (pBitmap == NULL || nPage < 0 || nPage >= m_nPageCount || identity.nPage != nPage ||
+		!IsCurrentRenderIdentity(m_pages[nPage], identity))
+	{
+		delete pBitmap;
+		return false;
+	}
+
+	Page& page = m_pages[nPage];
+	DeleteCachedBitmap(page);
+	page.pBitmap = pBitmap;
+	page.bBitmapRendered = true;
+	SetBitmapIdentity(page);
+
+	long nPendingPage = InterlockedExchangeAdd(&m_nPendingPage, 0);
+	if (InvalidatePage(nPage) && nPage != nPendingPage)
+	{
+		UpdateWindow();
+
+		// Notify the magnify window, because it will not repaint
+		// itself if is is layered.
+		if (m_nType == Magnify)
+		{
+			CMagnifyWnd* pMagnifyWnd = GetMainFrame()->GetMagnifyWnd();
+			pMagnifyWnd->CenterOnPoint(pMagnifyWnd->GetCenterPoint());
+		}
+	}
+
+	return true;
+}
+
 void CDjVuView::PruneBitmapCache()
 {
 	const int kMaxBitmaps = 16;
@@ -1847,8 +1902,10 @@ void CDjVuView::PruneBitmapCache()
 	{
 		int victim = -1; long oldest = LONG_MAX;
 		for (map<int, __int64>::iterator it = m_bitmapCacheBytes.begin(); it != m_bitmapCacheBytes.end(); ++it)
-			if (m_pages[it->first].nBitmapLastUsed < oldest)
+			if (!IsBitmapPinned(it->first) && m_pages[it->first].nBitmapLastUsed < oldest)
 				victim = it->first, oldest = m_pages[it->first].nBitmapLastUsed;
+		// A currently displayed page can be larger than the retained-cache
+		// budget. Keeping it avoids render/evict/re-render churn.
 		if (victim == -1) break;
 		DeleteCachedBitmap(m_pages[victim]);
 		++m_nBitmapCacheEvictions;
@@ -4553,32 +4610,26 @@ LRESULT CDjVuView::OnPageRendered(WPARAM wParam, LPARAM lParam)
 {
 	int nPage = (int)wParam;
 	CDIB* pBitmap = reinterpret_cast<CDIB*>(lParam);
+	RenderIdentity identity;
+	bool bHasIdentity = false;
 
 	m_dataLock.Lock();
 	m_bitmaps.erase(pBitmap);
+	map<CDIB*, RenderIdentity>::iterator identityIt = m_bitmapIdentities.find(pBitmap);
+	if (identityIt != m_bitmapIdentities.end())
+	{
+		identity = identityIt->second;
+		m_bitmapIdentities.erase(identityIt);
+		bHasIdentity = true;
+	}
 	m_dataLock.Unlock();
 
 	OnPageDecoded(nPage, true);
 
-	Page& page = m_pages[nPage];
-	DeleteCachedBitmap(page);
-	page.pBitmap = pBitmap;
-	page.bBitmapRendered = true;
-	SetBitmapIdentity(page);
-
-	long nPendingPage = InterlockedExchangeAdd(&m_nPendingPage, 0);
-	if (InvalidatePage(nPage) && nPage != nPendingPage)
-	{
-		UpdateWindow();
-
-		// Notify the magnify window, because it will not repaint
-		// itself if is is layered.
-		if (m_nType == Magnify)
-		{
-			CMagnifyWnd* pMagnifyWnd = GetMainFrame()->GetMagnifyWnd();
-			pMagnifyWnd->CenterOnPoint(pMagnifyWnd->GetCenterPoint());
-		}
-	}
+	if (!bHasIdentity)
+		delete pBitmap;
+	else
+		AcceptRenderedBitmap(nPage, pBitmap, identity);
 
 	return 0;
 }
@@ -4588,13 +4639,14 @@ void CDjVuView::PageDecoded(int nPage)
 	PostMessage(WM_PAGE_DECODED, nPage);
 }
 
-void CDjVuView::PageRendered(int nPage, CDIB* pDIB)
+void CDjVuView::PageRendered(int nPage, CDIB* pDIB, const RenderIdentity& identity)
 {
 	LPARAM lParam = reinterpret_cast<LPARAM>(pDIB);
 	if (pDIB != NULL)
 	{
 		m_dataLock.Lock();
 		m_bitmaps.insert(pDIB);
+		m_bitmapIdentities[pDIB] = identity;
 		m_dataLock.Unlock();
 	}
 
@@ -8645,7 +8697,10 @@ void CDjVuView::OnUpdate(const Observable* source, const Message* message)
 	if (message->code == PAGE_RENDERED)
 	{
 		const BitmapMsg* msg = (const BitmapMsg*) message;
-		PageRendered(msg->nPage, msg->pDIB);
+		if (msg->pIdentity != NULL)
+			PageRendered(msg->nPage, msg->pDIB, *(const RenderIdentity*)msg->pIdentity);
+		else
+			delete msg->pDIB;
 	}
 	else if (message->code == PAGE_DECODED)
 	{

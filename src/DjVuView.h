@@ -33,6 +33,20 @@ class CRenderThread;
 class PageCacheRegressionHarness;
 #endif
 
+struct RenderIdentity
+{
+	RenderIdentity() : nPage(-1), nRotate(0), nDisplayMode(0) {}
+	RenderIdentity(int nPage_, const CSize& size_, int nRotate_, int nDisplayMode_,
+		const CDisplaySettings& displaySettings_)
+		: nPage(nPage_), size(size_), nRotate(nRotate_), nDisplayMode(nDisplayMode_),
+		displaySettings(displaySettings_) {}
+
+	int nPage;
+	CSize size;
+	int nRotate, nDisplayMode;
+	CDisplaySettings displaySettings;
+};
+
 inline bool IsStandardZoom(int nZoomType, double fZoom)
 {
 	return (nZoomType < 0 || fZoom == 50.0 || fZoom == 75.0 ||
@@ -214,6 +228,7 @@ protected:
 
 	CCriticalSection m_dataLock;
 	set<CDIB*> m_bitmaps;
+	map<CDIB*, RenderIdentity> m_bitmapIdentities;
 	// Pages currently observed by this view. Cache updates revisit this small
 	// set when releasing old cache ownership instead of scanning the document.
 	set<int> m_observedPages;
@@ -340,7 +355,7 @@ protected:
 	int FixPageNumber(int nPage) const;
 	int GetNextPage(int nPage) const;
 	void SetLayout(int nLayout, int nPage, const CPoint& ptOffset);
-	void PageRendered(int nPage, CDIB* pDIB);
+	void PageRendered(int nPage, CDIB* pDIB, const RenderIdentity& identity);
 	void PageDecoded(int nPage);
 	void SettingsChanged();
 	void UpdateCursor();
@@ -378,6 +393,9 @@ protected:
 	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
 	bool HasReusableBitmap(Page& page) const;
+	bool IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const;
+	bool IsBitmapPinned(int nPage) const;
+	bool AcceptRenderedBitmap(int nPage, CDIB* pBitmap, const RenderIdentity& identity);
 	void SetBitmapIdentity(Page& page);
 	void PruneBitmapCache();
 	void DeleteCachedBitmap(Page& page);

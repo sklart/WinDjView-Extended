@@ -135,7 +135,11 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			switch (job.type)
 			{
 			case RENDER:
-				pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.nPage, pBitmap));
+				{
+					RenderIdentity identity(job.nPage, job.size, job.nRotate,
+						job.nDisplayMode, job.displaySettings);
+					pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.nPage, pBitmap, &identity));
+				}
 				break;
 
 			case DECODE:

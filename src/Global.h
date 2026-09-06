@@ -172,11 +172,12 @@ struct PageMsg : public Message
 
 struct BitmapMsg : public Message
 {
-	BitmapMsg(int msg, int nPage_, CDIB* pDIB_)
-		: Message(msg), nPage(nPage_), pDIB(pDIB_) {}
+	BitmapMsg(int msg, int nPage_, CDIB* pDIB_, const void* pIdentity_ = NULL)
+		: Message(msg), nPage(nPage_), pDIB(pDIB_), pIdentity(pIdentity_) {}
 
 	int nPage;
 	CDIB* pDIB;
+	const void* pIdentity;
 };
 
 struct LinkClicked : public Message
