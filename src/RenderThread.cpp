@@ -667,7 +667,11 @@ void CRenderThread::AddJob(const Job& job)
 	}
 	if (existing != m_jobs.end())
 	{
-		if (existing->priority < job.priority && job.type != CLEANUP)
+		// A page leaving the render window can remain in the wider decode
+		// window.  Its stale foreground render must yield to that decode job;
+		// otherwise reconciliation would remove the render and leave no work.
+		const bool renderToDecode = existing->type == RENDER && job.type == DECODE;
+		if (existing->priority < job.priority && job.type != CLEANUP && !renderToDecode)
 		{
 			m_lock.Unlock();
 			return;
