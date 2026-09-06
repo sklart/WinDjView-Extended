@@ -27,11 +27,34 @@ class CDIB;
 class CRenderThread
 {
 public:
+	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
+	enum JobPriority { CurrentPageRender, VisibleRender, Decode, AdjacentPrefetch, Background };
+
+	struct JobInfo
+	{
+		int nPage;
+		int type;
+		int priority;
+		CSize size;
+	};
+
+	struct SchedulerMetrics
+	{
+		int peakQueueLength;
+		int submittedRenderJobs;
+		int submittedDecodeJobs;
+		int submittedPrefetchJobs;
+		int obsoleteJobsRemoved;
+		int obsoleteJobsRejected;
+		int jobsExecutedBeforeCurrentPage;
+		DWORD currentPageResultElapsedMs;
+	};
+
 	CRenderThread(DjVuSource* pSource, Observer* pOwner);
 	void Stop();
 
 	void AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings,
-		int nDisplayMode = CDjVuView::Color);
+		int nDisplayMode = CDjVuView::Color, JobPriority priority = VisibleRender);
 	void AddDecodeJob(int nPage);
 	void AddPrefetchJob(int nPage);
 	void AddReadInfoJob(int nPage);
@@ -52,6 +75,10 @@ public:
 	void GetQueuedJobCounts(int& render, int& decode, int& prefetchDecode);
 	void ResetSubmittedJobCounts();
 	void GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode);
+	void GetQueuedJobInfo(vector<JobInfo>& jobs);
+	void ResetSchedulerMetrics();
+	void GetSchedulerMetrics(SchedulerMetrics& metrics);
+	void DiscardJobsOutside(const set<int>& pages);
 
 	void RejectCurrentJob();
 
@@ -65,8 +92,10 @@ private:
 	DjVuSource* m_pSource;
 	long m_nPaused;
 	int m_nSubmittedRenderJobs, m_nSubmittedDecodeJobs, m_nSubmittedPrefetchJobs;
-
-	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
+	int m_nPeakQueueLength, m_nObsoleteJobsRemoved, m_nObsoleteJobsRejected;
+	int m_nJobsExecutedBeforeCurrentPage;
+	DWORD m_dwCurrentPageRequest, m_dwCurrentPageResultElapsed;
+	bool m_bAwaitingCurrentPageResult;
 
 	struct Job
 	{
@@ -76,6 +105,7 @@ private:
 		CDisplaySettings displaySettings;
 		CSize size;
 		JobType type;
+		JobPriority priority;
 	};
 	list<Job> m_jobs;
 	vector<list<Job>::iterator> m_pages;
@@ -86,5 +116,6 @@ private:
 	CDIB* Render(Job& job);
 	void AddJob(const Job& job);
 	void RemoveFromQueue(int nPage);
+	bool HasSameRenderIdentity(const Job& left, const Job& right) const;
 	~CRenderThread();
 };

@@ -34,7 +34,10 @@
 
 CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0), m_bRejectCurrentJob(false),
-	  m_nSubmittedRenderJobs(0), m_nSubmittedDecodeJobs(0), m_nSubmittedPrefetchJobs(0)
+	  m_nSubmittedRenderJobs(0), m_nSubmittedDecodeJobs(0), m_nSubmittedPrefetchJobs(0),
+	  m_nPeakQueueLength(0), m_nObsoleteJobsRemoved(0), m_nObsoleteJobsRejected(0),
+	  m_nJobsExecutedBeforeCurrentPage(0), m_dwCurrentPageRequest(0),
+	  m_dwCurrentPageResultElapsed(0), m_bAwaitingCurrentPageResult(false)
 {
 	m_pSource->AddRef();
 
@@ -93,6 +96,8 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_currentJob = job;
 		pThread->m_jobs.pop_front();
 		pThread->m_pages[job.nPage] = pThread->m_jobs.end();
+		if (pThread->m_bAwaitingCurrentPageResult && job.priority != CurrentPageRender)
+			++pThread->m_nJobsExecutedBeforeCurrentPage;
 		pThread->m_lock.Unlock();
 
 		CDIB* pBitmap = NULL;
@@ -125,6 +130,12 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 
 		pThread->m_lock.Lock();
 		bool bNotify = (!pThread->m_bRejectCurrentJob);
+		if (bNotify && job.type == RENDER && job.priority == CurrentPageRender &&
+			pThread->m_bAwaitingCurrentPageResult)
+		{
+			pThread->m_dwCurrentPageResultElapsed = ::GetTickCount() - pThread->m_dwCurrentPageRequest;
+			pThread->m_bAwaitingCurrentPageResult = false;
+		}
 		pThread->m_currentJob.nPage = -1;
 		if (!pThread->m_jobs.empty() && !pThread->IsPaused())
 			pThread->m_jobReady.SetEvent();
@@ -238,6 +249,64 @@ void CRenderThread::GetSubmittedJobCounts(int& render, int& decode, int& prefetc
 	render = m_nSubmittedRenderJobs;
 	decode = m_nSubmittedDecodeJobs;
 	prefetchDecode = m_nSubmittedPrefetchJobs;
+	m_lock.Unlock();
+}
+
+void CRenderThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
+{
+	jobs.clear();
+	m_lock.Lock();
+	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+	{
+		JobInfo info = { it->nPage, it->type, it->priority, it->size };
+		jobs.push_back(info);
+	}
+	m_lock.Unlock();
+}
+
+void CRenderThread::ResetSchedulerMetrics()
+{
+	m_lock.Lock();
+	m_nPeakQueueLength = m_nObsoleteJobsRemoved = m_nObsoleteJobsRejected = 0;
+	m_nJobsExecutedBeforeCurrentPage = 0;
+	m_dwCurrentPageRequest = m_dwCurrentPageResultElapsed = 0;
+	m_bAwaitingCurrentPageResult = false;
+	m_lock.Unlock();
+}
+
+void CRenderThread::GetSchedulerMetrics(SchedulerMetrics& metrics)
+{
+	m_lock.Lock();
+	metrics.peakQueueLength = m_nPeakQueueLength;
+	metrics.submittedRenderJobs = m_nSubmittedRenderJobs;
+	metrics.submittedDecodeJobs = m_nSubmittedDecodeJobs;
+	metrics.submittedPrefetchJobs = m_nSubmittedPrefetchJobs;
+	metrics.obsoleteJobsRemoved = m_nObsoleteJobsRemoved;
+	metrics.obsoleteJobsRejected = m_nObsoleteJobsRejected;
+	metrics.jobsExecutedBeforeCurrentPage = m_nJobsExecutedBeforeCurrentPage;
+	metrics.currentPageResultElapsedMs = m_dwCurrentPageResultElapsed;
+	m_lock.Unlock();
+}
+
+void CRenderThread::DiscardJobsOutside(const set<int>& pages)
+{
+	m_lock.Lock();
+	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); )
+	{
+		if (pages.find(it->nPage) != pages.end())
+		{
+			++it;
+			continue;
+		}
+		m_pages[it->nPage] = m_jobs.end();
+		it = m_jobs.erase(it);
+		++m_nObsoleteJobsRemoved;
+	}
+	if (m_currentJob.nPage != -1 && pages.find(m_currentJob.nPage) == pages.end())
+	{
+		m_bRejectCurrentJob = true;
+		++m_nObsoleteJobsRejected;
+	}
 	m_lock.Unlock();
 }
 
@@ -452,7 +521,7 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 }
 
 void CRenderThread::AddJob(int nPage, int nRotate, const CSize& size,
-		const CDisplaySettings& displaySettings, int nDisplayMode)
+		const CDisplaySettings& displaySettings, int nDisplayMode, JobPriority priority)
 {
 	Job job;
 	job.nPage = nPage;
@@ -461,6 +530,7 @@ void CRenderThread::AddJob(int nPage, int nRotate, const CSize& size,
 	job.displaySettings = displaySettings;
 	job.size = size;
 	job.type = RENDER;
+	job.priority = priority;
 
 	AddJob(job);
 }
@@ -470,8 +540,15 @@ void CRenderThread::AddDecodeJob(int nPage)
 	Job job;
 	job.nPage = nPage;
 	job.type = DECODE;
+	job.priority = Decode;
 
 	AddJob(job);
+}
+
+bool CRenderThread::HasSameRenderIdentity(const Job& left, const Job& right) const
+{
+	return left.nRotate == right.nRotate && left.size == right.size &&
+		left.nDisplayMode == right.nDisplayMode && left.displaySettings == right.displaySettings;
 }
 
 void CRenderThread::AddPrefetchJob(int nPage)
@@ -479,6 +556,7 @@ void CRenderThread::AddPrefetchJob(int nPage)
 	Job job;
 	job.nPage = nPage;
 	job.type = PREFETCH_DECODE;
+	job.priority = AdjacentPrefetch;
 
 	AddJob(job);
 }
@@ -488,6 +566,7 @@ void CRenderThread::AddReadInfoJob(int nPage)
 	Job job;
 	job.nPage = nPage;
 	job.type = READINFO;
+	job.priority = Background;
 
 	AddJob(job);
 }
@@ -497,6 +576,7 @@ void CRenderThread::AddCleanupJob(int nPage)
 	Job job;
 	job.nPage = nPage;
 	job.type = CLEANUP;
+	job.priority = Background;
 
 	AddJob(job);
 }
@@ -505,21 +585,57 @@ void CRenderThread::AddJob(const Job& job)
 {
 	m_lock.Lock();
 
-	// Speculative decode never displaces queued visible work. A later visible
-	// request for the same page replaces its queued prefetch.
+	// One page has at most one queued semantic job. Foreground work always
+	// replaces speculative work; a changed render identity replaces its stale
+	// queued request instead of allowing zoom/rotate events to accumulate.
 	list<Job>::iterator existing = m_pages[job.nPage];
-	if (job.type == PREFETCH_DECODE && existing != m_jobs.end() && existing->type == RENDER)
+	if (job.type == PREFETCH_DECODE && existing != m_jobs.end() &&
+		existing->priority < AdjacentPrefetch)
 	{
 		m_lock.Unlock();
 		return;
 	}
-	if (m_currentJob.nPage == job.nPage && m_currentJob.type == job.type &&
-		(job.type != RENDER || (job.nRotate == m_currentJob.nRotate &&
-		job.size == m_currentJob.size && job.nDisplayMode == m_currentJob.nDisplayMode &&
-		job.displaySettings == m_currentJob.displaySettings)))
+	if (m_currentJob.nPage == job.nPage && m_currentJob.type == job.type)
+	{
+		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
+		{
+			m_lock.Unlock();
+			return;
+		}
+		// Rendering is not interrupted. The worker safely drops its result and
+		// the replacement request below is the only one that will be notified.
+		m_bRejectCurrentJob = true;
+		++m_nObsoleteJobsRejected;
+	}
+	if (m_currentJob.nPage == job.nPage && m_currentJob.priority < job.priority)
 	{
 		m_lock.Unlock();
 		return;
+	}
+	if (existing != m_jobs.end())
+	{
+		if (existing->priority < job.priority)
+		{
+			m_lock.Unlock();
+			return;
+		}
+		if (existing->type == job.type && (job.type != RENDER || HasSameRenderIdentity(job, *existing)) &&
+			existing->priority == job.priority)
+		{
+			m_lock.Unlock();
+			return;
+		}
+		if (existing->type == RENDER || existing->type == PREFETCH_DECODE)
+			++m_nObsoleteJobsRemoved;
+		RemoveFromQueue(job.nPage);
+	}
+
+	if (job.type == RENDER && job.priority == CurrentPageRender)
+	{
+		m_dwCurrentPageRequest = ::GetTickCount();
+		m_dwCurrentPageResultElapsed = 0;
+		m_nJobsExecutedBeforeCurrentPage = 0;
+		m_bAwaitingCurrentPageResult = true;
 	}
 	if (job.type == RENDER)
 		++m_nSubmittedRenderJobs;
@@ -528,20 +644,14 @@ void CRenderThread::AddJob(const Job& job)
 	else if (job.type == PREFETCH_DECODE)
 		++m_nSubmittedPrefetchJobs;
 
-	RemoveFromQueue(job.nPage);
-
-	if (job.type == PREFETCH_DECODE)
-	{
-		m_jobs.push_back(job);
-		list<Job>::iterator it = m_jobs.end();
-		--it;
-		m_pages[job.nPage] = it;
-	}
-	else
-	{
-		m_jobs.push_front(job);
-		m_pages[job.nPage] = m_jobs.begin();
-	}
+	// Keep FIFO order within a priority and insert before lower-priority work.
+	list<Job>::iterator insertAt = m_jobs.begin();
+	while (insertAt != m_jobs.end() && insertAt->priority <= job.priority)
+		++insertAt;
+	list<Job>::iterator inserted = m_jobs.insert(insertAt, job);
+	m_pages[job.nPage] = inserted;
+	if ((int)m_jobs.size() > m_nPeakQueueLength)
+		m_nPeakQueueLength = (int)m_jobs.size();
 
 	if (!IsPaused())
 		m_jobReady.SetEvent();
@@ -553,6 +663,7 @@ void CRenderThread::RemoveAllJobs()
 {
 	m_lock.Lock();
 
+	m_nObsoleteJobsRemoved += (int)m_jobs.size();
 	m_jobs.clear();
 	m_pages.assign(m_pSource->GetPageCount(), m_jobs.end());
 

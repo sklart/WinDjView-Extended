@@ -1942,7 +1942,8 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
+			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
+				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
 			InvalidatePage(nPage);
 		}
 		else
@@ -1995,7 +1996,8 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
+			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
+				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
 			InvalidatePage(nPage);
 		}
 		else
@@ -2046,7 +2048,8 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
 
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode);
+			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
+				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
 			InvalidatePage(nPage);
 		}
 		else

@@ -103,6 +103,52 @@ int _tmain(int argc, TCHAR** argv)
 	thread->PauseJobs();
 
 	bool passed = true;
+	const CDisplaySettings displaySettings;
+	// Queue order is semantic rather than insertion order: foreground must
+	// always run before normal decode, speculative prefetch, and maintenance.
+	if (source->GetPageCount() >= 5)
+	{
+		thread->RemoveAllJobs();
+		thread->ResetSchedulerMetrics();
+		thread->AddPrefetchJob(3);
+		thread->AddReadInfoJob(4);
+		thread->AddDecodeJob(2);
+		thread->AddJob(1, 0, CSize(800, 1000), displaySettings,
+			CDjVuView::Color, CRenderThread::VisibleRender);
+		thread->AddJob(0, 0, CSize(800, 1000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		vector<CRenderThread::JobInfo> jobs;
+		thread->GetQueuedJobInfo(jobs);
+		passed &= expect(jobs.size() == 5 && jobs[0].priority == CRenderThread::CurrentPageRender &&
+			jobs[1].priority == CRenderThread::VisibleRender && jobs[2].priority == CRenderThread::Decode &&
+			jobs[3].priority == CRenderThread::AdjacentPrefetch && jobs[4].priority == CRenderThread::Background,
+			"current and visible renders must precede decode, prefetch, and maintenance");
+
+		// Zoom/rotation-style replacement keeps only the latest identity for the
+		// page, and a distant jump drops all obsolete queued foreground work.
+		thread->RemoveAllJobs();
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(0, 0, CSize(800, 1000), displaySettings);
+		thread->AddJob(0, 1, CSize(1200, 1500), displaySettings);
+		thread->GetQueuedJobInfo(jobs);
+		CRenderThread::SchedulerMetrics metrics;
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(jobs.size() == 1 && jobs[0].size == CSize(1200, 1500) &&
+			metrics.obsoleteJobsRemoved >= 1,
+			"new render identity must replace the obsolete queued render");
+
+		thread->AddJob(1, 0, CSize(800, 1000), displaySettings);
+		thread->AddJob(2, 0, CSize(800, 1000), displaySettings);
+		set<int> currentWindow;
+		currentWindow.insert(2);
+		thread->DiscardJobsOutside(currentWindow);
+		thread->GetQueuedJobInfo(jobs);
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(jobs.size() == 1 && jobs[0].nPage == 2 && metrics.obsoleteJobsRemoved >= 3,
+			"A -> B -> C and distant jump must discard obsolete queued renders");
+		thread->RemoveAllJobs();
+	}
+
 	thread->AddPrefetchJob(adjacent);
 	thread->AddPrefetchJob(adjacent);
 	passed &= expect(thread->GetQueuedJobCount() == 1 && thread->IsPrefetchQueued(adjacent),

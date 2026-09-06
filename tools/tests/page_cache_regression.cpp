@@ -114,6 +114,7 @@ public:
 		view.ResetPageCacheEntryCounter();
 		view.ResetBitmapCacheCounters();
 		thread->ResetSubmittedJobCounts();
+		thread->ResetSchedulerMetrics();
 		if (clearJobs)
 			thread->RemoveAllJobs();
 		if (view.m_nLayout == CDjVuView::SinglePage)
@@ -182,7 +183,16 @@ bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harne
 			vector<int> add, remove;
 			harness.Update(add, remove);
 			const int initialProcessed = harness.view.GetProcessedPageCacheEntries();
+			vector<CRenderThread::JobInfo> queuedJobs;
+			harness.thread->GetQueuedJobInfo(queuedJobs);
+			bool currentRenderPrioritized = false;
+			for (size_t job = 0; job < queuedJobs.size(); ++job)
+				if (queuedJobs[job].nPage == page && queuedJobs[job].type == CRenderThread::RENDER &&
+					queuedJobs[job].priority == CRenderThread::CurrentPageRender)
+					currentRenderPrioritized = true;
 			passed &= Expect(!add.empty(), "working cache window must observe pages");
+			passed &= Expect(currentRenderPrioritized,
+				"Single/Facing/Continuous current-page render must have foreground priority");
 			passed &= Expect((int)(add.size() + remove.size()) < min(count + 3, 64),
 				"ordinary update must not scan the entire document");
 			passed &= Expect(initialProcessed < min(count + 3, 64),
@@ -400,6 +410,9 @@ void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harnes
 	const int updates = 100;
 	int totalProcessed = 0, totalRender = 0, totalDecode = 0, totalPrefetch = 0;
 	int totalHits = 0, totalMisses = 0, totalEvictions = 0;
+	int peakQueueLength = 0, obsoleteJobsRemoved = 0, obsoleteJobsRejected = 0;
+	int jobsBeforeCurrentPage = 0;
+	DWORD currentPageResultElapsed = 0;
 	LARGE_INTEGER frequency, begin, end;
 	QueryPerformanceFrequency(&frequency);
 	harness.Configure(4096, CDjVuView::ContinuousFacing, 0, 0, 900);
@@ -416,6 +429,13 @@ void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harnes
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		CRenderThread::SchedulerMetrics schedulerMetrics;
+		harness.thread->GetSchedulerMetrics(schedulerMetrics);
+		peakQueueLength = max(peakQueueLength, schedulerMetrics.peakQueueLength);
+		obsoleteJobsRemoved += schedulerMetrics.obsoleteJobsRemoved;
+		obsoleteJobsRejected += schedulerMetrics.obsoleteJobsRejected;
+		jobsBeforeCurrentPage += schedulerMetrics.jobsExecutedBeforeCurrentPage;
+		currentPageResultElapsed = max(currentPageResultElapsed, schedulerMetrics.currentPageResultElapsedMs);
 		int hits, misses, evictions;
 		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
 		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
@@ -433,6 +453,13 @@ void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harnes
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		CRenderThread::SchedulerMetrics schedulerMetrics;
+		harness.thread->GetSchedulerMetrics(schedulerMetrics);
+		peakQueueLength = max(peakQueueLength, schedulerMetrics.peakQueueLength);
+		obsoleteJobsRemoved += schedulerMetrics.obsoleteJobsRemoved;
+		obsoleteJobsRejected += schedulerMetrics.obsoleteJobsRejected;
+		jobsBeforeCurrentPage += schedulerMetrics.jobsExecutedBeforeCurrentPage;
+		currentPageResultElapsed = max(currentPageResultElapsed, schedulerMetrics.currentPageResultElapsedMs);
 		int hits, misses, evictions;
 		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
 		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
@@ -451,6 +478,13 @@ void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harnes
 		int render, decode, prefetch;
 		harness.thread->GetSubmittedJobCounts(render, decode, prefetch);
 		totalRender += render; totalDecode += decode; totalPrefetch += prefetch;
+		CRenderThread::SchedulerMetrics schedulerMetrics;
+		harness.thread->GetSchedulerMetrics(schedulerMetrics);
+		peakQueueLength = max(peakQueueLength, schedulerMetrics.peakQueueLength);
+		obsoleteJobsRemoved += schedulerMetrics.obsoleteJobsRemoved;
+		obsoleteJobsRejected += schedulerMetrics.obsoleteJobsRejected;
+		jobsBeforeCurrentPage += schedulerMetrics.jobsExecutedBeforeCurrentPage;
+		currentPageResultElapsed = max(currentPageResultElapsed, schedulerMetrics.currentPageResultElapsedMs);
 		int hits, misses, evictions;
 		harness.view.GetBitmapCacheCounters(hits, misses, evictions);
 		totalHits += hits; totalMisses += misses; totalEvictions += evictions;
@@ -458,9 +492,11 @@ void PageCacheRegressionHarness::RunBenchmark(PageCacheRegressionHarness& harnes
 	}
 	QueryPerformanceCounter(&end);
 	const double elapsed = 1000.0 * (end.QuadPart - begin.QuadPart) / frequency.QuadPart;
-	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_page_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d bitmap_cache_hits=%d bitmap_cache_misses=%d bitmap_evictions=%d retained_bitmap_count=%d retained_bitmap_bytes=%I64d\n",
+	printf("PAGE_CACHE_BENCHMARK updates=%d elapsed_ms=%.3f processed_page_entries=%d render_jobs=%d decode_jobs=%d prefetch_jobs=%d peak_queue_length=%d obsolete_jobs_removed=%d obsolete_jobs_rejected=%d jobs_before_current_page=%d current_page_result_elapsed_ms=%lu bitmap_cache_hits=%d bitmap_cache_misses=%d bitmap_evictions=%d retained_bitmap_count=%d retained_bitmap_bytes=%I64d\n",
 		updates * 3, elapsed, totalProcessed, totalRender, totalDecode, totalPrefetch,
-		totalHits, totalMisses, totalEvictions, harness.view.GetRetainedBitmapCount(), harness.view.GetRetainedBitmapBytes());
+		peakQueueLength, obsoleteJobsRemoved, obsoleteJobsRejected, jobsBeforeCurrentPage,
+		(unsigned long)currentPageResultElapsed, totalHits, totalMisses, totalEvictions,
+		harness.view.GetRetainedBitmapCount(), harness.view.GetRetainedBitmapBytes());
 }
 int _tmain(int argc, TCHAR** argv)
 {
