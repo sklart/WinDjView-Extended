@@ -663,8 +663,12 @@ void CRenderThread::AddJob(const Job& job)
 		}
 		replacingCurrentRender = true;
 	}
+	// Cleanup is deferred maintenance. If foreground work for the same page is
+	// already running, retain one cleanup request behind it so cache ownership
+	// is still released after an obsolete render/decode completes.
+	const bool queueCleanupAfterCurrent = job.type == CLEANUP;
 	if (m_currentJob.nPage == job.nPage && m_currentJob.priority < job.priority &&
-		!replacingCurrentRender)
+		!replacingCurrentRender && !queueCleanupAfterCurrent)
 	{
 		m_lock.Unlock();
 		return;

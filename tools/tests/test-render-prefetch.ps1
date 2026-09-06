@@ -18,6 +18,7 @@ Require-SourcePattern 'src\RenderThread.cpp' 'insertAt->priority <= job\.priorit
 Require-SourcePattern 'src\RenderThread.cpp' 'RemoveFromQueue\(job\.nPage\)' 'per-page job de-duplication'
 Require-SourcePattern 'src\RenderThread.cpp' 'HasSameRenderIdentity\(job, \*existing\)' 'render identity replacement'
 Require-SourcePattern 'src\RenderThread.cpp' 'existing->type == RENDER && job\.type == DECODE' 'render-to-decode semantic replacement'
+Require-SourcePattern 'src\RenderThread.cpp' 'const bool queueCleanupAfterCurrent = job\.type == CLEANUP' 'cleanup queueing behind running foreground work'
 Require-SourcePattern 'src\RenderThread.h' 'struct JobWindows' 'job-aware reconciliation windows'
 Require-SourcePattern 'src\RenderThread.cpp' 'void CRenderThread::ReconcileJobs\(const JobWindows& windows\)' 'job-aware reconciliation API'
 Require-SourcePattern 'src\DjVuView.cpp' 'm_pRenderThread->ReconcileJobs\(windows\);' 'production job-aware viewport cleanup'

@@ -287,6 +287,98 @@ int _tmain(int argc, TCHAR** argv)
 				::Sleep(1);
 		}
 		passed &= expect(drained, "replacement scenario must release the worker before later tests");
+
+		// A stale render can still be physically running when its page leaves the
+		// cache window. Cleanup must queue behind it and release the cached image
+		// once the rejected render exits the worker.
+		const int cleanupPage = runningPage;
+		GP<DjVuImage> cleanupImage = source->GetPage(cleanupPage, &observer);
+		passed &= expect(cleanupImage != NULL && source->IsPageCached(cleanupPage, &observer),
+			"running-cleanup regression page must start cached");
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ResumeJobs();
+		running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == cleanupPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		windows = CRenderThread::JobWindows();
+		thread->ReconcileJobs(windows); // Page left every active/cache window.
+		thread->PauseJobs();
+		thread->AddCleanupJob(cleanupPage);
+		thread->ReconcileJobs(windows);
+		thread->GetQueuedJobInfo(jobs);
+		bool queuedCleanup = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			queuedCleanup |= jobs[job].nPage == cleanupPage && jobs[job].type == CRenderThread::CLEANUP;
+		thread->GetSchedulerMetrics(metrics);
+		passed &= expect(running && queuedCleanup && metrics.obsoleteJobsRejected > 0,
+			"running obsolete render must retain cleanup behind the rejected job");
+		thread->ResumeJobs();
+		cleanupExecuted = false;
+		for (int attempt = 0; attempt < 30000 && !cleanupExecuted; ++attempt)
+		{
+			thread->GetQueuedJobInfo(jobs);
+			queuedCleanup = false;
+			for (size_t job = 0; job < jobs.size(); ++job)
+				queuedCleanup |= jobs[job].nPage == cleanupPage && jobs[job].type == CRenderThread::CLEANUP;
+			bool runningCleanup = thread->GetCurrentJobInfo(current) &&
+				current.nPage == cleanupPage && current.type == CRenderThread::CLEANUP;
+			cleanupExecuted = !source->IsPageCached(cleanupPage, &observer) &&
+				!queuedCleanup && !runningCleanup;
+			if (!cleanupExecuted)
+				::Sleep(1);
+		}
+		thread->PauseJobs();
+		passed &= expect(cleanupExecuted,
+			"cleanup queued behind a stale render must execute RemoveFromCache");
+
+		// If the page re-enters before the worker reaches cleanup, reconciliation
+		// cancels maintenance and leaves the observed image cached.
+		cleanupImage = source->GetPage(cleanupPage, &observer);
+		passed &= expect(cleanupImage != NULL && source->IsPageCached(cleanupPage, &observer),
+			"re-entry regression page must be cached before its second render");
+		thread->ResetSchedulerMetrics();
+		thread->AddJob(cleanupPage, 0, CSize(4000, 4000), displaySettings,
+			CDjVuView::Color, CRenderThread::CurrentPageRender);
+		thread->ResumeJobs();
+		running = false;
+		for (int attempt = 0; attempt < 5000 && !running; ++attempt)
+		{
+			running = thread->GetCurrentJobInfo(current) && current.nPage == cleanupPage &&
+				current.type == CRenderThread::RENDER;
+			if (!running)
+				::Sleep(1);
+		}
+		windows = CRenderThread::JobWindows();
+		thread->ReconcileJobs(windows);
+		thread->PauseJobs();
+		thread->AddCleanupJob(cleanupPage);
+		windows.renderPages.insert(cleanupPage); // Page re-enters before cleanup runs.
+		thread->ReconcileJobs(windows);
+		thread->GetQueuedJobInfo(jobs);
+		queuedCleanup = false;
+		for (size_t job = 0; job < jobs.size(); ++job)
+			queuedCleanup |= jobs[job].nPage == cleanupPage && jobs[job].type == CRenderThread::CLEANUP;
+		passed &= expect(running && !queuedCleanup,
+			"re-entry must cancel cleanup queued behind a running render");
+		thread->ResumeJobs();
+		drained = false;
+		for (int attempt = 0; attempt < 30000 && !drained; ++attempt)
+		{
+			drained = !thread->GetCurrentJobInfo(current);
+			if (!drained)
+				::Sleep(1);
+		}
+		thread->PauseJobs();
+		passed &= expect(drained && source->IsPageCached(cleanupPage, &observer),
+			"cancelled cleanup must not remove a page that re-entered the cache window");
+		thread->RemoveAllJobs();
 	}
 
 	thread->AddPrefetchJob(adjacent);
