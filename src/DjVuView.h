@@ -384,16 +384,22 @@ protected:
 	CSize UpdateLayoutFacing(const CSize& szClient);
 	CSize UpdateLayoutContinuous(const CSize& szClient);
 	CSize UpdateLayoutContinuousFacing(const CSize& szClient);
-	void UpdatePagesCacheSingle(bool bUpdateImages, vector<int>& add, vector<int>& remove);
-	void UpdatePagesCacheFacing(bool bUpdateImages, vector<int>& add, vector<int>& remove);
-	void UpdatePagesCacheContinuous(bool bUpdateImages, vector<int>& add, vector<int>& remove);
-	void ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove);
+	void UpdatePagesCacheSingle(bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
+	void UpdatePagesCacheFacing(bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
+	void UpdatePagesCacheContinuous(bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
+	void ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove, set<int>& prefetchPages);
 	void GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const;
-	void AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove);
+	void AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove, set<int>& prefetchPages);
 	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, bool bCurrentPage = false);
-	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
-	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove);
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages, bool bCurrentPage = false);
+	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
+	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
 	bool HasReusableBitmap(Page& page) const;
 	bool IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const;
 	bool IsBitmapPinned(int nPage) const;

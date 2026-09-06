@@ -39,6 +39,7 @@ public:
 	DjVuSource* source;
 	CacheView view;
 	CRenderThread* thread;
+	CRenderThread::JobWindows lastWindows;
 
 	PageCacheRegressionHarness(const CString& fixture) : source(DjVuSource::FromFile(fixture)), thread(NULL)
 	{
@@ -117,13 +118,19 @@ public:
 		thread->ResetSchedulerMetrics();
 		if (clearJobs)
 			thread->RemoveAllJobs();
+		CRenderThread::JobWindows windows;
 		if (view.m_nLayout == CDjVuView::SinglePage)
-			view.UpdatePagesCacheSingle(true, add, remove);
+			view.UpdatePagesCacheSingle(true, add, remove, windows.renderPages, windows.decodePages,
+				windows.readInfoPages, windows.cleanupPages);
 		else if (view.m_nLayout == CDjVuView::Facing)
-			view.UpdatePagesCacheFacing(true, add, remove);
+			view.UpdatePagesCacheFacing(true, add, remove, windows.renderPages, windows.decodePages,
+				windows.readInfoPages, windows.cleanupPages);
 		else
-			view.UpdatePagesCacheContinuous(true, add, remove);
-		view.ScheduleAdjacentPrefetch(add, remove);
+			view.UpdatePagesCacheContinuous(true, add, remove, windows.renderPages, windows.decodePages,
+				windows.readInfoPages, windows.cleanupPages);
+		view.ScheduleAdjacentPrefetch(add, remove, windows.prefetchPages);
+		thread->ReconcileJobs(windows);
+		lastWindows = windows;
 		view.PruneBitmapCache();
 	}
 
@@ -138,6 +145,15 @@ public:
 	}
 
 	static bool HasLegacyWorkingWindow(const CacheView& view, const vector<int>& add);
+	bool HasQueuedJob(int nPage, CRenderThread::JobType type) const
+	{
+		vector<CRenderThread::JobInfo> jobs;
+		thread->GetQueuedJobInfo(jobs);
+		for (size_t i = 0; i < jobs.size(); ++i)
+			if (jobs[i].nPage == nPage && jobs[i].type == type)
+				return true;
+		return false;
+	}
 	static bool RunRegression(PageCacheRegressionHarness& harness);
 	static void RunBenchmark(PageCacheRegressionHarness& harness);
 };
@@ -247,6 +263,27 @@ bool PageCacheRegressionHarness::RunRegression(PageCacheRegressionHarness& harne
 	harness.ApplyObservation(add, remove);
 	passed &= Expect(!Contains(vector<int>(harness.view.m_observedPages.begin(), harness.view.m_observedPages.end()), 8),
 		"old observed page must be removed from local tracking");
+
+	// Scheduler windows are formed by the actual production cache decisions,
+	// rather than inferred from observer add/remove ownership.
+	harness.Configure(1, CDjVuView::SinglePage, 0, 0, 900);
+	harness.view.m_pages[0].info.bDecoded = false;
+	harness.Update(add, remove);
+	passed &= Expect(harness.lastWindows.readInfoPages.find(0) != harness.lastWindows.readInfoPages.end() &&
+		harness.HasQueuedJob(0, CRenderThread::READINFO),
+		"undecoded current page must retain its READINFO job through reconciliation");
+
+	harness.Configure(500, CDjVuView::SinglePage, 250, 0, 900);
+	harness.Update(add, remove);
+	passed &= Expect(harness.HasQueuedJob(250, CRenderThread::RENDER),
+		"initial render-window page must queue a render job");
+	harness.view.m_nPage = 254; // Page 250 is now decode-only, not renderable.
+	harness.Update(add, remove, false);
+	passed &= Expect(harness.lastWindows.renderPages.find(250) == harness.lastWindows.renderPages.end() &&
+		harness.lastWindows.decodePages.find(250) != harness.lastWindows.decodePages.end() &&
+		!harness.HasQueuedJob(250, CRenderThread::RENDER) &&
+		harness.HasQueuedJob(250, CRenderThread::DECODE),
+		"decode-only page must replace an obsolete render without losing its decode");
 
 	// Repeating the same production update must replace, not duplicate, jobs.
 	harness.Configure(500, CDjVuView::SinglePage, 250, 0, 900);

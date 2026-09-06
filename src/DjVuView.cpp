@@ -1689,7 +1689,8 @@ CSize CDjVuView::UpdateLayoutContinuousFacing(const CSize& szClient)
 }
 
 void CDjVuView::UpdatePagesCacheSingle(bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == SinglePage);
 
@@ -1702,25 +1703,26 @@ void CDjVuView::UpdatePagesCacheSingle(bool bUpdateImages,
 	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
 	{
 		if (desired.find(*it) == desired.end())
-			UpdatePageCacheSingle(*it, bUpdateImages, add, remove);
+			UpdatePageCacheSingle(*it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	}
 
 	// Submit the outer pages first so nearby pages keep their queue priority.
 	if (abs(m_nPage) > 10)
-		UpdatePageCacheSingle(0, bUpdateImages, add, remove);
+		UpdatePageCacheSingle(0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
-		UpdatePageCacheSingle(m_nPageCount - 1, bUpdateImages, add, remove);
+		UpdatePageCacheSingle(m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	for (int nDiff = 10; nDiff >= 0; --nDiff)
 	{
 		if (m_nPage - nDiff >= 0)
-			UpdatePageCacheSingle(m_nPage - nDiff, bUpdateImages, add, remove);
+			UpdatePageCacheSingle(m_nPage - nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 		if (m_nPage + nDiff < m_nPageCount && nDiff != 0)
-			UpdatePageCacheSingle(m_nPage + nDiff, bUpdateImages, add, remove);
+			UpdatePageCacheSingle(m_nPage + nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	}
 }
 
 void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == Facing);
 
@@ -1733,19 +1735,19 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
 	{
 		if (desired.find(*it) == desired.end())
-			UpdatePageCacheFacing(*it, bUpdateImages, add, remove);
+			UpdatePageCacheFacing(*it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	}
 
 	if (abs(m_nPage) > 10)
-		UpdatePageCacheFacing(0, bUpdateImages, add, remove);
+		UpdatePageCacheFacing(0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
-		UpdatePageCacheFacing(m_nPageCount - 1, bUpdateImages, add, remove);
+		UpdatePageCacheFacing(m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	for (int nDiff = 10; nDiff >= 0; --nDiff)
 	{
 		if (m_nPage - nDiff >= 0)
-			UpdatePageCacheFacing(m_nPage - nDiff, bUpdateImages, add, remove);
+			UpdatePageCacheFacing(m_nPage - nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 		if (m_nPage + nDiff < m_nPageCount && nDiff != 0)
-			UpdatePageCacheFacing(m_nPage + nDiff, bUpdateImages, add, remove);
+			UpdatePageCacheFacing(m_nPage + nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	}
 }
 
@@ -1913,7 +1915,8 @@ void CDjVuView::PruneBitmapCache()
 }
 
 void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, bool bCurrentPage)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages, bool bCurrentPage)
 {
 	++m_nProcessedPageCacheEntries;
 	// Pages visible on screen are put to the front of the rendering queue.
@@ -1931,6 +1934,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 			return;
 
 		m_pRenderThread->AddReadInfoJob(nPage);
+		readInfoPages.insert(nPage);
 	}
 	else if (page.rcDisplay.top < nTop + 3*szViewport.cy &&
 			 page.rcDisplay.bottom > nTop - 2*szViewport.cy)
@@ -1944,6 +1948,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
 				bCurrentPage || nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
+			renderPages.insert(nPage);
 			InvalidatePage(nPage);
 		}
 		else
@@ -1957,11 +1962,13 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 				|| nPage == 0 || nPage == m_nPageCount - 1))
 		{
 			m_pRenderThread->AddDecodeJob(nPage);
+			decodePages.insert(nPage);
 			add.push_back(nPage);
 		}
 		else if (m_pSource->IsPageCached(nPage, this))
 		{
 			m_pRenderThread->AddCleanupJob(nPage);
+			cleanupPages.insert(nPage);
 			remove.push_back(nPage);
 		}
 		else
@@ -1972,7 +1979,8 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 }
 
 void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	++m_nProcessedPageCacheEntries;
 	// Current page and adjacent are rendered, next +- 9 pages are decoded.
@@ -1985,6 +1993,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 			return;
 
 		m_pRenderThread->AddReadInfoJob(nPage);
+		readInfoPages.insert(nPage);
 	}
 	else if (nPageSize < 3000000 && abs(nPage - m_nPage) <= 2 ||
 			 abs(nPage - m_nPage) <= 1)
@@ -1998,6 +2007,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
 				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
+			renderPages.insert(nPage);
 			InvalidatePage(nPage);
 		}
 		else
@@ -2009,11 +2019,13 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
 		{
 			m_pRenderThread->AddDecodeJob(nPage);
+			decodePages.insert(nPage);
 			add.push_back(nPage);
 		}
 		else if (m_pSource->IsPageCached(nPage, this))
 		{
 			m_pRenderThread->AddCleanupJob(nPage);
+			cleanupPages.insert(nPage);
 			remove.push_back(nPage);
 		}
 		else
@@ -2024,7 +2036,8 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 }
 
 void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	++m_nProcessedPageCacheEntries;
 	// Current page and adjacent are rendered, next +- 9 pages are decoded.
@@ -2037,6 +2050,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 			return;
 
 		m_pRenderThread->AddReadInfoJob(nPage);
+		readInfoPages.insert(nPage);
 	}
 	else if (nPageSize < 1500000 && nPage >= m_nPage - 4 && nPage <= m_nPage + 5 ||
 			 nPage >= m_nPage - 2 && nPage <= m_nPage + 3)
@@ -2050,6 +2064,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 
 			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
 				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
+			renderPages.insert(nPage);
 			InvalidatePage(nPage);
 		}
 		else
@@ -2061,11 +2076,13 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
 		{
 			m_pRenderThread->AddDecodeJob(nPage);
+			decodePages.insert(nPage);
 			add.push_back(nPage);
 		}
 		else if (m_pSource->IsPageCached(nPage, this))
 		{
 			m_pRenderThread->AddCleanupJob(nPage);
+			cleanupPages.insert(nPage);
 			remove.push_back(nPage);
 		}
 		else
@@ -2076,7 +2093,8 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 }
 
 void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
-		vector<int>& add, vector<int>& remove)
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == Continuous || m_nLayout == ContinuousFacing);
 
@@ -2108,23 +2126,23 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
 	{
 		if (desired.find(*it) == desired.end())
-			UpdatePageCache(rcViewport.Size(), *it, bUpdateImages, add, remove);
+			UpdatePageCache(rcViewport.Size(), *it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	}
 
 	if (nCacheTop > 0)
-		UpdatePageCache(rcViewport.Size(), 0, bUpdateImages, add, remove);
+		UpdatePageCache(rcViewport.Size(), 0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	if (nCacheBottom < m_nPageCount - 1)
-		UpdatePageCache(rcViewport.Size(), m_nPageCount - 1, bUpdateImages, add, remove);
+		UpdatePageCache(rcViewport.Size(), m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	for (int nPage = nCacheTop; nPage < nTopPage; ++nPage)
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove);
+		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 	for (int nPage = nCacheBottom; nPage > nBottomPage; --nPage)
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove);
+		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 
 	int nLastPage = m_nPage;
 	int nMaxSize = -1;
 	for (int nPage = nBottomPage; nPage >= nTopPage; --nPage)
 	{
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove);
+		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 
 		CRect rcBitmap(m_pages[nPage].ptOffset, m_pages[nPage].szBitmap);
 		CPoint ptScroll = GetScrollPosition();
@@ -2140,10 +2158,10 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 	// The largest visible page is the foreground render in continuous layouts.
 	// Repeating this request promotes an already queued visible render without
 	// changing the cache window.
-	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove, true);
+	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages, true);
 }
 
-void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove)
+void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove, set<int>& prefetchPages)
 {
 	if (!IsValidPage(nPage))
 		return;
@@ -2155,6 +2173,7 @@ void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove
 		add.push_back(nPage);
 
 	m_pRenderThread->AddPrefetchJob(nPage);
+	prefetchPages.insert(nPage);
 }
 
 void CDjVuView::GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const
@@ -2175,14 +2194,14 @@ void CDjVuView::GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) con
 	nPreviousPage = nFirstVisible - 1;
 }
 
-void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove)
+void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove, set<int>& prefetchPages)
 {
 	int nNextPage, nPreviousPage;
 	GetAdjacentPrefetchPages(nNextPage, nPreviousPage);
 
 	// Preserve reading direction: next page is queued before previous page.
-	AddPrefetchPage(nNextPage, add, remove);
-	AddPrefetchPage(nPreviousPage, add, remove);
+	AddPrefetchPage(nNextPage, add, remove, prefetchPages);
+	AddPrefetchPage(nPreviousPage, add, remove, prefetchPages);
 }
 
 void CDjVuView::UpdateVisiblePages()
@@ -2196,32 +2215,22 @@ void CDjVuView::UpdateVisiblePages()
 	vector<int> add, remove;
 	add.reserve(32);
 	remove.reserve(32);
+	CRenderThread::JobWindows windows;
 
 	if (m_nLayout == SinglePage)
-		UpdatePagesCacheSingle(m_bUpdateBitmaps, add, remove);
+		UpdatePagesCacheSingle(m_bUpdateBitmaps, add, remove, windows.renderPages, windows.decodePages,
+			windows.readInfoPages, windows.cleanupPages);
 	else if (m_nLayout == Facing)
-		UpdatePagesCacheFacing(m_bUpdateBitmaps, add, remove);
+		UpdatePagesCacheFacing(m_bUpdateBitmaps, add, remove, windows.renderPages, windows.decodePages,
+			windows.readInfoPages, windows.cleanupPages);
 	else if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
-		UpdatePagesCacheContinuous(m_bUpdateBitmaps, add, remove);
+		UpdatePagesCacheContinuous(m_bUpdateBitmaps, add, remove, windows.renderPages, windows.decodePages,
+			windows.readInfoPages, windows.cleanupPages);
 
-	ScheduleAdjacentPrefetch(add, remove);
+	ScheduleAdjacentPrefetch(add, remove, windows.prefetchPages);
 
-	// Reconcile work by semantic type. Cleanup is retained for pages leaving
-	// the cache; read-info has its own need set; only speculative prefetch is
-	// constrained to the two adjacent pages.
-	CRenderThread::JobWindows windows;
-	windows.renderPages.insert(add.begin(), add.end());
-	windows.decodePages = windows.renderPages;
-	for (set<int>::const_iterator it = windows.decodePages.begin(); it != windows.decodePages.end(); ++it)
-		if (!m_pages[*it].info.bDecoded)
-			windows.readInfoPages.insert(*it);
-	windows.cleanupPages.insert(remove.begin(), remove.end());
-	int nNextPage, nPreviousPage;
-	GetAdjacentPrefetchPages(nNextPage, nPreviousPage);
-	if (IsValidPage(nNextPage))
-		windows.prefetchPages.insert(nNextPage);
-	if (IsValidPage(nPreviousPage))
-		windows.prefetchPages.insert(nPreviousPage);
+	// Job windows are recorded at each actual scheduling decision above.
+	// add/remove remain strictly observer/cache ownership changes.
 	m_pRenderThread->ReconcileJobs(windows);
 
 	// Mirror ChangeObservedPages locally. The next update will only revisit
