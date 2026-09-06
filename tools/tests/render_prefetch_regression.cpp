@@ -59,7 +59,7 @@ namespace
 			return ::WaitForSingleObject(m_renderEvent, timeout) == WAIT_OBJECT_0 &&
 				InterlockedCompareExchange(&m_renderPage, 0, 0) == page;
 		}
-		long GetRenderCount() const { return InterlockedCompareExchange(&m_renderCount, 0, 0); }
+		long GetRenderCount() { return InterlockedCompareExchange(&m_renderCount, 0, 0); }
 
 	private:
 		HANDLE m_event;
