@@ -16,25 +16,34 @@ if not "%MODE%"=="" if /I not "%MODE%"=="--update-baseline" exit /b 2
 
 for %%I in ("%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe") do set "VSWHERE=%%~sI"
 set "VSROOT="
-set "VCTOOLS_VERSION="
-for /f "delims=" %%I in ('%VSWHERE% -all -products * -property installationPath') do (
-	for /f "delims=" %%V in ('dir /b /ad "%%I\VC\Tools\MSVC\14.44.*" 2^>nul') do (
-		if not defined VSROOT if exist "%%I\VC\Tools\MSVC\%%V\atlmfc\include\afxwin.h" (
-			set "VSROOT=%%I"
-			set "VCTOOLS_VERSION=%%V"
-		)
-	)
-)
+for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version [17.0^,18.0^) -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set "VSROOT=%%I"
 if not defined VSROOT (
-	echo Visual Studio 2022 MSVC 14.44 with MFC was not found. 1>&2
+	echo Visual Studio 2022 C++ tools were not found. 1>&2
 	exit /b 1
 )
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
-if /I not "!VCToolsVersion!"=="!VCTOOLS_VERSION!" (
-	echo Expected MSVC !VCTOOLS_VERSION!, found !VCToolsVersion!. 1>&2
+if not defined VCToolsVersion (
+	echo Visual Studio 2022 did not initialize an MSVC toolset. 1>&2
 	exit /b 1
 )
+if not exist "!VCToolsInstallDir!atlmfc\include\afxwin.h" (
+	echo MFC for MSVC !VCToolsVersion! is not installed. 1>&2
+	exit /b 1
+)
+if not exist "!VCToolsInstallDir!atlmfc\include\atlbase.h" (
+	echo ATL for MSVC !VCToolsVersion! is not installed. 1>&2
+	exit /b 1
+)
+if not exist "!VCToolsInstallDir!atlmfc\lib\x64\mfc140u.lib" (
+	echo MFC x64 libraries for MSVC !VCToolsVersion! are not installed. 1>&2
+	exit /b 1
+)
+if not exist "!VCToolsInstallDir!atlmfc\lib\x64\atls.lib" (
+	echo ATL x64 libraries for MSVC !VCToolsVersion! are not installed. 1>&2
+	exit /b 1
+)
+echo Using VS2022 MSVC !VCToolsVersion! with MFC and ATL.
 msbuild src\WinDjView.Native.vcxproj /nologo /t:Rebuild /m /p:Configuration=Release /p:Platform=x64
 if errorlevel 1 exit /b %errorlevel%
 set "TEST_BASENAME=tools\tests\golden_render_regression-Release-x64-native"
@@ -57,5 +66,14 @@ set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\build\Release_x64\jpeg-static.li
 if not exist "%JPEG_LIBRARY%" set "JPEG_LIBRARY=src\third_party\libjpeg-turbo\jpeg64.lib"
 cl /nologo /W4 /EHsc /MT /DNDEBUG /DWIN32 /D_WINDOWS /D_CONSOLE /DHAS_WCTYPE=1 /DTHREADMODEL=WINTHREADS /DDO_CHANGELOCALE=0 /DWIN32_MONITOR /DNEED_JPEG_DECODER /DLIBDJVU_STATIC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /D_SECURE_SCL=0 /D_UNICODE /DUNICODE /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\golden_render_regression.cpp" /Fe"%TEST_BASENAME%.exe" "%TEST_BASENAME%-app.lib" "%DJVU_LIBRARY%" "%JPEG_LIBRARY%" advapi32.lib bcrypt.lib psapi.lib msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /link /LTCG /MANIFEST:NO
 if errorlevel 1 exit /b %errorlevel%
-"%TEST_BASENAME%.exe" "tools\tests\golden-render-baseline.json" "%CORPUS_ROOT%" %MODE%
+set "UPDATE_ARGS="
+if /I "%MODE%"=="--update-baseline" (
+	for /f "delims=" %%I in ('git rev-parse HEAD') do set "BASELINE_COMMIT=%%I"
+	if not defined BASELINE_COMMIT (
+		echo Could not resolve current Git commit for baseline provenance. 1>&2
+		exit /b 1
+	)
+	set "UPDATE_ARGS=--update-baseline !BASELINE_COMMIT!"
+)
+"%TEST_BASENAME%.exe" "tools\tests\golden-render-baseline.json" "%CORPUS_ROOT%" !UPDATE_ARGS!
 exit /b %errorlevel%

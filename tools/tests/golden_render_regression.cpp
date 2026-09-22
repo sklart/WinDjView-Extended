@@ -79,6 +79,14 @@ namespace
 		return false;
 	}
 
+	bool IsCommitId(const string& value)
+	{
+		if (value.length() < 7 || value.length() > 64) return false;
+		for (size_t i = 0; i < value.length(); ++i)
+			if (!isxdigit(static_cast<unsigned char>(value[i]))) return false;
+		return true;
+	}
+
 	int DisplayModeFromName(const string& name)
 	{
 		if (name == "Color") return CDjVuView::Color;
@@ -97,12 +105,12 @@ namespace
 		return "Unknown";
 	}
 
-	bool LoadBaseline(const char* path, vector<GoldenCase>& cases)
+	bool LoadBaseline(const char* path, string& baselineCommit, vector<GoldenCase>& cases)
 	{
 		string text;
 		if (!ReadFile(path, text)) return Fail("could not read baseline");
-		if (text.find("\"baseline_commit\": \"b8f9faa\"") == string::npos)
-			return Fail("baseline is not anchored to b8f9faa");
+		if (!ReadString(text, "baseline_commit", baselineCommit) || !IsCommitId(baselineCommit))
+			return Fail("baseline has invalid provenance commit");
 
 		size_t pos = 0;
 		while ((pos = text.find("\"id\"", pos)) != string::npos)
@@ -208,11 +216,11 @@ namespace
 		return true;
 	}
 
-	bool WriteBaseline(const char* path, const vector<GoldenCase>& cases)
+	bool WriteBaseline(const char* path, const string& baselineCommit, const vector<GoldenCase>& cases)
 	{
 		ofstream output(path, ios::out | ios::binary | ios::trunc);
 		if (!output) return false;
-		output << "{\n  \"schema_version\": 1,\n  \"baseline_commit\": \"b8f9faa\",\n";
+		output << "{\n  \"schema_version\": 1,\n  \"baseline_commit\": \"" << baselineCommit << "\",\n";
 		output << "  \"canonicalization\": \"RGB24 top-to-bottom, no stride padding, SHA-256\",\n  \"cases\": [\n";
 		for (size_t i = 0; i < cases.size(); ++i)
 		{
@@ -242,15 +250,19 @@ namespace
 
 int _tmain(int argc, TCHAR** argv)
 {
-	if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0) || (argc != 3 && argc != 4))
+	if (!AfxWinInit(::GetModuleHandle(NULL), NULL, ::GetCommandLine(), 0) || (argc != 3 && argc != 5))
 		return 2;
-	const bool update = argc == 4 && _tcscmp(argv[3], _T("--update-baseline")) == 0;
-	if (argc == 4 && !update) return 2;
+	const bool update = argc == 5 && _tcscmp(argv[3], _T("--update-baseline")) == 0;
+	if (argc == 5 && !update) return 2;
 
 	CStringA baselinePath(argv[1]);
 	CStringA corpusRoot(argv[2]);
+	CStringA updateCommitText = update ? CStringA(argv[4]) : CStringA();
+	string updateCommit = update ? string(static_cast<LPCSTR>(updateCommitText)) : string();
+	if (update && !IsCommitId(updateCommit)) return 2;
 	vector<GoldenCase> cases;
-	if (!LoadBaseline(baselinePath, cases)) return 1;
+	string baselineCommit;
+	if (!LoadBaseline(baselinePath, baselineCommit, cases)) return 1;
 
 	RegressionApplication application;
 	DjVuSource::SetApplication(&application);
@@ -315,7 +327,7 @@ int _tmain(int argc, TCHAR** argv)
 		delete bitmap;
 		source->Release();
 	}
-	if (update && passed && !WriteBaseline(baselinePath, cases)) passed = Fail("could not write requested baseline update");
+	if (update && passed && !WriteBaseline(baselinePath, updateCommit, cases)) passed = Fail("could not write requested baseline update");
 	printf("Golden render regression: %s\n", passed ? "PASS" : "FAIL");
 	return passed ? 0 : 1;
 }
