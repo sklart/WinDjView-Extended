@@ -1,11 +1,13 @@
 # Changelog
 
-## 4.3.0 — unreleased
+## 4.3.0 — 2026-09-22
 
 ### Added
 
 - Native MSBuild production builds for Win32 and x64, portable release packaging,
   startup smoke tests, real-world DjVu corpus coverage, and production cache regressions.
+- Golden Render regression baselines and deterministic malformed-DjVu AddressSanitizer
+  coverage for the Native x64 build.
 
 ### Performance
 
@@ -30,6 +32,8 @@
 - Modernized the Open/Save dialog layer for supported Windows versions and
   removed historical fixed-size path buffers from document opening and
   already-open document detection.
+- Added High-DPI and Per-Monitor DPI handling, plus the long-path foundation
+  used by document opening and already-open document detection.
 - Updated the bundled DjVuLibre to 3.5.30 with required WinDjView extensions.
 - Updated the static JPEG implementation to libjpeg-turbo 3.2.0 and decode
   JPEG scanlines directly into `GPixmap`.
