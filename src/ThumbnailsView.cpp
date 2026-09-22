@@ -828,15 +828,40 @@ void CThumbnailsView::UpdateVisiblePages()
 			++nBottomPage;
 
 		const int nAdjacentCount = max(2*m_nPagesInRow, 8);
-		set<int> visiblePages, adjacentPages, backgroundPages;
+		set<int> visiblePages, adjacentPages, backgroundPages, idleVisiblePages;
 		for (int nPage = nTopPage; nPage < nBottomPage; ++nPage)
 			visiblePages.insert(nPage);
 		for (int nPage = max(0, nTopPage - nAdjacentCount);
 				nPage < min(m_nPageCount, nBottomPage + nAdjacentCount); ++nPage)
 			if (visiblePages.count(nPage) == 0) adjacentPages.insert(nPage);
+		set<int> retainedBackgroundPages, retainedAdjacentPages;
+		m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Background, retainedBackgroundPages);
+		m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Adjacent, retainedAdjacentPages);
+		for (set<int>::iterator it = retainedAdjacentPages.begin(); it != retainedAdjacentPages.end(); ++it)
+		{
+			if (visiblePages.count(*it) != 0)
+			{
+				UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Visible);
+				idleVisiblePages.insert(*it);
+			}
+		}
+		for (set<int>::iterator it = retainedBackgroundPages.begin(); it != retainedBackgroundPages.end(); ++it)
+		{
+			if (visiblePages.count(*it) != 0)
+			{
+				// An already queued/running idle job cannot be moved to another
+				// worker safely. Promote its identity in place and do not enqueue
+				// a duplicate foreground render.
+				UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Visible);
+				idleVisiblePages.insert(*it);
+			}
+			else if (adjacentPages.count(*it) != 0)
+				UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Adjacent);
+			else if (theApp.GetAppSettings()->bGenAllThumbnails)
+				backgroundPages.insert(*it);
+		}
 		if (theApp.GetAppSettings()->bGenAllThumbnails)
 		{
-			m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Background, backgroundPages);
 			if (backgroundPages.empty())
 			{
 				for (int nTry = 0; nTry < m_nPageCount; ++nTry)
@@ -860,7 +885,8 @@ void CThumbnailsView::UpdateVisiblePages()
 			UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Adjacent);
 
 		for (int nPage = nBottomPage - 1; nPage >= nTopPage; --nPage)
-			UpdatePage(nPage, m_pThread, CThumbnailsThread::Visible);
+			if (idleVisiblePages.count(nPage) == 0)
+				UpdatePage(nPage, m_pThread, CThumbnailsThread::Visible);
 
 		m_pThread->ResumeJobs();
 		m_pIdleThread->ResumeJobs();

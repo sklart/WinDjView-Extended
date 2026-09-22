@@ -294,6 +294,11 @@ void CThumbnailsThread::AddJob(int nPage, int nRotate, const CSize& size, const 
 	m_lock.Lock();
 	if (SameIdentity(m_currentJob, job))
 	{
+		if (priority < m_currentJob.priority)
+			m_currentJob.priority = priority;
+		// A matching request proves that this in-flight raster is current again.
+		// Reuse it instead of throwing its result away and starting another job.
+		m_bRejectCurrentJob = false;
 		++m_metrics.deduplicated;
 		m_lock.Unlock();
 		return;

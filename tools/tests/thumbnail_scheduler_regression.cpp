@@ -107,6 +107,16 @@ int _tmain(int argc, TCHAR** argv)
 	passed &= expect(jobs.size() == 1 && jobs[0].priority == CThumbnailsThread::Visible,
 		"a visible request must promote an identical queued adjacent job");
 	thread->RemoveAllJobs();
+	thread->AddJob(page, 0, CSize(115, 115), settings, CThumbnailsThread::Background);
+	thread->AddJob(page, 0, CSize(115, 115), settings, CThumbnailsThread::Adjacent);
+	thread->GetQueuedJobInfo(jobs);
+	passed &= expect(jobs.size() == 1 && jobs[0].priority == CThumbnailsThread::Adjacent,
+		"an identical background job must promote to adjacent");
+	thread->AddJob(page, 0, CSize(115, 115), settings, CThumbnailsThread::Visible);
+	thread->GetQueuedJobInfo(jobs);
+	passed &= expect(jobs.size() == 1 && jobs[0].priority == CThumbnailsThread::Visible,
+		"window transitions must retain only the highest-priority identity");
+	thread->RemoveAllJobs();
 
 	set<int> visiblePages, adjacentPages, backgroundPages;
 	thread->AddJob(page, 0, CSize(100, 100), settings, CThumbnailsThread::Background);
@@ -145,19 +155,54 @@ int _tmain(int argc, TCHAR** argv)
 	passed &= expect(observer.WaitForPage(page, 30000) && observer.Count() == 1, "a job that becomes current again must be accepted again");
 	thread->PauseJobs();
 
+	// The identical current request is promoted in place: Background -> Visible
+	// must not enqueue a second render and its result remains publishable.
+	thread->RemoveAllJobs();
+	observer.Reset();
+	thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Background);
+	thread->ResumeJobs();
+	bool running = WaitForCurrent(thread, page, 5000);
+	thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
+	CThumbnailsThread::JobInfo current;
+	bool rejected = false;
+	bool promotedCurrent = thread->GetCurrentJobInfo(current, rejected) &&
+		current.priority == CThumbnailsThread::Visible && !rejected && thread->GetQueuedJobCount() == 0;
+	passed &= expect(running && promotedCurrent, "running background thumbnail must promote to visible without a duplicate");
+	passed &= expect(observer.WaitForPage(page, 30000) && observer.Count() == 1,
+		"promoted current thumbnail must publish exactly once");
+	thread->PauseJobs();
+
+	// A stale current request is revived by the same identity before Render()
+	// completes. It must clear rejection rather than schedule replacement work.
 	thread->RemoveAllJobs();
 	observer.Reset();
 	thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
 	thread->ResumeJobs();
-	bool running = WaitForCurrent(thread, page, 5000);
+	running = WaitForCurrent(thread, page, 5000);
 	thread->ReconcileJobs(emptyPages, emptyPages, emptyPages);
-	CThumbnailsThread::JobInfo current;
-	bool rejected = false;
 	bool staleRejected = thread->GetCurrentJobInfo(current, rejected) && rejected;
 	metrics = thread->GetMetrics();
 	passed &= expect(running && staleRejected && metrics.obsoleteRejected != 0,
 		"running stale thumbnail must be rejected before publication");
-	passed &= expect(WaitForIdle(thread, 30000) && observer.Count() == 0, "stale running thumbnail must complete without publishing a bitmap");
+	thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
+	bool revived = thread->GetCurrentJobInfo(current, rejected) && !rejected &&
+		current.priority == CThumbnailsThread::Visible && thread->GetQueuedJobCount() == 0;
+	passed &= expect(revived, "matching re-entry must revive rejected current thumbnail without a duplicate");
+	passed &= expect(observer.WaitForPage(page, 30000) && observer.Count() == 1,
+		"revived thumbnail must publish exactly once");
+	thread->PauseJobs();
+
+	// A request that does not re-enter stays rejected and cannot publish.
+	thread->RemoveAllJobs();
+	observer.Reset();
+	thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
+	thread->ResumeJobs();
+	running = WaitForCurrent(thread, page, 5000);
+	thread->ReconcileJobs(emptyPages, emptyPages, emptyPages);
+	staleRejected = thread->GetCurrentJobInfo(current, rejected) && rejected;
+	passed &= expect(running && staleRejected, "non-returning stale thumbnail must remain rejected");
+	passed &= expect(WaitForIdle(thread, 30000) && observer.Count() == 0,
+		"stale running thumbnail must complete without publishing a bitmap");
 
 	thread->PauseJobs();
 	thread->AddJob(page, 0, CSize(200, 200), settings, CThumbnailsThread::Visible);
