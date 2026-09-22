@@ -305,6 +305,11 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\corpus\fetch-corpus.ps1
 
+      - name: Run golden render regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-golden-render-regression.cmd Release x64 native tools\tests\corpus\files
+
       - name: Run render prefetch queue regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd
