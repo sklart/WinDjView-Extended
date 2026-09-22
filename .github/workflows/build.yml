@@ -310,6 +310,11 @@ jobs:
         shell: cmd
         run: tools\tests\run-render-prefetch-regression.cmd Release x64 native tools\tests\corpus\files\watchmaker.djvu
 
+      - name: Run thumbnail scheduler regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-thumbnail-scheduler-regression.cmd Release x64 native tools\tests\corpus\files\watchmaker.djvu
+
       - name: Run production bounded page-cache regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd

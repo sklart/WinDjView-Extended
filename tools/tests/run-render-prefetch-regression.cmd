@@ -11,10 +11,27 @@ if /I not "%CONFIGURATION%"=="Release" exit /b 2
 if /I not "%PLATFORM%"=="x64" exit /b 2
 if /I not "%BUILD_FLAVOR%"=="native" exit /b 2
 if "%FIXTURE%"=="" exit /b 2
-for /f "usebackq delims=" %%I in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%I"
-if not defined VSROOT exit /b 1
+for %%I in ("%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe") do set "VSWHERE=%%~sI"
+set "VSROOT="
+set "VCTOOLS_VERSION="
+for /f "delims=" %%I in ('%VSWHERE% -all -products * -property installationPath') do (
+	for /f "delims=" %%V in ('dir /b /ad "%%I\VC\Tools\MSVC\14.44.*" 2^>nul') do (
+		if not defined VSROOT if exist "%%I\VC\Tools\MSVC\%%V\atlmfc\include\afxwin.h" (
+			set "VSROOT=%%I"
+			set "VCTOOLS_VERSION=%%V"
+		)
+	)
+)
+if not defined VSROOT (
+	echo Visual Studio 2022 MSVC 14.44 with MFC was not found. 1>&2
+	exit /b 1
+)
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
+if /I not "!VCToolsVersion!"=="!VCTOOLS_VERSION!" (
+	echo Expected MSVC !VCTOOLS_VERSION!, found !VCToolsVersion!. 1>&2
+	exit /b 1
+)
 set "TEST_BASENAME=tools\tests\render_prefetch_regression-Release-x64-native"
 set "OBJECT_DIR=src\Release\x64"
 set "JPEG_BUILD=src\third_party\libjpeg-turbo\build\Release_x64"
@@ -25,6 +42,6 @@ lib /nologo /out:"%TEST_BASENAME%-app.lib" !APP_OBJECTS!
 if errorlevel 1 exit /b %errorlevel%
 cl /nologo /W4 /EHsc /MT /DNDEBUG /DWIN32 /D_WINDOWS /D_UNICODE /DUNICODE /c /Fo"%TEST_BASENAME%.obj" /I"src" /I"src\libdjvu" /I"%JPEG_BUILD%" /I"src\third_party\libjpeg-turbo\src" "tools\tests\render_prefetch_regression.cpp"
 if errorlevel 1 exit /b %errorlevel%
-link /nologo /out:"%TEST_BASENAME%.exe" "%TEST_BASENAME%.obj" "%TEST_BASENAME%-app.lib" src\Release_x64\libdjvu64.lib src\third_party\libjpeg-turbo\jpeg64.lib msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /ENTRY:wmainCRTStartup /MANIFEST:NO
+link /nologo /out:"%TEST_BASENAME%.exe" "%TEST_BASENAME%.obj" "%TEST_BASENAME%-app.lib" src\Release_x64\libdjvu64.lib src\third_party\libjpeg-turbo\jpeg64.lib msimg32.lib version.lib shlwapi.lib shell32.lib ole32.lib uuid.lib /ENTRY:wmainCRTStartup /LTCG /MANIFEST:NO
 if errorlevel 1 exit /b %errorlevel%
 "%TEST_BASENAME%.exe" "%FIXTURE%"

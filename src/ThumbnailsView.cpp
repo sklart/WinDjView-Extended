@@ -69,7 +69,7 @@ END_MESSAGE_MAP()
 CThumbnailsView::CThumbnailsView(DjVuSource* pSource)
 	: m_bInsideUpdateLayout(false), m_nPageCount(0), m_bVisible(false),
 	  m_pThread(NULL), m_pIdleThread(NULL), m_nActivePage(-1), m_pSource(pSource),
-	  m_nCurrentPage(-1), m_nRotate(0), m_nPagesInRow(1), m_bInitialized(false)
+	  m_nCurrentPage(-1), m_nRotate(0), m_nPagesInRow(1), m_nNextBackgroundPage(0), m_bInitialized(false)
 {
 	m_pSource->AddRef();
 
@@ -312,6 +312,7 @@ void CThumbnailsView::OnInitialUpdate()
 
 void CThumbnailsView::UpdateAllThumbnails()
 {
+	m_nNextBackgroundPage = 0;
 	if (m_pThread != NULL && m_pIdleThread != NULL)
 	{
 		m_pThread->RejectCurrentJob();
@@ -808,9 +809,6 @@ void CThumbnailsView::UpdateVisiblePages()
 	if (!m_bInitialized || m_pThread->IsPaused())
 		return;
 
-	m_pThread->RemoveAllJobs();
-	m_pIdleThread->RemoveAllJobs();
-
 	if (m_bVisible)
 	{
 		m_pThread->PauseJobs();
@@ -829,26 +827,47 @@ void CThumbnailsView::UpdateVisiblePages()
 				m_pages[nBottomPage].rcDisplay.top < nTop + szViewport.cy)
 			++nBottomPage;
 
+		const int nAdjacentCount = max(2*m_nPagesInRow, 8);
+		set<int> visiblePages, adjacentPages, backgroundPages;
+		for (int nPage = nTopPage; nPage < nBottomPage; ++nPage)
+			visiblePages.insert(nPage);
+		for (int nPage = max(0, nTopPage - nAdjacentCount);
+				nPage < min(m_nPageCount, nBottomPage + nAdjacentCount); ++nPage)
+			if (visiblePages.count(nPage) == 0) adjacentPages.insert(nPage);
 		if (theApp.GetAppSettings()->bGenAllThumbnails)
 		{
-			for (int nDiff = m_nPageCount; nDiff >= 1; --nDiff)
+			m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Background, backgroundPages);
+			if (backgroundPages.empty())
 			{
-				if (nTopPage - nDiff >= 0)
-					UpdatePage(nTopPage - nDiff, m_pIdleThread);
-				if (nBottomPage + nDiff - 1 < m_nPageCount)
-					UpdatePage(nBottomPage + nDiff - 1, m_pIdleThread);
+				for (int nTry = 0; nTry < m_nPageCount; ++nTry)
+				{
+					int nPage = m_nNextBackgroundPage++;
+					if (m_nNextBackgroundPage == m_nPageCount) m_nNextBackgroundPage = 0;
+					if (visiblePages.count(nPage) == 0 && adjacentPages.count(nPage) == 0 &&
+							!m_pages[nPage].bRendered)
+					{
+						backgroundPages.insert(nPage);
+						break;
+					}
+				}
 			}
 		}
+		m_pThread->ReconcileJobs(visiblePages, adjacentPages, backgroundPages);
+		m_pIdleThread->ReconcileJobs(visiblePages, adjacentPages, backgroundPages);
+		for (set<int>::reverse_iterator it = backgroundPages.rbegin(); it != backgroundPages.rend(); ++it)
+			UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Background);
+		for (set<int>::reverse_iterator it = adjacentPages.rbegin(); it != adjacentPages.rend(); ++it)
+			UpdatePage(*it, m_pIdleThread, CThumbnailsThread::Adjacent);
 
 		for (int nPage = nBottomPage - 1; nPage >= nTopPage; --nPage)
-			UpdatePage(nPage, m_pThread);
+			UpdatePage(nPage, m_pThread, CThumbnailsThread::Visible);
 
 		m_pThread->ResumeJobs();
 		m_pIdleThread->ResumeJobs();
 	}
 }
 
-void CThumbnailsView::UpdatePage(int nPage, CThumbnailsThread* pThread)
+void CThumbnailsView::UpdatePage(int nPage, CThumbnailsThread* pThread, CThumbnailsThread::Priority priority)
 {
 	Page& page = m_pages[nPage];
 
@@ -856,7 +875,7 @@ void CThumbnailsView::UpdatePage(int nPage, CThumbnailsThread* pThread)
 			!(page.szBitmap.cx <= m_szThumbnail.cx && page.szBitmap.cy == m_szThumbnail.cy ||
 			  page.szBitmap.cx == m_szThumbnail.cx && page.szBitmap.cy <= m_szThumbnail.cy))
 	{
-		pThread->AddJob(nPage, m_nRotate, m_szThumbnail, m_displaySettings);
+		pThread->AddJob(nPage, m_nRotate, m_szThumbnail, m_displaySettings, priority);
 		InvalidatePage(nPage);
 	}
 }
@@ -888,6 +907,10 @@ LRESULT CThumbnailsView::OnThumbnailRendered(WPARAM wParam, LPARAM lParam)
 
 	if (InvalidatePage(nPage))
 		UpdateWindow();
+
+	// Keep the opt-in all-thumbnail generation moving with one bounded
+	// background request instead of filling the queue with the whole document.
+	UpdateVisiblePages();
 
 	return 0;
 }

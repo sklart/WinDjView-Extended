@@ -28,12 +28,26 @@ class CDIB;
 class CThumbnailsThread
 {
 public:
+	enum Priority { Visible, Adjacent, Background };
+	struct Metrics { unsigned long submitted, deduplicated, obsoleteRemoved, obsoleteRejected, executed, peakQueueLength; };
+	struct JobInfo
+	{
+		int nPage;
+		Priority priority;
+	};
 	CThumbnailsThread(DjVuSource* pSource, Observer* pOwner, bool bIdle = false);
 	void Stop();
 
 	void AddJob(int nPage, int nRotate, const CSize& size,
-			const CDisplaySettings& displaySettings);
+			const CDisplaySettings& displaySettings, Priority priority = Visible);
 	void RemoveAllJobs();
+	void ReconcileJobs(const set<int>& visiblePages, const set<int>& adjacentPages,
+			const set<int>& backgroundPages);
+	Metrics GetMetrics();
+	void GetQueuedJobInfo(vector<JobInfo>& jobs);
+	bool GetCurrentJobInfo(JobInfo& job, bool& rejected);
+	size_t GetQueuedJobCount();
+	void GetPagesWithPriority(Priority priority, set<int>& pages);
 
 	void PauseJobs();
 	void ResumeJobs();
@@ -57,10 +71,16 @@ private:
 		int nRotate;
 		CSize size;
 		CDisplaySettings displaySettings;
+		Priority priority;
 	};
 	list<Job> m_jobs;
 	Job m_currentJob;
 	bool m_bRejectCurrentJob;
+	Metrics m_metrics;
+
+	static bool SameIdentity(const Job& first, const Job& second);
+	static bool IsAllowed(const Job& job, const set<int>& visiblePages,
+			const set<int>& adjacentPages, const set<int>& backgroundPages);
 
 	static unsigned int __stdcall RenderThreadProc(void* pvData);
 	CDIB* Render(Job& job);

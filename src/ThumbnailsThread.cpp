@@ -27,6 +27,7 @@
 #define new DEBUG_NEW
 #endif
 
+const size_t nMaxThumbnailJobs = 128;
 
 // CThumbnailsThread class
 
@@ -36,6 +37,7 @@ CThumbnailsThread::CThumbnailsThread(DjVuSource* pSource, Observer* pOwner, bool
 	m_pSource->AddRef();
 
 	m_currentJob.nPage = -1;
+	::ZeroMemory(&m_metrics, sizeof(m_metrics));
 
 	UINT dwThreadId;
 	m_hThread = (HANDLE)_beginthreadex(NULL, 0, RenderThreadProc, this, 0, &dwThreadId);
@@ -87,6 +89,7 @@ unsigned int __stdcall CThumbnailsThread::RenderThreadProc(void* pvData)
 		pThread->m_bRejectCurrentJob = false;
 		pThread->m_currentJob = job;
 		pThread->m_jobs.pop_front();
+		++pThread->m_metrics.executed;
 		pThread->m_lock.Unlock();
 
 		CDIB* pBitmap = pThread->Render(job);
@@ -148,6 +151,100 @@ void CThumbnailsThread::RemoveAllJobs()
 	m_lock.Unlock();
 }
 
+CThumbnailsThread::Metrics CThumbnailsThread::GetMetrics()
+{
+	m_lock.Lock();
+	Metrics metrics = m_metrics;
+	m_lock.Unlock();
+	return metrics;
+}
+
+void CThumbnailsThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
+{
+	m_lock.Lock();
+	jobs.clear();
+	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+	{
+		JobInfo info = { it->nPage, it->priority };
+		jobs.push_back(info);
+	}
+	m_lock.Unlock();
+}
+
+bool CThumbnailsThread::GetCurrentJobInfo(JobInfo& job, bool& rejected)
+{
+	m_lock.Lock();
+	const bool running = m_currentJob.nPage != -1;
+	if (running)
+	{
+		job.nPage = m_currentJob.nPage;
+		job.priority = m_currentJob.priority;
+	}
+	rejected = m_bRejectCurrentJob;
+	m_lock.Unlock();
+	return running;
+}
+
+size_t CThumbnailsThread::GetQueuedJobCount()
+{
+	m_lock.Lock();
+	const size_t count = m_jobs.size();
+	m_lock.Unlock();
+	return count;
+}
+
+void CThumbnailsThread::GetPagesWithPriority(Priority priority, set<int>& pages)
+{
+	m_lock.Lock();
+	pages.clear();
+	if (m_currentJob.nPage != -1 && m_currentJob.priority == priority)
+		pages.insert(m_currentJob.nPage);
+	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+		if (it->priority == priority) pages.insert(it->nPage);
+	m_lock.Unlock();
+}
+
+bool CThumbnailsThread::SameIdentity(const Job& first, const Job& second)
+{
+	return first.nPage == second.nPage && first.nRotate == second.nRotate
+		&& first.size == second.size && first.displaySettings == second.displaySettings;
+}
+
+bool CThumbnailsThread::IsAllowed(const Job& job, const set<int>& visiblePages,
+		const set<int>& adjacentPages, const set<int>& backgroundPages)
+{
+	return job.priority == Visible ? visiblePages.count(job.nPage) != 0
+		: job.priority == Adjacent ? adjacentPages.count(job.nPage) != 0
+		: backgroundPages.count(job.nPage) != 0;
+}
+
+void CThumbnailsThread::ReconcileJobs(const set<int>& visiblePages, const set<int>& adjacentPages,
+		const set<int>& backgroundPages)
+{
+	m_lock.Lock();
+	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); )
+	{
+		if (!IsAllowed(*it, visiblePages, adjacentPages, backgroundPages))
+		{
+			it = m_jobs.erase(it);
+			++m_metrics.obsoleteRemoved;
+		}
+		else ++it;
+	}
+	if (m_currentJob.nPage != -1 && !IsAllowed(m_currentJob, visiblePages, adjacentPages, backgroundPages))
+	{
+		if (!m_bRejectCurrentJob)
+		{
+			m_bRejectCurrentJob = true;
+			++m_metrics.obsoleteRejected;
+		}
+	}
+	else if (m_currentJob.nPage != -1)
+		m_bRejectCurrentJob = false;
+	if (m_jobs.empty()) m_jobReady.ResetEvent();
+	m_lock.Unlock();
+}
+
 CDIB* CThumbnailsThread::Render(Job& job)
 {
 	CDIB* pBitmap = NULL;
@@ -185,25 +282,48 @@ CDIB* CThumbnailsThread::Render(Job& job)
 	return pBitmap;
 }
 
-void CThumbnailsThread::AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings)
+void CThumbnailsThread::AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings, Priority priority)
 {
 	Job job;
 	job.nPage = nPage;
 	job.nRotate = nRotate;
 	job.size = size;
 	job.displaySettings = displaySettings;
+	job.priority = priority;
 
 	m_lock.Lock();
-	if (m_currentJob.nPage == job.nPage
-			&& m_currentJob.nRotate == nRotate
-			&& m_currentJob.size == job.size
-			&& m_currentJob.displaySettings == job.displaySettings)
+	if (SameIdentity(m_currentJob, job))
 	{
+		++m_metrics.deduplicated;
 		m_lock.Unlock();
 		return;
 	}
-
-	m_jobs.push_front(job);
+	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
+	{
+		if (!SameIdentity(*it, job)) continue;
+		if (priority < it->priority)
+		{
+			Job promoted = *it;
+			promoted.priority = priority;
+			m_jobs.erase(it);
+			list<Job>::iterator insertAt = m_jobs.begin();
+			while (insertAt != m_jobs.end() && insertAt->priority <= priority) ++insertAt;
+			m_jobs.insert(insertAt, promoted);
+		}
+		++m_metrics.deduplicated;
+		m_lock.Unlock();
+		return;
+	}
+	list<Job>::iterator insertAt = m_jobs.begin();
+	while (insertAt != m_jobs.end() && insertAt->priority <= priority) ++insertAt;
+	m_jobs.insert(insertAt, job);
+	++m_metrics.submitted;
+	while (m_jobs.size() > nMaxThumbnailJobs)
+	{
+		m_jobs.pop_back();
+		++m_metrics.obsoleteRemoved;
+	}
+	if (m_jobs.size() > m_metrics.peakQueueLength) m_metrics.peakQueueLength = (unsigned long)m_jobs.size();
 
 	if (!IsPaused())
 		m_jobReady.SetEvent();

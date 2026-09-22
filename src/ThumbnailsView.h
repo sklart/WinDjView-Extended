@@ -22,8 +22,8 @@
 #include "MyScrollView.h"
 #include "Drawing.h"
 #include "AppSettings.h"
+#include "ThumbnailsThread.h"
 class DjVuSource;
-class CThumbnailsThread;
 
 
 // CThumbnailsView
@@ -76,7 +76,7 @@ protected:
 	bool m_bVisible, m_bInitialized;
 	int m_nRotate;
 	int m_nPagesInRow;
-	int m_nThumbnailSize;
+	int m_nThumbnailSize, m_nNextBackgroundPage;
 	CSize m_szThumbnail;
 
 	CCriticalSection m_dataLock;
@@ -93,7 +93,8 @@ protected:
 	void UpdateLayout(UpdateType updateType = TOP);
 	void RecalcPageRects(int nPage);
 	void UpdateVisiblePages();
-	void UpdatePage(int nPage, CThumbnailsThread* pThread);
+	void UpdatePage(int nPage, CThumbnailsThread* pThread,
+			CThumbnailsThread::Priority priority = CThumbnailsThread::Visible);
 	bool InvalidatePage(int nPage);
 	void DrawPage(CDC* pDC, int nPage);
 	int GetPageFromPoint(CPoint point);
