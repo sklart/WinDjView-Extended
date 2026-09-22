@@ -349,3 +349,23 @@ jobs:
           name: DjVu-performance-baseline-Release-x64
           path: tools\tests\artifacts\djvu-performance-baseline
           if-no-files-found: warn
+
+  native-asan:
+    name: Native ASan x64
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up NASM for SIMD JPEG build
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b # v1.5.2
+        with:
+          version: 2.16.03
+
+      - name: Fetch real DjVu corpus
+        shell: pwsh
+        run: pwsh .\tools\tests\corpus\fetch-corpus.ps1
+
+      - name: Run malformed DjVu ASan regression
+        shell: cmd
+        run: tools\tests\run-malformed-djvu-asan.cmd tools\tests\corpus
