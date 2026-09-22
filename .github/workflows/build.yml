@@ -238,6 +238,13 @@ jobs:
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
           if ($machine -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) { throw "Unexpected PE machine 0x$('{0:X4}' -f $machine): $exe" }
           if ('${{ matrix.configuration }}' -eq 'Release') {
+            $exeInfo = Get-Item -LiteralPath $exe
+            $header = Get-Content src\Version.h -Raw
+            $parts = @('MAJOR', 'MINOR', 'PATCH') | ForEach-Object {
+              ([regex]::Match($header, "(?m)^#define\s+WINDJVIEW_VERSION_$($_)\s+(\d+)\s*$")).Groups[1].Value
+            }
+            $version = $parts -join '.'
+            if ($parts -contains '' -or $exeInfo.VersionInfo.FileVersion -ne $version -or $exeInfo.VersionInfo.ProductVersion -ne $version) { throw "Release VERSIONINFO mismatch: expected $version" }
             $vsDevCmd = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat'
             $imports = & cmd.exe /d /c "call `"$vsDevCmd`" -arch=${{ matrix.arch }} -host_arch=x64 && dumpbin /imports `"$exe`""
             if ($LASTEXITCODE -ne 0) { throw "dumpbin /imports failed for $exe" }
@@ -245,6 +252,23 @@ jobs:
             $bundledCodecDll = $dlls | Where-Object { $_ -match '(?i)(jpeg|djvu)' } | Select-Object -First 1
             if ($bundledCodecDll) { throw "Unexpected external bundled-codec dependency: $bundledCodecDll" }
           }
+
+      - name: Build native Russian resource DLL
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=${{ matrix.arch }} -host_arch=x64
+          msbuild src\Languages\Russian\WinDjViewRU.Modern.vcxproj /nologo /m /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }}
+
+      - name: Verify native Russian resource DLL
+        shell: pwsh
+        run: |
+          $directory = if ('${{ matrix.platform }}' -eq 'x64') { "src\${{ matrix.configuration }}_x64" } else { "src\${{ matrix.configuration }}" }
+          $dll = Join-Path $directory 'WinDjViewRU-${{ matrix.platform }}.dll'
+          if (-not (Test-Path -LiteralPath $dll)) { throw "Expected Russian DLL was not created: $dll" }
+          $bytes = [IO.File]::ReadAllBytes($dll); $offset = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4d -or $bytes[1] -ne 0x5a -or [BitConverter]::ToUInt32($bytes, $offset) -ne 0x00004550) { throw "Invalid Russian DLL: $dll" }
+          if ([BitConverter]::ToUInt16($bytes, $offset + 4) -ne [Convert]::ToUInt16('${{ matrix.pe_machine }}', 16)) { throw "Wrong Russian DLL architecture: $dll" }
+          if ('${{ matrix.configuration }}' -eq 'Release' -and (Get-Item -LiteralPath $dll).VersionInfo.FileVersion -ne (Get-Item -LiteralPath '${{ matrix.output }}').VersionInfo.FileVersion) { throw "Russian DLL version mismatch: $dll" }
 
       - name: Run native long-path DjVu regression tests
         if: always()
