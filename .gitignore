@@ -31,6 +31,7 @@ src/third_party/libjpeg-turbo/jpegd64.lib
 *.CLMonitoring.bat.rsp
 *.pvs-studio.i
 out/pvs/
+out/release/
 
 # Locally compiled JPEGDecoder regression test.
 tools/tests/*.exe
