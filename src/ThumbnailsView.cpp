@@ -834,9 +834,12 @@ void CThumbnailsView::UpdateVisiblePages()
 		for (int nPage = max(0, nTopPage - nAdjacentCount);
 				nPage < min(m_nPageCount, nBottomPage + nAdjacentCount); ++nPage)
 			if (visiblePages.count(nPage) == 0) adjacentPages.insert(nPage);
-		set<int> retainedBackgroundPages, retainedAdjacentPages;
+		set<int> retainedBackgroundPages, retainedAdjacentPages, retainedVisiblePages;
 		m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Background, retainedBackgroundPages);
 		m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Adjacent, retainedAdjacentPages);
+		m_pIdleThread->GetPagesWithPriority(CThumbnailsThread::Visible, retainedVisiblePages);
+		for (set<int>::iterator it = retainedVisiblePages.begin(); it != retainedVisiblePages.end(); ++it)
+			if (visiblePages.count(*it) != 0) idleVisiblePages.insert(*it);
 		for (set<int>::iterator it = retainedAdjacentPages.begin(); it != retainedAdjacentPages.end(); ++it)
 		{
 			if (visiblePages.count(*it) != 0)

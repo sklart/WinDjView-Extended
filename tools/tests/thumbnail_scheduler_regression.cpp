@@ -172,6 +172,30 @@ int _tmain(int argc, TCHAR** argv)
 		"promoted current thumbnail must publish exactly once");
 	thread->PauseJobs();
 
+	// The production view can keep a promoted Visible request in its idle
+	// worker. A repeated viewport pass must discover that identity and avoid
+	// queueing the same Visible render in the foreground worker.
+	CThumbnailsThread* idleThread = new CThumbnailsThread(source, &observer, true);
+	idleThread->PauseJobs();
+	observer.Reset();
+	idleThread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Background);
+	idleThread->ResumeJobs();
+	running = WaitForCurrent(idleThread, page, 5000);
+	idleThread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
+	set<int> idleVisiblePages;
+	idleThread->GetPagesWithPriority(CThumbnailsThread::Visible, idleVisiblePages);
+	// This is the same cross-worker decision made by UpdateVisiblePages().
+	if (idleVisiblePages.count(page) == 0)
+		thread->AddJob(page, 0, CSize(6000, 6000), settings, CThumbnailsThread::Visible);
+	bool noForegroundDuplicate = running && idleVisiblePages.count(page) != 0 &&
+		thread->GetQueuedJobCount() == 0 && idleThread->GetQueuedJobCount() == 0;
+	passed &= expect(noForegroundDuplicate,
+		"repeated viewport scheduling must retain one idle visible identity without foreground duplicate");
+	passed &= expect(observer.WaitForPage(page, 30000) && observer.Count() == 1,
+		"idle promoted visible thumbnail must publish exactly once");
+	idleThread->PauseJobs();
+	idleThread->Stop();
+
 	// A stale current request is revived by the same identity before Render()
 	// completes. It must clear rejection rather than schedule replacement work.
 	thread->RemoveAllJobs();
