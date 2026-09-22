@@ -14,8 +14,14 @@ if /I not "%PLATFORM%"=="x64" exit /b 2
 if /I not "%BUILD_FLAVOR%"=="native" exit /b 2
 for %%I in ("%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe") do set "VSWHERE=%%~sI"
 set "VSROOT="
+set "VCTOOLS_VERSION="
 for /f "delims=" %%I in ('%VSWHERE% -all -products * -property installationPath') do (
-	if not defined VSROOT if exist "%%I\VC\Tools\MSVC\14.44.35207\atlmfc\include\afxwin.h" set "VSROOT=%%I"
+	for /f "delims=" %%V in ('dir /b /ad "%%I\VC\Tools\MSVC\14.44.*" 2^>nul') do (
+		if not defined VSROOT if exist "%%I\VC\Tools\MSVC\%%V\atlmfc\include\afxwin.h" (
+			set "VSROOT=%%I"
+			set "VCTOOLS_VERSION=%%V"
+		)
+	)
 )
 if not defined VSROOT (
 	echo Visual Studio 2022 C++ tools were not found. 1>&2
@@ -29,8 +35,8 @@ set "VSCMD_VER="
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 setlocal EnableDelayedExpansion
-if /I not "!VCToolsVersion:~0,5!"=="14.44" (
-	echo Expected MSVC 14.44, found "!VCToolsVersion!". 1>&2
+if /I not "!VCToolsVersion!"=="!VCTOOLS_VERSION!" (
+	echo Expected MSVC !VCTOOLS_VERSION!, found "!VCToolsVersion!". 1>&2
 	exit /b 1
 )
 if not exist "!VCToolsInstallDir!atlmfc\include\afxwin.h" (
