@@ -41,7 +41,6 @@ CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 {
 	m_pSource->AddRef();
 
-	m_currentJob.nPage = -1;
 	m_pages.resize(m_pSource->GetPageCount(), m_jobs.end());
 
 	UINT dwThreadId;
@@ -95,7 +94,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_bRejectCurrentJob = false;
 		pThread->m_currentJob = job;
 		pThread->m_jobs.pop_front();
-		pThread->m_pages[job.nPage] = pThread->m_jobs.end();
+		pThread->m_pages[job.GetPage()] = pThread->m_jobs.end();
 		if (pThread->m_bAwaitingCurrentPageResult && job.priority != CurrentPageRender)
 			++pThread->m_nJobsExecutedBeforeCurrentPage;
 		pThread->m_lock.Unlock();
@@ -109,19 +108,19 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 
 		case DECODE:
-			pThread->m_pSource->GetPage(job.nPage, pThread->m_pOwner);
+			pThread->m_pSource->GetPage(job.GetPage(), pThread->m_pOwner);
 			break;
 
 		case PREFETCH_DECODE:
-			pThread->m_pSource->StartPrefetch(job.nPage);
+			pThread->m_pSource->StartPrefetch(job.GetPage());
 			break;
 
 		case READINFO:
-			pThread->m_pSource->GetPageInfo(job.nPage);
+			pThread->m_pSource->GetPageInfo(job.GetPage());
 			break;
 
 		case CLEANUP:
-			pThread->m_pSource->RemoveFromCache(job.nPage, pThread->m_pOwner);
+			pThread->m_pSource->RemoveFromCache(job.GetPage(), pThread->m_pOwner);
 			break;
 		}
 
@@ -136,7 +135,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			pThread->m_dwCurrentPageResultElapsed = ::GetTickCount() - pThread->m_dwCurrentPageRequest;
 			pThread->m_bAwaitingCurrentPageResult = false;
 		}
-		pThread->m_currentJob.nPage = -1;
+		pThread->m_currentJob = Job();
 		if (!pThread->m_jobs.empty() && !pThread->IsPaused())
 			pThread->m_jobReady.SetEvent();
 		pThread->m_lock.Unlock();
@@ -147,15 +146,15 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			{
 			case RENDER:
 				{
-					RenderIdentity identity(job.nPage, job.size, job.nRotate,
-						job.nDisplayMode, job.displaySettings);
-					pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.nPage, pBitmap, &identity));
+					RenderResult result(job.request, pBitmap);
+					pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.GetPage(),
+						result.bitmap, &result.request));
 				}
 				break;
 
 			case DECODE:
 			case READINFO:
-				pThread->m_pOwner->OnUpdate(NULL, &PageMsg(PAGE_DECODED, job.nPage));
+				pThread->m_pOwner->OnUpdate(NULL, &PageMsg(PAGE_DECODED, job.GetPage()));
 				break;
 			}
 		}
@@ -258,7 +257,8 @@ void CRenderThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
 	m_lock.Lock();
 	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
 	{
-		JobInfo info = { it->nPage, it->type, it->priority, it->size };
+		JobInfo info = { it->GetPage(), it->type, it->priority,
+			it->type == RENDER ? it->request.size : CSize(0, 0) };
 		jobs.push_back(info);
 	}
 	m_lock.Unlock();
@@ -267,11 +267,11 @@ void CRenderThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
 bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
 {
 	m_lock.Lock();
-	bool active = m_currentJob.nPage != -1;
+	bool active = m_currentJob.IsActive();
 	if (active)
 	{
-		JobInfo current = { m_currentJob.nPage, m_currentJob.type,
-			m_currentJob.priority, m_currentJob.size };
+		JobInfo current = { m_currentJob.GetPage(), m_currentJob.type,
+			m_currentJob.priority, m_currentJob.type == RENDER ? m_currentJob.request.size : CSize(0, 0) };
 		job = current;
 	}
 	m_lock.Unlock();
@@ -281,7 +281,7 @@ bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
 bool CRenderThread::IsCurrentJobRejected()
 {
 	m_lock.Lock();
-	bool rejected = m_currentJob.nPage != -1 && m_bRejectCurrentJob;
+	bool rejected = m_currentJob.IsActive() && m_bRejectCurrentJob;
 	m_lock.Unlock();
 	return rejected;
 }
@@ -328,11 +328,11 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		// Once cache ownership has been released, cleanup must run unless the
 		// page returns to an active/cache window before the worker reaches it.
 		bool keep = it->type == CLEANUP ||
-			(pages != NULL && pages->find(it->nPage) != pages->end());
+			(pages != NULL && pages->find(it->GetPage()) != pages->end());
 		if (it->type == CLEANUP &&
-			(windows.renderPages.find(it->nPage) != windows.renderPages.end() ||
-			 windows.decodePages.find(it->nPage) != windows.decodePages.end() ||
-			 windows.readInfoPages.find(it->nPage) != windows.readInfoPages.end()))
+			(windows.renderPages.find(it->GetPage()) != windows.renderPages.end() ||
+			 windows.decodePages.find(it->GetPage()) != windows.decodePages.end() ||
+			 windows.readInfoPages.find(it->GetPage()) != windows.readInfoPages.end()))
 			keep = false;
 		if (keep)
 		{
@@ -342,16 +342,16 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		const JobType type = it->type;
 		if (type == PREFETCH_DECODE)
 			cancelPrefetches = true;
-		m_pages[it->nPage] = m_jobs.end();
+		m_pages[it->GetPage()] = m_jobs.end();
 		it = m_jobs.erase(it);
 		if (type == RENDER || type == DECODE || type == PREFETCH_DECODE)
 			++m_nObsoleteJobsRemoved;
 	}
-	if (m_currentJob.nPage != -1 &&
+	if (m_currentJob.IsActive() &&
 		((m_currentJob.type == RENDER &&
-			windows.renderPages.find(m_currentJob.nPage) == windows.renderPages.end()) ||
+			windows.renderPages.find(m_currentJob.GetPage()) == windows.renderPages.end()) ||
 		 (m_currentJob.type == PREFETCH_DECODE &&
-			windows.prefetchPages.find(m_currentJob.nPage) == windows.prefetchPages.end())))
+			windows.prefetchPages.find(m_currentJob.GetPage()) == windows.prefetchPages.end())))
 	{
 		if (!m_bRejectCurrentJob)
 		{
@@ -382,29 +382,31 @@ void CRenderThread::RemoveFromQueue(int nPage)
 
 CDIB* CRenderThread::Render(Job& job)
 {
-	GP<DjVuImage> pImage = m_pSource->GetPage(job.nPage, m_pOwner);
+	GP<DjVuImage> pImage = m_pSource->GetPage(job.request.page, m_pOwner);
 	CDIB* pBitmap = NULL;
 
 	if (pImage != NULL)
 	{
-		if (job.size.cx > 0 && job.size.cy > 0)
-		{ 
-			PageInfo& pInfo = m_pSource->GetPageInfo(job.nPage);
+		if (job.request.size.cx > 0 && job.request.size.cy > 0)
+		{
+			PageInfo& pInfo = m_pSource->GetPageInfo(job.request.page);
 			CSize szPage(pInfo.szPage);
-			if (job.nRotate % 2 != 0)
+			if (job.request.rotation % 2 != 0)
 				swap(szPage.cx, szPage.cy);
-			CRect rcCrop = pInfo.GetCropRect((job.nRotate + pInfo.nInitialRotate) % 4);
+			CRect rcCrop = pInfo.GetCropRect((job.request.rotation + pInfo.nInitialRotate) % 4);
 			int nX = rcCrop.left + rcCrop.right;
 			int nY = rcCrop.bottom + rcCrop.top;
-			double fScaleX = job.displaySettings.bCropPages ? 1.0 * job.size.cx / szPage.cx : 0;
-			double fScaleY = job.displaySettings.bCropPages ? 1.0 * job.size.cy / szPage.cy : 0;
+			double fScaleX = job.request.displaySettings.bCropPages ? 1.0 * job.request.size.cx / szPage.cx : 0;
+			double fScaleY = job.request.displaySettings.bCropPages ? 1.0 * job.request.size.cy / szPage.cy : 0;
 			CPoint pt = CPoint(static_cast<int>(nX * fScaleX), static_cast<int>(nY * fScaleY));
 
-			pBitmap = Render(pImage, job.size + pt, job.displaySettings, job.nDisplayMode, job.nRotate);
-			if (job.displaySettings.bCropPages && (nX + nY > 1))
+			RenderRequest request(job.request);
+			request.size = job.request.size + pt;
+			pBitmap = Render(pImage, request);
+			if (job.request.displaySettings.bCropPages && (nX + nY > 1))
 			{		
 				CRect rcCrop2 = CRect(static_cast<int>(rcCrop.left * fScaleX), static_cast<int>(rcCrop.top * fScaleY),
-					static_cast<int>(rcCrop.left * fScaleX + job.size.cx), static_cast<int>(rcCrop.top * fScaleY + job.size.cy));
+					static_cast<int>(rcCrop.left * fScaleX + job.request.size.cx), static_cast<int>(rcCrop.top * fScaleY + job.request.size.cy));
 				CDIB* pCropped = pBitmap->Crop(rcCrop2);
 				delete pBitmap;
 				pBitmap = pCropped;
@@ -425,12 +427,17 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 		const CDisplaySettings& displaySettings, int nDisplayMode,
 		int nRotate, bool bThumbnail)
 {
-	if (size.cx <= 0 || size.cy <= 0)
+	return Render(pImage, RenderRequest(-1, size, nRotate, nDisplayMode, displaySettings), bThumbnail);
+}
+
+CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const RenderRequest& request, bool bThumbnail)
+{
+	if (request.size.cx <= 0 || request.size.cy <= 0)
 		return NULL;
 	CSize szImage(pImage->get_width(), pImage->get_height());
-	int nTotalRotate = GetTotalRotate(pImage, nRotate);
+	int nTotalRotate = GetTotalRotate(pImage, request.rotation);
 
-	CSize szScaled(size);
+	CSize szScaled(request.size);
 	if (nTotalRotate % 2 != 0)
 		swap(szScaled.cx, szScaled.cy);
 
@@ -444,7 +451,7 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 	if (bThumbnail)
 		bScalePnmFixed = false;
 
-	if (displaySettings.bScaleSubpix)
+	if (request.displaySettings.bScaleSubpix)
 	{
 		// Use subpixel scaling in most cases, unless scaled image size
 		// is too small or if we are upscaling.
@@ -482,11 +489,11 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 	GP<IW44Image> bg44 = pImage->get_bg44();
 	GP<GPixmap> bgpm = pImage->get_bgpm();
 	GP<GPixmap> fgpm = pImage->get_fgpm();
-	if (!displaySettings.bScaleColorPnm && (bg44 != NULL || bgpm != NULL || fgpm != NULL)
-			&& nDisplayMode != CDjVuView::BlackAndWhite)
+	if (!request.displaySettings.bScaleColorPnm && (bg44 != NULL || bgpm != NULL || fgpm != NULL)
+			&& request.displayMode != CDjVuView::BlackAndWhite)
 		bScalePnmFixed = false;
 
-	if (bScalePnmFixed && displaySettings.bScaleSubpix)
+	if (bScalePnmFixed && request.displaySettings.bScaleSubpix)
 		bScaleSubpix = true;
 
 	if (bScalePnmFixed)
@@ -497,7 +504,7 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 
 	try
 	{
-		switch (nDisplayMode)
+		switch (request.displayMode)
 		{
 		case CDjVuView::BlackAndWhite:
 			pGBitmap = pImage->get_bitmap(rect, rect, 4);
@@ -543,12 +550,12 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 		if (bScalePnmFixed)
 		{
 			if (bScaleSubpix)
-				pGPixmap = RescalePnm_subpix(pGPixmap, size.cx, size.cy);
+				pGPixmap = RescalePnm_subpix(pGPixmap, request.size.cx, request.size.cy);
 			else
-				pGPixmap = RescalePnm(pGPixmap, size.cx, size.cy);
+				pGPixmap = RescalePnm(pGPixmap, request.size.cx, request.size.cy);
 		}
 
-		pBitmap = RenderPixmap(*pGPixmap, displaySettings);
+		pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
 	}
 	else if (pGBitmap != NULL)
 	{
@@ -558,19 +565,19 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 		if (bScalePnmFixed)
 		{
 			if (bScaleSubpix)
-				pGPixmap = RescalePnm_subpix(pGBitmap, size.cx, size.cy);
+				pGPixmap = RescalePnm_subpix(pGBitmap, request.size.cx, request.size.cy);
 			else
-				pGBitmap = RescalePnm(pGBitmap, size.cx, size.cy);
+				pGBitmap = RescalePnm(pGBitmap, request.size.cx, request.size.cy);
 		}
 
 		if (pGPixmap)
-			pBitmap = RenderPixmap(*pGPixmap, displaySettings);
+			pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
 		else
-			pBitmap = RenderBitmap(*pGBitmap, displaySettings);
+			pBitmap = RenderBitmap(*pGBitmap, request.displaySettings);
 	}
 	else
 	{
-		pBitmap = RenderEmpty(size, displaySettings);
+		pBitmap = RenderEmpty(request.size, request.displaySettings);
 	}
 
 	if (pBitmap != NULL)
@@ -582,12 +589,13 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 void CRenderThread::AddJob(int nPage, int nRotate, const CSize& size,
 		const CDisplaySettings& displaySettings, int nDisplayMode, JobPriority priority)
 {
+	AddJob(RenderRequest(nPage, size, nRotate, nDisplayMode, displaySettings), priority);
+}
+
+void CRenderThread::AddJob(const RenderRequest& request, JobPriority priority)
+{
 	Job job;
-	job.nPage = nPage;
-	job.nRotate = nRotate;
-	job.nDisplayMode = nDisplayMode;
-	job.displaySettings = displaySettings;
-	job.size = size;
+	job.request = request;
 	job.type = RENDER;
 	job.priority = priority;
 
@@ -606,8 +614,7 @@ void CRenderThread::AddDecodeJob(int nPage)
 
 bool CRenderThread::HasSameRenderIdentity(const Job& left, const Job& right) const
 {
-	return left.nPage == right.nPage && left.nRotate == right.nRotate && left.size == right.size &&
-		left.nDisplayMode == right.nDisplayMode && left.displaySettings == right.displaySettings;
+	return left.request == right.request;
 }
 
 void CRenderThread::AddPrefetchJob(int nPage)
@@ -643,11 +650,12 @@ void CRenderThread::AddCleanupJob(int nPage)
 void CRenderThread::AddJob(const Job& job)
 {
 	m_lock.Lock();
+	const int nPage = job.GetPage();
 
 	// One page has at most one queued semantic job. Foreground work always
 	// replaces speculative work; a changed render identity replaces its stale
 	// queued request instead of allowing zoom/rotate events to accumulate.
-	list<Job>::iterator existing = m_pages[job.nPage];
+	list<Job>::iterator existing = m_pages[nPage];
 	if (job.type == PREFETCH_DECODE && existing != m_jobs.end() &&
 		existing->priority < AdjacentPrefetch)
 	{
@@ -655,7 +663,7 @@ void CRenderThread::AddJob(const Job& job)
 		return;
 	}
 	bool replacingCurrentRender = false;
-	if (m_currentJob.nPage == job.nPage && m_currentJob.type == job.type)
+	if (m_currentJob.IsActive() && m_currentJob.GetPage() == nPage && m_currentJob.type == job.type)
 	{
 		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
 		{
@@ -690,7 +698,7 @@ void CRenderThread::AddJob(const Job& job)
 	// already running, retain one cleanup request behind it so cache ownership
 	// is still released after an obsolete render/decode completes.
 	const bool queueCleanupAfterCurrent = job.type == CLEANUP;
-	if (m_currentJob.nPage == job.nPage && m_currentJob.priority < job.priority &&
+	if (m_currentJob.IsActive() && m_currentJob.GetPage() == nPage && m_currentJob.priority < job.priority &&
 		!replacingCurrentRender && !queueCleanupAfterCurrent)
 	{
 		m_lock.Unlock();
@@ -715,7 +723,7 @@ void CRenderThread::AddJob(const Job& job)
 		}
 		if (existing->type == RENDER || existing->type == PREFETCH_DECODE)
 			++m_nObsoleteJobsRemoved;
-		RemoveFromQueue(job.nPage);
+		RemoveFromQueue(nPage);
 	}
 
 	if (job.type == RENDER && job.priority == CurrentPageRender)
@@ -737,7 +745,7 @@ void CRenderThread::AddJob(const Job& job)
 	while (insertAt != m_jobs.end() && insertAt->priority <= job.priority)
 		++insertAt;
 	list<Job>::iterator inserted = m_jobs.insert(insertAt, job);
-	m_pages[job.nPage] = inserted;
+	m_pages[nPage] = inserted;
 	if ((int)m_jobs.size() > m_nPeakQueueLength)
 		m_nPeakQueueLength = (int)m_jobs.size();
 
@@ -768,7 +776,7 @@ void CRenderThread::RemoveAllJobs()
 void CRenderThread::RejectCurrentJob()
 {
 	m_lock.Lock();
-	if (m_currentJob.nPage != -1)
+	if (m_currentJob.IsActive())
 		m_bRejectCurrentJob = true;
 	m_lock.Unlock();
 }

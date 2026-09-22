@@ -127,6 +127,24 @@ int _tmain(int argc, TCHAR** argv)
 
 	bool passed = true;
 	const CDisplaySettings displaySettings;
+	const RenderRequest renderRequest(7, CSize(800, 1000), 0, CDjVuView::Color, displaySettings);
+	passed &= expect(renderRequest == RenderRequest(7, CSize(800, 1000), 0,
+		CDjVuView::Color, displaySettings), "render request equality must use all render parameters");
+	passed &= expect(renderRequest != RenderRequest(8, CSize(800, 1000), 0,
+		CDjVuView::Color, displaySettings), "page must participate in render identity");
+	passed &= expect(renderRequest != RenderRequest(7, CSize(801, 1000), 0,
+		CDjVuView::Color, displaySettings), "size must participate in render identity");
+	passed &= expect(renderRequest != RenderRequest(7, CSize(800, 1000), 1,
+		CDjVuView::Color, displaySettings), "rotation must participate in render identity");
+	passed &= expect(renderRequest != RenderRequest(7, CSize(800, 1000), 0,
+		CDjVuView::BlackAndWhite, displaySettings), "display mode must participate in render identity");
+	CDisplaySettings changedDisplaySettings(displaySettings);
+	changedDisplaySettings.bInvertColors = true;
+	passed &= expect(renderRequest != RenderRequest(7, CSize(800, 1000), 0,
+		CDjVuView::Color, changedDisplaySettings), "display settings must participate in render identity");
+	// Priority is scheduler state, so it is deliberately absent from RenderRequest.
+	passed &= expect(renderRequest == RenderRequest(7, CSize(800, 1000), 0,
+		CDjVuView::Color, displaySettings), "priority must not affect render identity");
 	// Queue order is semantic rather than insertion order: foreground must
 	// always run before normal decode, speculative prefetch, and maintenance.
 	if (source->GetPageCount() >= 5)

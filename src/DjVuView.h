@@ -24,6 +24,7 @@
 #include "Drawing.h"
 #include "DjVuDoc.h"
 #include "DjVuSource.h"
+#include "RenderRequest.h"
 
 class CMainFrame;
 class CMDIChild;
@@ -33,19 +34,9 @@ class CRenderThread;
 class PageCacheRegressionHarness;
 #endif
 
-struct RenderIdentity
-{
-	RenderIdentity() : nPage(-1), nRotate(0), nDisplayMode(0) {}
-	RenderIdentity(int nPage_, const CSize& size_, int nRotate_, int nDisplayMode_,
-		const CDisplaySettings& displaySettings_)
-		: nPage(nPage_), size(size_), nRotate(nRotate_), nDisplayMode(nDisplayMode_),
-		displaySettings(displaySettings_) {}
-
-	int nPage;
-	CSize size;
-	int nRotate, nDisplayMode;
-	CDisplaySettings displaySettings;
-};
+// Compatibility name for observer payloads. RenderRequest is the single
+// render identity implementation used by the worker and the view.
+typedef RenderRequest RenderIdentity;
 
 inline bool IsStandardZoom(int nZoomType, double fZoom)
 {

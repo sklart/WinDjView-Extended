@@ -1792,9 +1792,9 @@ bool CDjVuView::HasReusableBitmap(Page& page) const
 
 bool CDjVuView::IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const
 {
-	return identity.nPage >= 0 && identity.nPage < m_nPageCount &&
-		identity.size == page.szBitmap && identity.nRotate == m_nRotate &&
-		identity.nDisplayMode == m_nDisplayMode && identity.displaySettings == m_displaySettings;
+	return identity.page >= 0 && identity.page < m_nPageCount &&
+		identity.size == page.szBitmap && identity.rotation == m_nRotate &&
+		identity.displayMode == m_nDisplayMode && identity.displaySettings == m_displaySettings;
 }
 
 bool CDjVuView::IsBitmapPinned(int nPage) const
@@ -1866,7 +1866,7 @@ void CDjVuView::DeleteCachedBitmap(Page& page)
 
 bool CDjVuView::AcceptRenderedBitmap(int nPage, CDIB* pBitmap, const RenderIdentity& identity)
 {
-	if (pBitmap == NULL || nPage < 0 || nPage >= m_nPageCount || identity.nPage != nPage ||
+	if (pBitmap == NULL || nPage < 0 || nPage >= m_nPageCount || identity.page != nPage ||
 		!IsCurrentRenderIdentity(m_pages[nPage], identity))
 	{
 		delete pBitmap;

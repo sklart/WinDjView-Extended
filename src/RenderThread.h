@@ -20,6 +20,7 @@
 
 #include "Global.h"
 #include "DjVuView.h"
+#include "RenderRequest.h"
 class DjVuSource;
 class CDIB;
 
@@ -64,6 +65,7 @@ public:
 
 	void AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings,
 		int nDisplayMode = CDjVuView::Color, JobPriority priority = VisibleRender);
+	void AddJob(const RenderRequest& request, JobPriority priority = VisibleRender);
 	void AddDecodeJob(int nPage);
 	void AddPrefetchJob(int nPage);
 	void AddReadInfoJob(int nPage);
@@ -73,6 +75,8 @@ public:
 	static CDIB* Render(GP<DjVuImage> pImage, const CSize& size,
 		const CDisplaySettings& displaySettings, int nDisplayMode,
 		int nRotate, bool bThumbnail = false);
+	static CDIB* Render(GP<DjVuImage> pImage, const RenderRequest& request,
+		bool bThumbnail = false);
 
 	void PauseJobs();
 	void ResumeJobs();
@@ -110,11 +114,13 @@ private:
 
 	struct Job
 	{
+		Job() : nPage(-1), type(DECODE), priority(Background) {}
+		int GetPage() const { return type == RENDER ? request.page : nPage; }
+		bool IsActive() const { return GetPage() >= 0; }
+
+		// nPage is retained only for non-render jobs. Render jobs use request.
 		int nPage;
-		int nRotate;
-		int nDisplayMode;
-		CDisplaySettings displaySettings;
-		CSize size;
+		RenderRequest request;
 		JobType type;
 		JobPriority priority;
 	};
