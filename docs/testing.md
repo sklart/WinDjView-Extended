@@ -48,7 +48,7 @@ libdjvu core, PathUtil, and long-path DjVu regressions, then builds and verifies
 the Russian resource DLL. Each Release job also runs
 `tools\tests\run-startup-smoke.ps1`, which invokes `WinDjView.exe
 /StartupSmokeTest`; that mode completes real application and main-frame
-initialization, then closes normally. A separate staged native MSBuild matrix builds
+initialization, then closes normally. The primary Native MSBuild matrix builds
 `WinDjView.Native` and `libdjvu.Modern` in Debug/Release for Win32/x64, verifies
 their PE architecture, rejects external JPEG/DjVu imports in Release, and runs
 the long-path DjVu regression against the native library output. The startup
