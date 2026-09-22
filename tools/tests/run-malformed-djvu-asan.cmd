@@ -8,17 +8,23 @@ if not exist "%VSWHERE%" (
   echo Visual Studio locator was not found: %VSWHERE%
   exit /b 1
 )
-for /f "usebackq delims=" %%I in (`"%VSWHERE%" -latest -products * -version [17.0^,18.0^) -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%I"
+set "VSROOT="
+for /f "delims=" %%I in ('%VSWHERE% -latest -products * -version [17.0^,18.0^) -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath') do set "VSROOT=%%I"
 if not defined VSROOT (
   echo VS 2022 C++ tools were not found.
   exit /b 1
 )
 call "%VSROOT%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
-if not "%VCToolsVersion:~0,5%"=="14.44" (
-  echo Expected v143 MSVC 14.44, got %VCToolsVersion%.
+if not defined VCToolsVersion (
+  echo Visual Studio 2022 did not initialize an MSVC toolset.
   exit /b 1
 )
+if not defined VCToolsInstallDir (
+  echo Visual Studio 2022 did not initialize an MSVC tools directory.
+  exit /b 1
+)
+echo Using VS2022 MSVC !VCToolsVersion!.
 
 msbuild src\libdjvu\libdjvu.Modern.vcxproj /t:Rebuild /p:Configuration=Asan /p:Platform=x64 /m
 if errorlevel 1 exit /b %errorlevel%
