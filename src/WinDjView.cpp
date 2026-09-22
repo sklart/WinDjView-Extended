@@ -18,6 +18,7 @@
 
 #include "stdafx.h"
 #include "WinDjView.h"
+#include "Version.h"
 
 #include "MainFrm.h"
 #include "MyBitmapButton.h"
@@ -256,7 +257,7 @@ BOOL CDjViewApp::InitInstance()
 		}
 	}
 
-	CURRENT_VERSION.LoadString(IDS_CURRENT_VERSION);
+	CURRENT_VERSION = WINDJVIEW_VERSION_WSTRING;
 
 	LoadStdProfileSettings(10);  // Load recently open documents
 	LoadSettings();
@@ -3288,8 +3289,10 @@ CString CDjViewApp::DownloadLastVersionString()
 		if (pFile == NULL)
 			AfxThrowInternetException(1);
 
-		CHAR szBuffer[1024];
-		int nRead = pFile->Read(szBuffer, 1023);
+		CHAR szBuffer[65];
+		int nRead = pFile->Read(szBuffer, 64);
+		if (nRead <= 0 || nRead == 64)
+			AfxThrowFileException(CFileException::genericException);
 		szBuffer[nRead] = '\0';
 
 		strVersion = szBuffer;
@@ -3309,7 +3312,32 @@ CString CDjViewApp::DownloadLastVersionString()
 	if (pFile != NULL)
 		delete pFile;
 
-	if (strVersion.Find('<') != -1 || strVersion.GetLength() > 16)
+	if (strVersion.GetLength() == 0 || strVersion.GetLength() > 31)
+		strVersion.Empty();
+
+	int nComponents = 1;
+	int nDigits = 0;
+	bool bPreviousWasDigit = false;
+	for (int i = 0; !strVersion.IsEmpty() && i < strVersion.GetLength(); ++i)
+	{
+		TCHAR ch = strVersion[i];
+		if (ch >= _T('0') && ch <= _T('9'))
+		{
+			++nDigits;
+			if (nDigits > 9)
+				strVersion.Empty();
+			bPreviousWasDigit = true;
+		}
+		else if (ch == _T('.') && bPreviousWasDigit && nComponents < 3)
+		{
+			++nComponents;
+			nDigits = 0;
+			bPreviousWasDigit = false;
+		}
+		else
+			strVersion.Empty();
+	}
+	if (!strVersion.IsEmpty() && (!bPreviousWasDigit || nComponents != 3))
 		strVersion.Empty();
 
 	return strVersion;
