@@ -23,8 +23,8 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\test-render-prefetch.ps1
 
-  build:
-    name: ${{ matrix.configuration }} ${{ matrix.platform }}
+  legacy-nmake:
+    name: legacy NMAKE ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022
     strategy:
       fail-fast: false
@@ -183,8 +183,8 @@ jobs:
           path: src\Release${{ matrix.platform == 'x64' && '_x64' || '' }}\WinDjViewRU-${{ matrix.platform }}.dll
           if-no-files-found: error
 
-  native-msbuild:
-    name: native MSBuild ${{ matrix.configuration }} ${{ matrix.platform }}
+  native-build:
+    name: Native MSBuild ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022
     strategy:
       fail-fast: false

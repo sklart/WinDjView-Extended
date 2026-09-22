@@ -1,9 +1,8 @@
 # Building WinDjView Extended
 
-The checked-in build is an NMAKE build for Visual Studio C++. It builds the
-application and the bundled static DjVuLibre library. The legacy VS2008
-`.sln`/`.vcproj` files are retained for reference; current MSBuild does not
-consume them directly.
+The primary build is Native MSBuild for Visual Studio 2022/v143. It builds the
+application and bundled static DjVuLibre library. Legacy NMAKE and VS2008
+projects are retained as compatibility paths.
 
 ## Prerequisites
 
@@ -15,24 +14,23 @@ installation-directory version.
 
 ## Visual Studio 2022 solution
 
-`WinDjView.Modern.sln` opens the NMAKE build through a modern VS2022 Makefile
-project and exposes Debug/Release for Win32/x64. The historical
+`WinDjView.Modern.sln` builds `WinDjView.Native` for Debug/Release and
+Win32/x64. The historical
 `src\WinDjView.sln` and `.vcproj` files are preserved unchanged.
 
 The solution also contains `WinDjViewRU.Modern`, a native MSBuild resource-DLL
 project. Its outputs are `WinDjViewRU-Win32.dll` and `WinDjViewRU-x64.dll` in
-the matching application output directories. `WinDjView.Native` is the staged
+the matching application output directories. `WinDjView.Native` is the primary
 native MSBuild application project, separate from the legacy NMAKE wrapper.
 `libdjvu.Modern` is a native static-library MSBuild project which compiles the
 bundled DjVuLibre sources directly; it invokes only the existing JPEG adapter
 to retain the checked-in libjpeg-turbo 3.2.0 configuration and Release SIMD
-policy. These new projects are staged and must be validated on a Visual Studio
-host before becoming CI's primary application build.
+policy.
 
 Build `WinDjView.Native` directly while validating the migration. It has a
-project reference to `libdjvu.Modern`. Both projects are intentionally excluded
-from the solution-wide Build selection for now, preventing them from writing
-the same legacy output paths concurrently with the NMAKE wrapper.
+project reference to `libdjvu.Modern` and is enabled for solution-wide Build.
+The legacy NMAKE wrapper remains visible but excluded, preventing two producers
+from writing the same EXE output.
 
 The native application project uses `/W4`. Its first baseline showed that
 `/permissive-` causes broad historical source incompatibilities, so it remains
@@ -61,9 +59,7 @@ Native MSBuild has explicit Debug/Release build parity with the legacy build:
 | Release optimization | optimized, static codecs | optimized, static codecs |
 | Application subsystem | Windows | Windows |
 
-Legacy NMAKE remains the production reference. Native MSBuild has staged
-build/test parity and is ready to become the primary build only in a separate
-migration step.
+Legacy NMAKE remains a compatibility build; Native MSBuild is the production reference.
 
 Build the resource-only Russian DLL with the same configuration and platform:
 

@@ -1,5 +1,18 @@
 # Testing
 
+Primary CI path: Native MSBuild Debug/Release for Win32/x64. Legacy NMAKE is
+retained as a compatibility matrix. Before a release, build all four Native
+configurations, run the regression commands below, then run:
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\release\package-release.ps1 -Platform Win32
+pwsh -NoProfile -ExecutionPolicy Bypass -File tools\release\package-release.ps1 -Platform x64
+```
+
+The package script validates PE architecture, release version, Russian DLL,
+static JPEG/DjVu linkage, ZIP readability, and required GPL/third-party notices.
+Windows 7 runtime validation remains a manual, separate requirement.
+
 Verified locally:
 
 - Debug and Release Win32 NMAKE builds;
@@ -30,7 +43,7 @@ platform. It creates a temporary Unicode directory tree longer than `MAX_PATH`
 and verifies `GetFullPath`, `FileExists`, `DirectoryExists`, `Combine`, and
 `ReplaceExtension` against that path.
 
-GitHub Actions repeats these four legacy NMAKE builds, runs the matching JPEG,
+GitHub Actions builds the four Native configurations first, runs the matching JPEG,
 libdjvu core, PathUtil, and long-path DjVu regressions, then builds and verifies
 the Russian resource DLL. Each Release job also runs
 `tools\tests\run-startup-smoke.ps1`, which invokes `WinDjView.exe

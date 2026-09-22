@@ -298,7 +298,7 @@ x64-версия получает значительно большее вирт
 
 # Автоматические сборки и тесты
 
-GitHub Actions проверяет четыре основные конфигурации:
+Основная матрица GitHub Actions использует Native MSBuild и проверяет четыре конфигурации:
 
 | Конфигурация | Архитектура |
 | ------------ | ----------- |
@@ -315,7 +315,9 @@ GitHub Actions проверяет четыре основные конфигур
 * regression-тесты JPEGDecoder;
 * regression-тесты ядра libdjvu.
 
-Для Release дополнительно проверяется отсутствие внешней зависимости от JPEG DLL.
+Для Release дополнительно проверяются startup smoke, version resources и отсутствие
+внешней зависимости от JPEG/DjVu DLL. Release x64 также запускает scheduler,
+production page-cache и real-world corpus regressions; benchmarks informational.
 
 Это позволяет обнаруживать значительную часть регрессий ещё до публикации релиза.
 
@@ -323,7 +325,7 @@ GitHub Actions проверяет четыре основные конфигур
 
 # Сборка
 
-Для текущей разработки используется **Visual Studio 2022 или новее** с компонентами C++, MFC и Windows SDK.
+Для текущей разработки используется **Visual Studio 2022/v143** с компонентами C++, MFC, ATL и Windows SDK. Основной путь — Native MSBuild.
 
 Добавлено современное решение:
 

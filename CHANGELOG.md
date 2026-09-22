@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 4.3.0 — unreleased
+
+### Added
+
+- Native MSBuild production builds for Win32 and x64, portable release packaging,
+  startup smoke tests, real-world DjVu corpus coverage, and production cache regressions.
+
+### Performance
+
+- Added bounded page-cache and bitmap reuse coverage, priority render scheduling,
+  adjacent prefetch regression coverage, and informational performance benchmarks.
 
 ### Fixed
 
@@ -36,6 +46,8 @@
 
 ### Build
 
+- Native MSBuild is the primary production build; legacy NMAKE remains a
+  compatibility build.
 - Added a native MSBuild project for the Russian resource DLL and publish its
   Release Win32/x64 artifacts from CI.
 - Added reproducible Debug/Release x86/x64 NMAKE support, including a source build of
