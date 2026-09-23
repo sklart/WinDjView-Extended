@@ -1873,6 +1873,26 @@ void CMainFrame::OnUpdateFrameMenu(HMENU hMenuAlt)
 	::SetMenu(m_hWnd, hMenuAlt);
 }
 
+void CMainFrame::OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu)
+{
+	if (!bSysMenu && pPopupMenu != NULL &&
+		pPopupMenu->GetMenuState(ID_APP_ABOUT, MF_BYCOMMAND) != (UINT)-1 &&
+		pPopupMenu->GetMenuState(ID_CHECK_FOR_UPDATE, MF_BYCOMMAND) == (UINT)-1)
+	{
+		CString strCaption = LoadString(ID_CHECK_FOR_UPDATE);
+		int nNewline = strCaption.ReverseFind(_T('\n'));
+		if (nNewline >= 0)
+			strCaption = strCaption.Mid(nNewline + 1);
+
+		int nAbout = pPopupMenu->GetMenuItemCount() - 1;
+		pPopupMenu->InsertMenu(nAbout, MF_BYPOSITION | MF_STRING,
+			ID_CHECK_FOR_UPDATE, strCaption);
+		pPopupMenu->InsertMenu(nAbout + 1, MF_BYPOSITION | MF_SEPARATOR);
+	}
+
+	CFrameWnd::OnInitMenuPopup(pPopupMenu, nIndex, bSysMenu);
+}
+
 BOOL CMainFrame::OnEraseBkgnd(CDC* pDC)
 {
 	return true;

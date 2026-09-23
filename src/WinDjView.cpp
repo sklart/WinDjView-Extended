@@ -542,6 +542,9 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 	//DDX_Control(pDX, IDC_DONATE, m_btnDonate);
 
 	CString strVersion = FormatString(IDS_VERSION_ABOUT, (LPCTSTR)CURRENT_VERSION);
+#ifdef _WIN64
+	strVersion += _T(" (x64)");
+#endif
 	DDX_Text(pDX, IDC_STATIC_VERSION, strVersion);
 }
 

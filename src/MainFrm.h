@@ -63,6 +63,7 @@ public:
 protected:
 	virtual void OnUpdateFrameTitle(BOOL bAddToTitle);
 	virtual void OnUpdateFrameMenu(HMENU hMenuAlt);
+	virtual void OnInitMenuPopup(CMenu* pPopupMenu, UINT nIndex, BOOL bSysMenu);
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
 	virtual BOOL OnCmdMsg(UINT nID, int nCode, void* pExtra, AFX_CMDHANDLERINFO* pHandlerInfo);
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
