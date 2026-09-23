@@ -51,11 +51,11 @@ bool RenderScheduler::Submit(const Job& job, DWORD now)
 	{
 		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
 		{
-			if (job.type == RENDER && m_bRejectCurrentJob)
+			if (job.type == RENDER)
 			{
-				// The same render became useful again before completion. Reuse its
-				// work rather than queueing a duplicate, but only for an exact
-				// render identity match.
+				// Reuse the running render for an exact identity match. A rejected
+				// render can become useful again, and promotion to the current page
+				// must also work when it was never rejected.
 				m_bRejectCurrentJob = false;
 				if (job.priority == CurrentPageRender && m_currentJob.priority != CurrentPageRender)
 				{

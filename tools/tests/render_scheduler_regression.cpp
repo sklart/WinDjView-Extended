@@ -67,6 +67,142 @@ static void TestPriorityAndQueuedIdentity()
 		jobs[0].size == CSize(150, 160), "replacement retains only the new visible request");
 }
 
+static void TestVisibleFifo()
+{
+	RenderScheduler scheduler(8);
+	for (int page = 1; page <= 3; ++page)
+		Check(scheduler.Submit(RenderJob(page, 100, RenderScheduler::VisibleRender), page),
+			"FIFO visible request accepted");
+	RenderScheduler::Job job;
+	for (int page = 1; page <= 3; ++page)
+	{
+		Check(scheduler.TakeNext(job) && job.GetPage() == page &&
+			job.priority == RenderScheduler::VisibleRender, "equal-priority visible FIFO order");
+		Check(scheduler.CompleteCurrent(10 + page), "FIFO visible result accepted");
+	}
+}
+
+static void TestQueuedPromotion()
+{
+	RenderScheduler scheduler(16);
+	Check(scheduler.Submit(RenderJob(7, 100, RenderScheduler::Background), 10),
+		"background render queued before promotion");
+	Check(scheduler.Submit(RenderJob(7, 100, RenderScheduler::VisibleRender), 20),
+		"same queued identity promoted to visible");
+	vector<RenderScheduler::JobInfo> jobs;
+	scheduler.GetQueuedJobInfo(jobs);
+	Check(jobs.size() == 1 && jobs[0].nPage == 7 &&
+		jobs[0].priority == RenderScheduler::VisibleRender &&
+		jobs[0].type == RenderScheduler::RENDER, "promotion leaves one visible render");
+}
+
+static void TestRenderToDecodeReplacement()
+{
+	RenderScheduler scheduler(16);
+	Check(scheduler.Submit(RenderJob(7, 100, RenderScheduler::VisibleRender), 10),
+		"render queued before decode replacement");
+	Check(scheduler.Submit(PageJob(7, RenderScheduler::DECODE, RenderScheduler::Decode), 20),
+		"decode replaces queued render even at lower priority");
+	vector<RenderScheduler::JobInfo> jobs;
+	scheduler.GetQueuedJobInfo(jobs);
+	Check(jobs.size() == 1 && jobs[0].nPage == 7 &&
+		jobs[0].type == RenderScheduler::DECODE, "render-to-decode leaves one semantic job");
+	RenderScheduler::Job job;
+	Check(scheduler.TakeNext(job) && job.type == RenderScheduler::DECODE &&
+		job.GetPage() == 7, "replacement decode executes");
+	Check(scheduler.CompleteCurrent(40), "replacement decode completes");
+	Check(scheduler.GetQueuedJobCount() == 0, "render-to-decode queue drained");
+}
+
+static void TestRunningCurrentPagePromotion()
+{
+	RenderScheduler scheduler(16);
+	RenderScheduler::Job job;
+	RenderScheduler::JobInfo current;
+	Check(scheduler.Submit(RenderJob(5, 100, RenderScheduler::VisibleRender), 100),
+		"visible render queued before running promotion");
+	Check(scheduler.TakeNext(job), "visible render starts before promotion");
+	Check(!scheduler.Submit(RenderJob(5, 100, RenderScheduler::CurrentPageRender), 200),
+		"same running identity promoted without duplicate");
+	Check(scheduler.GetCurrentJobInfo(current) &&
+		current.priority == RenderScheduler::CurrentPageRender,
+		"running render acquires current-page priority");
+	Check(scheduler.GetQueuedJobCount() == 0, "running promotion queues no replacement");
+	Check(scheduler.GetMetrics().submittedRenderJobs == 1,
+		"running promotion does not submit a duplicate render");
+	Check(scheduler.CompleteCurrent(240), "promoted result accepted");
+	Check(scheduler.GetMetrics().currentPageResultElapsedMs == 40,
+		"promotion starts new current-page timing interval");
+
+	Check(scheduler.Submit(RenderJob(6, 100, RenderScheduler::Background), 300),
+		"background render queued before revival");
+	Check(scheduler.TakeNext(job), "background render starts before revival");
+	scheduler.RejectCurrent();
+	Check(scheduler.IsCurrentJobRejected(), "background render initially rejected");
+	Check(!scheduler.Submit(RenderJob(6, 100, RenderScheduler::CurrentPageRender), 400),
+		"rejected same identity revived without duplicate");
+	Check(!scheduler.IsCurrentJobRejected(), "current-page revival clears rejection");
+	Check(scheduler.GetCurrentJobInfo(current) &&
+		current.priority == RenderScheduler::CurrentPageRender,
+		"revived render acquires current-page priority");
+	Check(scheduler.GetQueuedJobCount() == 0, "revival queues no replacement");
+	Check(scheduler.GetMetrics().submittedRenderJobs == 2,
+		"revival does not submit a duplicate render");
+	Check(scheduler.CompleteCurrent(425), "revived result accepted");
+	Check(scheduler.GetMetrics().currentPageResultElapsedMs == 25,
+		"revival restarts current-page timing interval");
+}
+
+static void TestExactMetrics()
+{
+	RenderScheduler scheduler(16);
+	Check(scheduler.Submit(RenderJob(1, 100, RenderScheduler::VisibleRender), 10),
+		"metrics render submitted");
+	Check(scheduler.Submit(PageJob(2, RenderScheduler::DECODE, RenderScheduler::Decode), 20),
+		"metrics decode submitted");
+	Check(scheduler.Submit(PageJob(3, RenderScheduler::PREFETCH_DECODE,
+		RenderScheduler::AdjacentPrefetch), 30), "metrics prefetch submitted");
+	Check(scheduler.Submit(RenderJob(1, 150, RenderScheduler::VisibleRender), 40),
+		"metrics obsolete queued render replaced");
+	RenderScheduler::Metrics metrics = scheduler.GetMetrics();
+	Check(metrics.submittedRenderJobs == 2, "submittedRenderJobs counts real submissions");
+	Check(metrics.submittedDecodeJobs == 1, "submittedDecodeJobs counts real submissions");
+	Check(metrics.submittedPrefetchJobs == 1, "submittedPrefetchJobs counts real submissions");
+	Check(metrics.peakQueueLength == 3, "peakQueueLength counts queued jobs");
+	Check(metrics.obsoleteJobsRemoved == 1, "obsoleteJobsRemoved counts replaced render");
+	RenderScheduler::Job job;
+	Check(scheduler.TakeNext(job) && job.GetPage() == 1, "metrics render starts");
+	RenderScheduler::JobWindows windows;
+	windows.decodePages.insert(2);
+	windows.prefetchPages.insert(3);
+	Check(!scheduler.Reconcile(windows), "rejecting render does not cancel retained prefetch");
+	Check(scheduler.IsCurrentJobRejected(), "out-of-window render rejected");
+	Check(!scheduler.Reconcile(windows), "repeated reconciliation retains useful work");
+	metrics = scheduler.GetMetrics();
+	Check(metrics.obsoleteJobsRejected == 1, "obsoleteJobsRejected counts running render once");
+	Check(metrics.obsoleteJobsRemoved == 1, "retained decode and prefetch are not obsolete");
+	Check(!scheduler.CompleteCurrent(50), "obsolete render result discarded");
+
+	RenderScheduler timing(16);
+	Check(timing.Submit(RenderJob(4, 100, RenderScheduler::CurrentPageRender), 100),
+		"timing current-page request queued");
+	Check(timing.Submit(PageJob(4, RenderScheduler::DECODE, RenderScheduler::Decode), 110),
+		"timing request replaced by decode");
+	Check(timing.TakeNext(job) && job.type == RenderScheduler::DECODE,
+		"decode executes before an accepted current-page result");
+	Check(timing.GetMetrics().jobsExecutedBeforeCurrentPage == 1,
+		"jobsExecutedBeforeCurrentPage counts intervening work");
+	Check(timing.CompleteCurrent(120), "intervening decode completes");
+	Check(timing.Submit(RenderJob(5, 100, RenderScheduler::CurrentPageRender), 200),
+		"new current-page timing request queued");
+	Check(timing.GetMetrics().jobsExecutedBeforeCurrentPage == 0,
+		"new current-page interval resets intervening job count");
+	Check(timing.TakeNext(job) && job.GetPage() == 5, "timed current-page render starts");
+	Check(timing.CompleteCurrent(245), "timed current-page result accepted");
+	Check(timing.GetMetrics().currentPageResultElapsedMs == 45,
+		"currentPageResultElapsedMs uses deterministic scheduler timestamps");
+}
+
 static void TestRunningRenderReentry()
 {
 	RenderScheduler scheduler(32);
@@ -140,6 +276,11 @@ static void TestMaintenanceAndReconciliation()
 int _tmain()
 {
 	TestPriorityAndQueuedIdentity();
+	TestVisibleFifo();
+	TestQueuedPromotion();
+	TestRenderToDecodeReplacement();
+	TestRunningCurrentPagePromotion();
+	TestExactMetrics();
 	TestRunningRenderReentry();
 	TestMaintenanceAndReconciliation();
 	if (g_failures != 0)
