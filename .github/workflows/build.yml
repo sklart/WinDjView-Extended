@@ -23,6 +23,10 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\test-render-prefetch.ps1
 
+      - name: Run render scheduler regression
+        shell: cmd
+        run: tools\tests\run-render-scheduler-regression.cmd
+
       - name: Run update menu source regression
         shell: pwsh
         run: pwsh .\tools\tests\test-update-menu-source.ps1

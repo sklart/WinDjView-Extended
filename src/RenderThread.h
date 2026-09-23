@@ -21,6 +21,7 @@
 #include "Global.h"
 #include "DjVuView.h"
 #include "RenderRequest.h"
+#include "RenderScheduler.h"
 class DjVuSource;
 class CDIB;
 
@@ -28,37 +29,17 @@ class CDIB;
 class CRenderThread
 {
 public:
-	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
-	enum JobPriority { CurrentPageRender, VisibleRender, Decode, AdjacentPrefetch, Background };
-
-	struct JobInfo
-	{
-		int nPage;
-		int type;
-		int priority;
-		CSize size;
-	};
-
-	struct SchedulerMetrics
-	{
-		int peakQueueLength;
-		int submittedRenderJobs;
-		int submittedDecodeJobs;
-		int submittedPrefetchJobs;
-		int obsoleteJobsRemoved;
-		int obsoleteJobsRejected;
-		int jobsExecutedBeforeCurrentPage;
-		DWORD currentPageResultElapsedMs;
-	};
-
-	struct JobWindows
-	{
-		set<int> renderPages;
-		set<int> decodePages;
-		set<int> prefetchPages;
-		set<int> readInfoPages;
-		set<int> cleanupPages;
-	};
+	// Compatibility aliases preserve the established CRenderThread API while
+	// all queue policy lives in RenderScheduler.
+	enum JobType { RENDER = RenderScheduler::RENDER, DECODE = RenderScheduler::DECODE,
+		PREFETCH_DECODE = RenderScheduler::PREFETCH_DECODE, READINFO = RenderScheduler::READINFO,
+		CLEANUP = RenderScheduler::CLEANUP };
+	enum JobPriority { CurrentPageRender = RenderScheduler::CurrentPageRender,
+		VisibleRender = RenderScheduler::VisibleRender, Decode = RenderScheduler::Decode,
+		AdjacentPrefetch = RenderScheduler::AdjacentPrefetch, Background = RenderScheduler::Background };
+	typedef RenderScheduler::JobInfo JobInfo;
+	typedef RenderScheduler::Metrics SchedulerMetrics;
+	typedef RenderScheduler::JobWindows JobWindows;
 
 	CRenderThread(DjVuSource* pSource, Observer* pOwner);
 	void Stop();
@@ -106,33 +87,10 @@ private:
 	Observer* m_pOwner;
 	DjVuSource* m_pSource;
 	long m_nPaused;
-	int m_nSubmittedRenderJobs, m_nSubmittedDecodeJobs, m_nSubmittedPrefetchJobs;
-	int m_nPeakQueueLength, m_nObsoleteJobsRemoved, m_nObsoleteJobsRejected;
-	int m_nJobsExecutedBeforeCurrentPage;
-	DWORD m_dwCurrentPageRequest, m_dwCurrentPageResultElapsed;
-	bool m_bAwaitingCurrentPageResult;
-
-	struct Job
-	{
-		Job() : nPage(-1), type(DECODE), priority(Background) {}
-		int GetPage() const { return type == RENDER ? request.page : nPage; }
-		bool IsActive() const { return GetPage() >= 0; }
-
-		// nPage is retained only for non-render jobs. Render jobs use request.
-		int nPage;
-		RenderRequest request;
-		JobType type;
-		JobPriority priority;
-	};
-	list<Job> m_jobs;
-	vector<list<Job>::iterator> m_pages;
-	Job m_currentJob;
-	bool m_bRejectCurrentJob;
+	RenderScheduler m_scheduler;
 
 	static unsigned int __stdcall RenderThreadProc(void* pvData);
-	CDIB* Render(Job& job);
-	void AddJob(const Job& job);
-	void RemoveFromQueue(int nPage);
-	bool HasSameRenderIdentity(const Job& left, const Job& right) const;
+	CDIB* Render(RenderScheduler::Job& job);
+	void AddJob(const RenderScheduler::Job& job);
 	~CRenderThread();
 };

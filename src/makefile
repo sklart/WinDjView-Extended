@@ -127,6 +127,7 @@ LINK_OBJS = \
 	"$(INTDIR)\PositionParser.obj" \
 	"$(INTDIR)\PrintDlg.obj" \
 	"$(INTDIR)\ProgressDlg.obj" \
+	"$(INTDIR)\RenderScheduler.obj" \
 	"$(INTDIR)\RenderThread.obj" \
 	"$(INTDIR)\Scaling.obj" \
 	"$(INTDIR)\SearchResultsView.obj" \
@@ -186,6 +187,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 "$(INTDIR)\PositionParser.obj" : PositionParser.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PrintDlg.obj" : PrintDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\ProgressDlg.obj"	: ProgressDlg.cpp "$(INTDIR)" $(PCH)
+"$(INTDIR)\RenderScheduler.obj" : RenderScheduler.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\RenderThread.obj" : RenderThread.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\Scaling.obj" : Scaling.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\SearchResultsView.obj" : SearchResultsView.cpp "$(INTDIR)" $(PCH)

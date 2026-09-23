@@ -33,15 +33,10 @@
 // CRenderThread class
 
 CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
-	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0), m_bRejectCurrentJob(false),
-	  m_nSubmittedRenderJobs(0), m_nSubmittedDecodeJobs(0), m_nSubmittedPrefetchJobs(0),
-	  m_nPeakQueueLength(0), m_nObsoleteJobsRemoved(0), m_nObsoleteJobsRejected(0),
-	  m_nJobsExecutedBeforeCurrentPage(0), m_dwCurrentPageRequest(0),
-	  m_dwCurrentPageResultElapsed(0), m_bAwaitingCurrentPageResult(false)
+	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0),
+	  m_scheduler(pSource->GetPageCount())
 {
 	m_pSource->AddRef();
-
-	m_pages.resize(m_pSource->GetPageCount(), m_jobs.end());
 
 	UINT dwThreadId;
 	m_hThread = (HANDLE)_beginthreadex(NULL, 0, RenderThreadProc, this, 0, &dwThreadId);
@@ -63,9 +58,9 @@ void CRenderThread::Stop()
 	m_stop.SetEvent();
 
 	m_lock.Lock();
-	m_jobs.clear();
+	m_scheduler.Clear();
 	m_jobReady.ResetEvent();
-	m_bRejectCurrentJob = true;
+	m_scheduler.RejectCurrent();
 	PauseJobs();
 	m_lock.Unlock();
 	m_pSource->CancelPrefetches();
@@ -84,19 +79,14 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 	{
 		pThread->m_lock.Lock();
 
-		if (pThread->m_jobs.empty())
+		if (!pThread->m_scheduler.HasQueuedJobs())
 		{
 			pThread->m_lock.Unlock();
 			continue;
 		}
 
-		Job job = pThread->m_jobs.front();
-		pThread->m_bRejectCurrentJob = false;
-		pThread->m_currentJob = job;
-		pThread->m_jobs.pop_front();
-		pThread->m_pages[job.GetPage()] = pThread->m_jobs.end();
-		if (pThread->m_bAwaitingCurrentPageResult && job.priority != CurrentPageRender)
-			++pThread->m_nJobsExecutedBeforeCurrentPage;
+		RenderScheduler::Job job;
+		pThread->m_scheduler.TakeNext(job);
 		pThread->m_lock.Unlock();
 
 		CDIB* pBitmap = NULL;
@@ -128,15 +118,8 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_stopping.Lock();
 
 		pThread->m_lock.Lock();
-		bool bNotify = (!pThread->m_bRejectCurrentJob);
-		if (bNotify && job.type == RENDER && pThread->m_currentJob.priority == CurrentPageRender &&
-			pThread->m_bAwaitingCurrentPageResult)
-		{
-			pThread->m_dwCurrentPageResultElapsed = ::GetTickCount() - pThread->m_dwCurrentPageRequest;
-			pThread->m_bAwaitingCurrentPageResult = false;
-		}
-		pThread->m_currentJob = Job();
-		if (!pThread->m_jobs.empty() && !pThread->IsPaused())
+		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount());
+		if (pThread->m_scheduler.HasQueuedJobs() && !pThread->IsPaused())
 			pThread->m_jobReady.SetEvent();
 		pThread->m_lock.Unlock();
 
@@ -191,7 +174,7 @@ void CRenderThread::ResumeJobs()
 	m_lock.Lock();
 
 	InterlockedExchange(&m_nPaused, 0);
-	if (!m_jobs.empty())
+	if (m_scheduler.HasQueuedJobs())
 		m_jobReady.SetEvent();
 
 	m_lock.Unlock();
@@ -205,7 +188,7 @@ bool CRenderThread::IsPaused()
 int CRenderThread::GetQueuedJobCount()
 {
 	m_lock.Lock();
-	int count = (int)m_jobs.size();
+	int count = m_scheduler.GetQueuedJobCount();
 	m_lock.Unlock();
 	return count;
 }
@@ -213,67 +196,43 @@ int CRenderThread::GetQueuedJobCount()
 bool CRenderThread::IsPrefetchQueued(int nPage)
 {
 	m_lock.Lock();
-	bool queued = nPage >= 0 && nPage < (int)m_pages.size() &&
-		m_pages[nPage] != m_jobs.end() && m_pages[nPage]->type == PREFETCH_DECODE;
+	bool queued = m_scheduler.IsPrefetchQueued(nPage);
 	m_lock.Unlock();
 	return queued;
 }
 
 void CRenderThread::GetQueuedJobCounts(int& render, int& decode, int& prefetchDecode)
 {
-	render = decode = prefetchDecode = 0;
 	m_lock.Lock();
-	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
-	{
-		if (it->type == RENDER)
-			++render;
-		else if (it->type == DECODE)
-			++decode;
-		else if (it->type == PREFETCH_DECODE)
-			++prefetchDecode;
-	}
+	m_scheduler.GetQueuedJobCounts(render, decode, prefetchDecode);
 	m_lock.Unlock();
 }
 
 void CRenderThread::ResetSubmittedJobCounts()
 {
 	m_lock.Lock();
-	m_nSubmittedRenderJobs = m_nSubmittedDecodeJobs = m_nSubmittedPrefetchJobs = 0;
+	m_scheduler.ResetSubmittedJobCounts();
 	m_lock.Unlock();
 }
 
 void CRenderThread::GetSubmittedJobCounts(int& render, int& decode, int& prefetchDecode)
 {
 	m_lock.Lock();
-	render = m_nSubmittedRenderJobs;
-	decode = m_nSubmittedDecodeJobs;
-	prefetchDecode = m_nSubmittedPrefetchJobs;
+	m_scheduler.GetSubmittedJobCounts(render, decode, prefetchDecode);
 	m_lock.Unlock();
 }
 
 void CRenderThread::GetQueuedJobInfo(vector<JobInfo>& jobs)
 {
-	jobs.clear();
 	m_lock.Lock();
-	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
-	{
-		JobInfo info = { it->GetPage(), it->type, it->priority,
-			it->type == RENDER ? it->request.size : CSize(0, 0) };
-		jobs.push_back(info);
-	}
+	m_scheduler.GetQueuedJobInfo(jobs);
 	m_lock.Unlock();
 }
 
 bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
 {
 	m_lock.Lock();
-	bool active = m_currentJob.IsActive();
-	if (active)
-	{
-		JobInfo current = { m_currentJob.GetPage(), m_currentJob.type,
-			m_currentJob.priority, m_currentJob.type == RENDER ? m_currentJob.request.size : CSize(0, 0) };
-		job = current;
-	}
+	bool active = m_scheduler.GetCurrentJobInfo(job);
 	m_lock.Unlock();
 	return active;
 }
@@ -281,7 +240,7 @@ bool CRenderThread::GetCurrentJobInfo(JobInfo& job)
 bool CRenderThread::IsCurrentJobRejected()
 {
 	m_lock.Lock();
-	bool rejected = m_currentJob.IsActive() && m_bRejectCurrentJob;
+	bool rejected = m_scheduler.IsCurrentJobRejected();
 	m_lock.Unlock();
 	return rejected;
 }
@@ -289,78 +248,21 @@ bool CRenderThread::IsCurrentJobRejected()
 void CRenderThread::ResetSchedulerMetrics()
 {
 	m_lock.Lock();
-	m_nPeakQueueLength = m_nObsoleteJobsRemoved = m_nObsoleteJobsRejected = 0;
-	m_nJobsExecutedBeforeCurrentPage = 0;
-	m_dwCurrentPageRequest = m_dwCurrentPageResultElapsed = 0;
-	m_bAwaitingCurrentPageResult = false;
+	m_scheduler.ResetMetrics();
 	m_lock.Unlock();
 }
 
 void CRenderThread::GetSchedulerMetrics(SchedulerMetrics& metrics)
 {
 	m_lock.Lock();
-	metrics.peakQueueLength = m_nPeakQueueLength;
-	metrics.submittedRenderJobs = m_nSubmittedRenderJobs;
-	metrics.submittedDecodeJobs = m_nSubmittedDecodeJobs;
-	metrics.submittedPrefetchJobs = m_nSubmittedPrefetchJobs;
-	metrics.obsoleteJobsRemoved = m_nObsoleteJobsRemoved;
-	metrics.obsoleteJobsRejected = m_nObsoleteJobsRejected;
-	metrics.jobsExecutedBeforeCurrentPage = m_nJobsExecutedBeforeCurrentPage;
-	metrics.currentPageResultElapsedMs = m_dwCurrentPageResultElapsed;
+	metrics = m_scheduler.GetMetrics();
 	m_lock.Unlock();
 }
 
 void CRenderThread::ReconcileJobs(const JobWindows& windows)
 {
-	bool cancelPrefetches = false;
 	m_lock.Lock();
-	for (list<Job>::iterator it = m_jobs.begin(); it != m_jobs.end(); )
-	{
-		const set<int>* pages = NULL;
-		switch (it->type)
-		{
-		case RENDER: pages = &windows.renderPages; break;
-		case DECODE: pages = &windows.decodePages; break;
-		case PREFETCH_DECODE: pages = &windows.prefetchPages; break;
-		case READINFO: pages = &windows.readInfoPages; break;
-		}
-		// cleanupPages contains requests made by this update, not a whitelist.
-		// Once cache ownership has been released, cleanup must run unless the
-		// page returns to an active/cache window before the worker reaches it.
-		bool keep = it->type == CLEANUP ||
-			(pages != NULL && pages->find(it->GetPage()) != pages->end());
-		if (it->type == CLEANUP &&
-			(windows.renderPages.find(it->GetPage()) != windows.renderPages.end() ||
-			 windows.decodePages.find(it->GetPage()) != windows.decodePages.end() ||
-			 windows.readInfoPages.find(it->GetPage()) != windows.readInfoPages.end()))
-			keep = false;
-		if (keep)
-		{
-			++it;
-			continue;
-		}
-		const JobType type = it->type;
-		if (type == PREFETCH_DECODE)
-			cancelPrefetches = true;
-		m_pages[it->GetPage()] = m_jobs.end();
-		it = m_jobs.erase(it);
-		if (type == RENDER || type == DECODE || type == PREFETCH_DECODE)
-			++m_nObsoleteJobsRemoved;
-	}
-	if (m_currentJob.IsActive() &&
-		((m_currentJob.type == RENDER &&
-			windows.renderPages.find(m_currentJob.GetPage()) == windows.renderPages.end()) ||
-		 (m_currentJob.type == PREFETCH_DECODE &&
-			windows.prefetchPages.find(m_currentJob.GetPage()) == windows.prefetchPages.end())))
-	{
-		if (!m_bRejectCurrentJob)
-		{
-			m_bRejectCurrentJob = true;
-			++m_nObsoleteJobsRejected;
-		}
-		if (m_currentJob.type == PREFETCH_DECODE)
-			cancelPrefetches = true;
-	}
+	bool cancelPrefetches = m_scheduler.Reconcile(windows);
 	m_lock.Unlock();
 
 	// Prefetch decoding belongs to DjVuLibre.  It is safe to cancel only when
@@ -369,18 +271,7 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		m_pSource->CancelPrefetches();
 }
 
-void CRenderThread::RemoveFromQueue(int nPage)
-{
-	// Delete jobs with the same nPage
-	list<Job>::iterator it = m_pages[nPage];
-	if (it != m_jobs.end())
-	{
-		m_jobs.erase(it);
-		m_pages[nPage] = m_jobs.end();
-	}
-}
-
-CDIB* CRenderThread::Render(Job& job)
+CDIB* CRenderThread::Render(RenderScheduler::Job& job)
 {
 	GP<DjVuImage> pImage = m_pSource->GetPage(job.request.page, m_pOwner);
 	CDIB* pBitmap = NULL;
@@ -594,162 +485,59 @@ void CRenderThread::AddJob(int nPage, int nRotate, const CSize& size,
 
 void CRenderThread::AddJob(const RenderRequest& request, JobPriority priority)
 {
-	Job job;
+	RenderScheduler::Job job;
 	job.request = request;
-	job.type = RENDER;
-	job.priority = priority;
+	job.type = RenderScheduler::RENDER;
+	job.priority = (RenderScheduler::JobPriority)priority;
 
 	AddJob(job);
 }
 
 void CRenderThread::AddDecodeJob(int nPage)
 {
-	Job job;
+	RenderScheduler::Job job;
 	job.nPage = nPage;
-	job.type = DECODE;
-	job.priority = Decode;
+	job.type = RenderScheduler::DECODE;
+	job.priority = RenderScheduler::Decode;
 
 	AddJob(job);
 }
 
-bool CRenderThread::HasSameRenderIdentity(const Job& left, const Job& right) const
-{
-	return left.request == right.request;
-}
-
 void CRenderThread::AddPrefetchJob(int nPage)
 {
-	Job job;
+	RenderScheduler::Job job;
 	job.nPage = nPage;
-	job.type = PREFETCH_DECODE;
-	job.priority = AdjacentPrefetch;
+	job.type = RenderScheduler::PREFETCH_DECODE;
+	job.priority = RenderScheduler::AdjacentPrefetch;
 
 	AddJob(job);
 }
 
 void CRenderThread::AddReadInfoJob(int nPage)
 {
-	Job job;
+	RenderScheduler::Job job;
 	job.nPage = nPage;
-	job.type = READINFO;
-	job.priority = Background;
+	job.type = RenderScheduler::READINFO;
+	job.priority = RenderScheduler::Background;
 
 	AddJob(job);
 }
 
 void CRenderThread::AddCleanupJob(int nPage)
 {
-	Job job;
+	RenderScheduler::Job job;
 	job.nPage = nPage;
-	job.type = CLEANUP;
-	job.priority = Background;
+	job.type = RenderScheduler::CLEANUP;
+	job.priority = RenderScheduler::Background;
 
 	AddJob(job);
 }
 
-void CRenderThread::AddJob(const Job& job)
+void CRenderThread::AddJob(const RenderScheduler::Job& job)
 {
 	m_lock.Lock();
-	const int nPage = job.GetPage();
-
-	// One page has at most one queued semantic job. Foreground work always
-	// replaces speculative work; a changed render identity replaces its stale
-	// queued request instead of allowing zoom/rotate events to accumulate.
-	list<Job>::iterator existing = m_pages[nPage];
-	if (job.type == PREFETCH_DECODE && existing != m_jobs.end() &&
-		existing->priority < AdjacentPrefetch)
-	{
-		m_lock.Unlock();
-		return;
-	}
-	bool replacingCurrentRender = false;
-	if (m_currentJob.IsActive() && m_currentJob.GetPage() == nPage && m_currentJob.type == job.type)
-	{
-		if (job.type != RENDER || HasSameRenderIdentity(job, m_currentJob))
-		{
-			if (job.type == RENDER && m_bRejectCurrentJob)
-			{
-				// The same render became useful again before completion. Reuse its
-				// work rather than queueing a duplicate, but only for an exact
-				// render identity match.
-				m_bRejectCurrentJob = false;
-				if (job.priority == CurrentPageRender && m_currentJob.priority != CurrentPageRender)
-				{
-					m_currentJob.priority = CurrentPageRender;
-					m_dwCurrentPageRequest = ::GetTickCount();
-					m_dwCurrentPageResultElapsed = 0;
-					m_nJobsExecutedBeforeCurrentPage = 0;
-					m_bAwaitingCurrentPageResult = true;
-				}
-			}
-			m_lock.Unlock();
-			return;
-		}
-		// Rendering is not interrupted. The worker safely drops its result and
-		// the replacement request below is the only one that will be notified.
-		if (!m_bRejectCurrentJob)
-		{
-			m_bRejectCurrentJob = true;
-			++m_nObsoleteJobsRejected;
-		}
-		replacingCurrentRender = true;
-	}
-	// Cleanup is deferred maintenance. If foreground work for the same page is
-	// already running, retain one cleanup request behind it so cache ownership
-	// is still released after an obsolete render/decode completes.
-	const bool queueCleanupAfterCurrent = job.type == CLEANUP;
-	if (m_currentJob.IsActive() && m_currentJob.GetPage() == nPage && m_currentJob.priority < job.priority &&
-		!replacingCurrentRender && !queueCleanupAfterCurrent)
-	{
-		m_lock.Unlock();
-		return;
-	}
-	if (existing != m_jobs.end())
-	{
-		// A page leaving the render window can remain in the wider decode
-		// window.  Its stale foreground render must yield to that decode job;
-		// otherwise reconciliation would remove the render and leave no work.
-		const bool renderToDecode = existing->type == RENDER && job.type == DECODE;
-		if (existing->priority < job.priority && job.type != CLEANUP && !renderToDecode)
-		{
-			m_lock.Unlock();
-			return;
-		}
-		if (existing->type == job.type && (job.type != RENDER || HasSameRenderIdentity(job, *existing)) &&
-			existing->priority == job.priority)
-		{
-			m_lock.Unlock();
-			return;
-		}
-		if (existing->type == RENDER || existing->type == PREFETCH_DECODE)
-			++m_nObsoleteJobsRemoved;
-		RemoveFromQueue(nPage);
-	}
-
-	if (job.type == RENDER && job.priority == CurrentPageRender)
-	{
-		m_dwCurrentPageRequest = ::GetTickCount();
-		m_dwCurrentPageResultElapsed = 0;
-		m_nJobsExecutedBeforeCurrentPage = 0;
-		m_bAwaitingCurrentPageResult = true;
-	}
-	if (job.type == RENDER)
-		++m_nSubmittedRenderJobs;
-	else if (job.type == DECODE)
-		++m_nSubmittedDecodeJobs;
-	else if (job.type == PREFETCH_DECODE)
-		++m_nSubmittedPrefetchJobs;
-
-	// Keep FIFO order within a priority and insert before lower-priority work.
-	list<Job>::iterator insertAt = m_jobs.begin();
-	while (insertAt != m_jobs.end() && insertAt->priority <= job.priority)
-		++insertAt;
-	list<Job>::iterator inserted = m_jobs.insert(insertAt, job);
-	m_pages[nPage] = inserted;
-	if ((int)m_jobs.size() > m_nPeakQueueLength)
-		m_nPeakQueueLength = (int)m_jobs.size();
-
-	if (!IsPaused())
+	bool queued = m_scheduler.Submit(job, ::GetTickCount());
+	if (queued && !IsPaused())
 		m_jobReady.SetEvent();
 
 	m_lock.Unlock();
@@ -758,12 +546,7 @@ void CRenderThread::AddJob(const Job& job)
 void CRenderThread::RemoveAllJobs()
 {
 	m_lock.Lock();
-
-	for (list<Job>::const_iterator it = m_jobs.begin(); it != m_jobs.end(); ++it)
-		if (it->type == RENDER || it->type == DECODE || it->type == PREFETCH_DECODE)
-			++m_nObsoleteJobsRemoved;
-	m_jobs.clear();
-	m_pages.assign(m_pSource->GetPageCount(), m_jobs.end());
+	m_scheduler.Clear();
 
 	m_lock.Unlock();
 
@@ -776,7 +559,6 @@ void CRenderThread::RemoveAllJobs()
 void CRenderThread::RejectCurrentJob()
 {
 	m_lock.Lock();
-	if (m_currentJob.IsActive())
-		m_bRejectCurrentJob = true;
+	m_scheduler.RejectCurrent();
 	m_lock.Unlock();
 }
