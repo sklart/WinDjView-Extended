@@ -23,6 +23,10 @@ jobs:
         shell: pwsh
         run: pwsh .\tools\tests\test-render-prefetch.ps1
 
+      - name: Run update menu source regression
+        shell: pwsh
+        run: pwsh .\tools\tests\test-update-menu-source.ps1
+
   legacy-nmake:
     name: legacy NMAKE ${{ matrix.configuration }} ${{ matrix.platform }}
     runs-on: windows-2022

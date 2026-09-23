@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.4.0 — unreleased
+
+### Added / Changed / Fixed
+
+- Added a user-visible **Check for Updates** command to the Help menu.
+- The About dialog identifies 64-bit builds with an `(x64)` suffix.
+
 ## 4.3.0 — 2026-09-22
 
 ### Added

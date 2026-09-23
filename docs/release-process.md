@@ -36,6 +36,16 @@ Do not publish a release that only lists commits or implementation details.
   `WinDjView*.dll` discovery rule.
 - Release notes must say which executable and localization architecture match.
 
+## Published-release immutability
+
+- A published release tag and its uploaded assets are immutable: do not rebuild
+  or replace them from a later `main` commit.
+- `main` must move to the next development version after publication. Keep
+  `release/latest-version.txt` at the latest published version until the next
+  release is actually published.
+- A correction for an already published release requires a separate hotfix
+  release. New development and architectural work belongs to the next version.
+
 ## Publication gate
 
 Before creating a non-draft GitHub Release, ensure the target commit is on
