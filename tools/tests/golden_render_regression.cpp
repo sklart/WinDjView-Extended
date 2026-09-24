@@ -288,6 +288,8 @@ namespace
 			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false, false },
 			{ "watchmaker.djvu", 0, 2301, 1901, 1, CDjVuView::Color, true, false },
 			{ "cable_1973_100133.djvu", 0, 2048, 2051, 0, CDjVuView::BlackAndWhite, false, false },
+			{ "cable_1973_100133.djvu", 0, 2048, 2051, 1, CDjVuView::BlackAndWhite, true, true },
+			{ "cable_1973_100133.djvu", 0, 2048, 2051, 0, CDjVuView::Color, false, false },
 			{ "war_1812.djvu", 3, 2301, 1901, 2, CDjVuView::Background, false, false },
 			{ "war_1812.djvu", 3, 2301, 1901, 0, CDjVuView::Foreground, false, false },
 			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false, true }
@@ -336,23 +338,94 @@ namespace
 				CanonicalRgb24(tiled, tiledPixels) && CanonicalRgb24(automatic, automaticPixels) &&
 				fullPixels == tiledPixels && fullPixels == automaticPixels;
 			bool workerEqual = true;
-			if (index == 0 && equal)
+			if (equal)
 			{
+				vector<BYTE> workerReference(fullPixels);
+				if (item.cropped)
+				{
+					PageInfo info = source->GetPageInfo(item.page);
+					CSize pageSize(info.szPage);
+					if (request.rotation % 2 != 0) swap(pageSize.cx, pageSize.cy);
+					const CRect crop = info.GetCropRect((request.rotation + info.nInitialRotate) % 4);
+					const double sx = static_cast<double>(request.size.cx) / pageSize.cx;
+					const double sy = static_cast<double>(request.size.cy) / pageSize.cy;
+					RenderRequest expanded(request);
+					expanded.size = expanded.size + CPoint(static_cast<int>((crop.left + crop.right) * sx),
+						static_cast<int>((crop.top + crop.bottom) * sy));
+					CDIB* raw = CRenderThread::RenderFullPage(image, expanded);
+					CDIB* cropped = raw != NULL ? raw->Crop(CRect(
+						static_cast<int>(crop.left * sx), static_cast<int>(crop.top * sy),
+						static_cast<int>(crop.left * sx) + request.size.cx,
+						static_cast<int>(crop.top * sy) + request.size.cy)) : NULL;
+					workerEqual = CanonicalRgb24(cropped, workerReference);
+					delete cropped;
+					delete raw;
+				}
 				TileObserver observer;
 				CRenderThread* worker = new CRenderThread(source, &observer);
 				worker->PauseJobs();
 				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
 				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
 				TileGrid grid(item.width, item.height);
-				workerEqual = worker->GetQueuedJobCount() == static_cast<int>(grid.Count());
+				workerEqual = workerEqual && worker->GetQueuedJobCount() == static_cast<int>(grid.Count());
 				worker->ResumeJobs();
 				workerEqual = workerEqual &&
 					::WaitForSingleObject(observer.event, 30000) == WAIT_OBJECT_0 &&
 					observer.valid && observer.request == request &&
-					observer.pixels == fullPixels;
+					observer.pixels == workerReference;
 				::Sleep(25);
 				workerEqual = workerEqual && InterlockedCompareExchange(&observer.count, 0, 0) == 1;
+				int regions = 0, fallbacks = 0;
+				worker->GetTileRenderStats(regions, fallbacks);
+				const bool completeRegions = regions == static_cast<int>(grid.Count()) && fallbacks == 0;
+				const bool singleFallback = regions == 0 && fallbacks == 1;
+				workerEqual = workerEqual && (completeRegions || singleFallback);
+				if (item.mode == CDjVuView::BlackAndWhite)
+					workerEqual = workerEqual && completeRegions;
+				if (!workerEqual)
+				{
+					fprintf(stderr, "tile worker mismatch: regions=%d expected=%llu fallbacks=%d\n",
+						regions, grid.Count(), fallbacks);
+					if (observer.pixels.size() == workerReference.size())
+						for (size_t n = 0; n < workerReference.size(); ++n)
+							if (observer.pixels[n] != workerReference[n])
+							{
+								fprintf(stderr, "first different pixel x=%llu y=%llu channel=%llu actual=%u expected=%u\n",
+									(n / 3) % item.width, (n / 3) / item.width, n % 3,
+									observer.pixels[n], workerReference[n]);
+								break;
+							}
+				}
 				worker->Stop();
+			}
+			if (equal && item.mode == CDjVuView::BlackAndWhite && !item.cropped)
+			{
+				RenderRequest replacement(request);
+				replacement.rotation = 2;
+				CDIB* replacementFull = CRenderThread::RenderFullPage(image, replacement);
+				vector<BYTE> replacementPixels;
+				const bool referenceValid = CanonicalRgb24(replacementFull, replacementPixels);
+				delete replacementFull;
+				TileObserver observer;
+				CRenderThread* worker = new CRenderThread(source, &observer);
+				worker->PauseJobs();
+				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
+				worker->AddViewportJob(replacement, CRenderThread::CurrentPageRender);
+				TileGrid grid(item.width, item.height);
+				bool replaced = referenceValid &&
+					worker->GetQueuedJobCount() == static_cast<int>(grid.Count());
+				CRenderThread::SchedulerMetrics metrics;
+				worker->GetSchedulerMetrics(metrics);
+				replaced = replaced && metrics.obsoleteJobsRemoved >= static_cast<int>(grid.Count());
+				worker->ResumeJobs();
+				replaced = replaced && ::WaitForSingleObject(observer.event, 30000) == WAIT_OBJECT_0 &&
+					observer.valid && observer.request == replacement &&
+					observer.pixels == replacementPixels;
+				::Sleep(25);
+				replaced = replaced && InterlockedCompareExchange(&observer.count, 0, 0) == 1;
+				worker->Stop();
+				workerEqual = workerEqual && replaced;
+				if (!replaced) fprintf(stderr, "tile queued stale replacement failed\n");
 			}
 			delete full;
 			delete tiled;

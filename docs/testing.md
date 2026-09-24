@@ -60,13 +60,17 @@ regression. For viewport render jobs, automatic tiling applies to raster targets
 least 4,194,304 pixels with a side of at least 2048 pixels; tiles are 512 px
 square (smaller at the edges). The decision uses the requested raster size
 after zoom and crop expansion, not the source document dimensions. This
-foundation tiles DIB conversion and assembly; DjVuLibre still produces the
-source pixmap/bitmap as before, so peak source-raster memory is not yet bounded.
+foundation's direct `RenderTiled()` API tiles DIB conversion after a full
+DjVuLibre source raster; viewport jobs now use independent raster regions.
 Direct thumbnail, save/export and print-related render calls retain the full-page path.
 Phase 7B schedules each large viewport tile independently on the existing
-single worker and publishes only a complete batch. The worker currently uses
-one full-page staging DIB per active request; multi-worker rasterization and
-bounded source-raster memory are deliberately deferred.
+single worker and publishes only a complete batch. Phase 8A requests each
+supported tile region directly from DjVuLibre and no longer keeps a full-page
+staging DIB. B&W viewport requests are covered by pixel-identical region
+regressions, including rotation, adjustments and crop. Layered color paths can
+differ by a channel when rendered as isolated regions, so they, whole-source
+PnmScaleFixed scaling, unsupported regions, and failed tile renders retain the
+pixel-compatible full-page fallback. Multi-worker rasterization is deferred.
 
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the

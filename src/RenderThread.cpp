@@ -35,7 +35,7 @@
 
 CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0),
-	  m_scheduler(pSource->GetPageCount())
+	  m_scheduler(pSource->GetPageCount()), m_nTileRegionRenders(0), m_nTileFallbacks(0)
 {
 	m_pSource->AddRef();
 
@@ -47,11 +47,10 @@ CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 
 CRenderThread::TileBatch::TileBatch(const RenderRequest& request_)
 	: request(request_), grid(request_.size.cx, request_.size.cy),
-	  completion(grid), source(NULL), assembled(NULL), fallback(false) {}
+	  completion(grid), assembled(NULL) {}
 
 CRenderThread::TileBatch::~TileBatch()
 {
-	delete source;
 	delete assembled;
 }
 
@@ -120,6 +119,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_lock.Unlock();
 
 		CDIB* pBitmap = NULL;
+		bool tileFallback = false;
 
 		switch (job.type)
 		{
@@ -128,20 +128,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 
 		case TILE_RENDER:
-			{
-				pThread->m_lock.Lock();
-				map<int, TileBatch*>::iterator batch = pThread->m_tileBatches.find(job.GetPage());
-				const bool needsSource = batch != pThread->m_tileBatches.end() &&
-					batch->second->request == job.tile.key.render && batch->second->source == NULL;
-				pThread->m_lock.Unlock();
-				if (needsSource)
-				{
-				RenderScheduler::Job pageJob;
-				pageJob.type = RenderScheduler::RENDER;
-				pageJob.request = job.tile.key.render;
-				pBitmap = pThread->Render(pageJob, true);
-				}
-			}
+			pBitmap = pThread->RenderTileJob(job, tileFallback);
 			break;
 
 		case DECODE:
@@ -167,8 +154,32 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_lock.Lock();
 		CDIB* completedTilePage = NULL;
 		bool tileDone = false;
+		bool retryFallback = false;
 		if (job.type == TILE_RENDER && !pThread->m_scheduler.IsCurrentJobRejected())
-			tileDone = pThread->AcceptTileResult(job, pBitmap, completedTilePage);
+		{
+			if (tileFallback) ++pThread->m_nTileFallbacks;
+			else ++pThread->m_nTileRegionRenders;
+			tileDone = pThread->AcceptTileResult(job, pBitmap, tileFallback,
+				retryFallback, completedTilePage);
+		}
+		if (retryFallback)
+		{
+			pThread->m_lock.Unlock();
+			pThread->m_stopping.Unlock();
+			RenderScheduler::Job pageJob;
+			pageJob.type = RenderScheduler::RENDER;
+			pageJob.request = job.tile.key.render;
+			pBitmap = pThread->Render(pageJob, true);
+			pThread->m_stopping.Lock();
+			pThread->m_lock.Lock();
+			if (!pThread->m_scheduler.IsCurrentJobRejected())
+			{
+				bool unusedRetry = false;
+				++pThread->m_nTileFallbacks;
+				tileDone = pThread->AcceptTileResult(job, pBitmap, true,
+					unusedRetry, completedTilePage);
+			}
+		}
 		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount(), tileDone);
 		if (job.type == TILE_RENDER)
 		{
@@ -324,6 +335,14 @@ void CRenderThread::GetSchedulerMetrics(SchedulerMetrics& metrics)
 	m_lock.Unlock();
 }
 
+void CRenderThread::GetTileRenderStats(int& regions, int& fallbacks)
+{
+	m_lock.Lock();
+	regions = m_nTileRegionRenders;
+	fallbacks = m_nTileFallbacks;
+	m_lock.Unlock();
+}
+
 void CRenderThread::ReconcileJobs(const JobWindows& windows)
 {
 	m_lock.Lock();
@@ -389,92 +408,190 @@ CDIB* CRenderThread::Render(RenderScheduler::Job& job, bool fullPageSource)
 	return pBitmap;
 }
 
-// Called with m_lock held after a tile job has physically finished. The
-// staging DIB is produced once by the existing one-worker full-page renderer;
-// each independent tile job copies only its own pixels into the final DIB.
+// DjVuLibre's (rect, all) overload renders only rect while retaining the
+// full-target scaling coordinates. PnmScaleFixed needs the complete source
+// raster, so those requests use the established full-page fallback instead.
+CDIB* CRenderThread::RenderTileJob(const RenderScheduler::Job& job, bool& fallback)
+{
+	fallback = false;
+	const RenderRequest& identity = job.tile.key.render;
+	const TileRect& tile = job.tile.key.rect;
+	CDIB* bitmap = NULL;
+	GP<DjVuImage> image = m_pSource->GetPage(identity.page, m_pOwner);
+	if (image != NULL && tile.width > 0 && tile.height > 0)
+	{
+		// Layered color paths can vary by a channel when DjVuLibre is
+		// asked for an isolated region. Keep their exact full-page pixels.
+		const bool layeredColor = image->get_bg44() != NULL ||
+			image->get_bgpm() != NULL || image->get_fgpm() != NULL;
+		if (identity.displayMode == CDjVuView::BlackAndWhite || !layeredColor)
+		{
+		try
+		{
+			PageInfo info = m_pSource->GetPageInfo(identity.page);
+			CSize pageSize(info.szPage);
+			if (identity.rotation % 2 != 0) swap(pageSize.cx, pageSize.cy);
+			const CRect crop = info.GetCropRect((identity.rotation + info.nInitialRotate) % 4);
+			const double sx = identity.displaySettings.bCropPages && pageSize.cx > 0 ?
+				static_cast<double>(identity.size.cx) / pageSize.cx : 0.0;
+			const double sy = identity.displaySettings.bCropPages && pageSize.cy > 0 ?
+				static_cast<double>(identity.size.cy) / pageSize.cy : 0.0;
+			const CSize expanded = identity.size + CPoint(
+				static_cast<int>((crop.left + crop.right) * sx),
+				static_cast<int>((crop.top + crop.bottom) * sy));
+			const int cropLeft = static_cast<int>(crop.left * sx);
+			const int cropTop = static_cast<int>(crop.top * sy);
+			const int x = cropLeft + tile.x;
+			const int y = expanded.cy - cropTop - identity.size.cy + tile.y;
+			const int rotation = GetTotalRotate(image, identity.rotation);
+			CSize scaled(expanded);
+			if (rotation % 2 != 0) swap(scaled.cx, scaled.cy);
+			const CSize sourceSize(image->get_width(), image->get_height());
+			const bool regionScale = identity.displaySettings.bScaleSubpix ?
+				(scaled.cx >= sourceSize.cx && scaled.cy >= sourceSize.cy) :
+				(scaled.cx >= sourceSize.cx / 2 || scaled.cy >= sourceSize.cy / 2);
+			if (pageSize.cx > 0 && pageSize.cy > 0 && expanded.cx > 0 && expanded.cy > 0 &&
+				x >= 0 && y >= 0 && x + tile.width <= expanded.cx &&
+				y + tile.height <= expanded.cy && regionScale)
+			{
+				TileRect region(x, y, tile.width, tile.height);
+				if (rotation == 1)
+					region = TileRect(y, scaled.cy - x - tile.width, tile.height, tile.width);
+				else if (rotation == 2)
+					region = TileRect(scaled.cx - x - tile.width,
+						scaled.cy - y - tile.height, tile.width, tile.height);
+				else if (rotation == 3)
+					region = TileRect(scaled.cx - y - tile.height, x, tile.height, tile.width);
+				const GRect full(0, 0, scaled.cx, scaled.cy);
+				const GRect rect(region.x, region.y, region.width, region.height);
+				GP<GPixmap> pixmap;
+				GP<GBitmap> mask;
+				switch (identity.displayMode)
+				{
+				case CDjVuView::BlackAndWhite:
+					mask = image->get_bitmap(rect, full, 4); break;
+				case CDjVuView::Foreground:
+					pixmap = image->get_fg_pixmap(rect, full);
+					if (pixmap == NULL) mask = image->get_bitmap(rect, full, 4);
+					break;
+				case CDjVuView::Background:
+					pixmap = image->get_bg_pixmap(rect, full); break;
+				case CDjVuView::Color:
+					pixmap = image->get_pixmap(rect, full);
+					if (pixmap == NULL) mask = image->get_bitmap(rect, full, 4);
+					break;
+				}
+				if (pixmap != NULL)
+				{
+					if (rotation != 0) pixmap = pixmap->rotate(rotation);
+					bitmap = RenderPixmap(*pixmap, identity.displaySettings);
+				}
+				else if (mask != NULL)
+				{
+					if (rotation != 0) mask = mask->rotate(rotation);
+					bitmap = RenderBitmap(*mask, identity.displaySettings);
+				}
+				else
+					bitmap = RenderEmpty(CSize(tile.width, tile.height), identity.displaySettings);
+				if (bitmap != NULL && bitmap->IsValid() &&
+					bitmap->GetSize() == CSize(tile.width, tile.height))
+				{
+					bitmap->SetDPI(image->get_dpi());
+					return bitmap;
+				}
+			}
+		}
+		catch (CMemoryException* error) { error->Delete(); }
+		catch (GException&) {}
+		catch (...) {}
+		}
+	}
+	delete bitmap;
+	fallback = true;
+	RenderScheduler::Job pageJob;
+	pageJob.type = RenderScheduler::RENDER;
+	pageJob.request = identity;
+	return Render(pageJob, true);
+}
+
+// Called with m_lock held after a tile job has physically finished.
 bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
-	CDIB*& source, CDIB*& completed)
+	CDIB*& tile, bool fallback, bool& retryFallback, CDIB*& completed)
 {
 	completed = NULL;
+	retryFallback = false;
 	map<int, TileBatch*>::iterator it = m_tileBatches.find(job.GetPage());
 	if (it == m_tileBatches.end() || it->second->request != job.tile.key.render)
 	{
-		delete source;
-		source = NULL;
+		delete tile;
+		tile = NULL;
 		return false;
 	}
 	TileBatch* batch = it->second;
-	if (batch->source == NULL)
+	if (fallback)
 	{
-		batch->source = source;
-		source = NULL;
-	}
-	else
-	{
-		delete source;
-		source = NULL;
-	}
-	if (batch->source == NULL)
-	{
+		completed = tile;
+		tile = NULL;
 		DropTileBatch(job.GetPage());
-		return true; // Preserve the legacy one-time failed-render notification.
-	}
-	if (batch->source->GetSize() != batch->request.size)
-		batch->fallback = true;
-	if (batch->assembled == NULL && !batch->fallback)
-	{
-		const int bpp = batch->source->GetBitsPerPixel();
-		if ((bpp != 8 && bpp != 24) ||
-			batch->source->GetBitmapInfo()->bmiHeader.biHeight < 0)
-			batch->fallback = true;
-		else
-		{
-			try
-			{
-				batch->assembled = CDIB::CreateDIB(batch->source->GetBitmapInfo());
-				if (batch->assembled == NULL || !batch->assembled->IsValid())
-					batch->fallback = true;
-			}
-			catch (CMemoryException* error)
-			{
-				error->Delete();
-				batch->fallback = true;
-			}
-			catch (...)
-			{
-				batch->fallback = true;
-			}
-		}
-		if (batch->fallback)
-		{
-			delete batch->assembled;
-			batch->assembled = NULL;
-		}
+		return true;
 	}
 	const TileKey& key = job.tile.key;
-	if (!(batch->grid.At(key.column, key.row) == key.rect) ||
-		!batch->completion.Mark(key.column, key.row))
-		return false;
-	if (!batch->fallback)
+	if (tile == NULL || !tile->IsValid() ||
+		!(batch->grid.At(key.column, key.row) == key.rect) ||
+		tile->GetSize() != CSize(key.rect.width, key.rect.height) ||
+		batch->completion.Has(key.column, key.row))
 	{
-		const int bpp = batch->source->GetBitsPerPixel();
-		const size_t stride = (static_cast<size_t>(batch->request.size.cx) * bpp + 31) / 32 * 4;
-		const size_t bytes = static_cast<size_t>(key.rect.width) * bpp / 8;
-		for (int y = key.rect.y; y < key.rect.y + key.rect.height; ++y)
-		{
-			const size_t offset = static_cast<size_t>(y) * stride +
-				static_cast<size_t>(key.rect.x) * bpp / 8;
-			memcpy(batch->assembled->GetBits() + offset,
-				batch->source->GetBits() + offset, bytes);
-		}
+		delete tile;
+		tile = NULL;
+		return false;
 	}
+	const int bpp = tile->GetBitsPerPixel();
+	if (bpp != 8 && bpp != 24)
+	{
+		delete tile;
+		tile = NULL;
+		retryFallback = true;
+		return false;
+	}
+	if (batch->assembled == NULL)
+	{
+		try
+		{
+			const BITMAPINFO* tileInfo = tile->GetBitmapInfo();
+			const size_t infoBytes = sizeof(BITMAPINFOHEADER) +
+				static_cast<size_t>(tileInfo->bmiHeader.biClrUsed) * sizeof(RGBQUAD);
+			vector<BYTE> info(infoBytes);
+			memcpy(&info[0], tileInfo, infoBytes);
+			BITMAPINFO* target = reinterpret_cast<BITMAPINFO*>(&info[0]);
+			target->bmiHeader.biWidth = batch->request.size.cx;
+			target->bmiHeader.biHeight = batch->request.size.cy;
+			batch->assembled = CDIB::CreateDIB(target);
+		}
+		catch (CMemoryException* error) { error->Delete(); }
+		catch (...) {}
+	}
+	if (batch->assembled == NULL || !batch->assembled->IsValid() ||
+		batch->assembled->GetBitsPerPixel() != bpp)
+	{
+		delete tile;
+		tile = NULL;
+		retryFallback = true;
+		return false;
+	}
+	const size_t targetStride = (static_cast<size_t>(batch->request.size.cx) * bpp + 31) / 32 * 4;
+	const size_t tileStride = (static_cast<size_t>(key.rect.width) * bpp + 31) / 32 * 4;
+	const size_t bytes = static_cast<size_t>(key.rect.width) * bpp / 8;
+	for (int y = 0; y < key.rect.height; ++y)
+		memcpy(batch->assembled->GetBits() + static_cast<size_t>(key.rect.y + y) * targetStride +
+			static_cast<size_t>(key.rect.x) * bpp / 8,
+			tile->GetBits() + static_cast<size_t>(y) * tileStride, bytes);
+	delete tile;
+	tile = NULL;
+	batch->completion.Mark(key.column, key.row);
 	if (!batch->completion.Complete())
 		return false;
-	completed = batch->fallback ? batch->source : batch->assembled;
-	if (batch->fallback)
-		batch->source = NULL;
-	else
-		batch->assembled = NULL;
+	completed = batch->assembled;
+	batch->assembled = NULL;
 	DropTileBatch(job.GetPage());
 	return true;
 }

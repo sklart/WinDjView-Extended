@@ -24,9 +24,9 @@ struct TileGeometry
 
 	// Decide from the requested raster target (after zoom and any crop expansion),
 	// not the source DjVu dimensions. Ordinary pages and thumbnails stay on the
-	// established full-page path. This phase tiles DIB conversion/assembly after
-	// DjVuLibre has produced its source pixmap/bitmap; it does not yet bound that
-	// source raster's peak memory.
+	// established full-page path. Viewport tile jobs request individual regions
+	// when DjVuLibre can reproduce full-page pixels; unsupported layered color
+	// and whole-source scaling paths retain the full-page fallback.
 	static bool ShouldTile(int width, int height, bool thumbnail)
 	{
 		return !thumbnail && width > 0 && height > 0 &&

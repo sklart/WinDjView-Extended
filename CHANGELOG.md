@@ -11,6 +11,8 @@
   with full-page fallback and pixel-equivalence regression coverage.
 - Scheduled large viewport tiles as individual single-worker jobs and publish
   their assembled bitmap only after the complete tile set finishes.
+- Rendered supported large viewport tiles from independent DjVuLibre raster
+  regions without a full-page staging bitmap.
 
 ## 4.3.0 — 2026-09-22
 

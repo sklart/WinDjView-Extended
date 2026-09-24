@@ -80,6 +80,7 @@ public:
 	bool IsCurrentJobRejected();
 	void ResetSchedulerMetrics();
 	void GetSchedulerMetrics(SchedulerMetrics& metrics);
+	void GetTileRenderStats(int& regions, int& fallbacks);
 	void ReconcileJobs(const JobWindows& windows);
 
 	void RejectCurrentJob();
@@ -96,6 +97,7 @@ private:
 	DjVuSource* m_pSource;
 	long m_nPaused;
 	RenderScheduler m_scheduler;
+	int m_nTileRegionRenders, m_nTileFallbacks;
 	struct TileBatch
 	{
 		explicit TileBatch(const RenderRequest& request_);
@@ -103,9 +105,7 @@ private:
 		RenderRequest request;
 		TileGrid grid;
 		TileCompletion completion;
-		CDIB* source;
 		CDIB* assembled;
-		bool fallback;
 	};
 	map<int, TileBatch*> m_tileBatches;
 
@@ -113,7 +113,9 @@ private:
 	CDIB* Render(RenderScheduler::Job& job, bool fullPageSource = false);
 	void ClearTileBatches();
 	void DropTileBatch(int nPage);
-	bool AcceptTileResult(const RenderScheduler::Job& job, CDIB*& source,
+	CDIB* RenderTileJob(const RenderScheduler::Job& job, bool& fallback);
+	bool AcceptTileResult(const RenderScheduler::Job& job, CDIB*& tile, bool fallback,
+		bool& retryFallback,
 		CDIB*& completed);
 	void AddJob(const RenderScheduler::Job& job);
 	~CRenderThread();
