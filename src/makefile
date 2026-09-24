@@ -124,6 +124,7 @@ LINK_OBJS = \
 	"$(INTDIR)\MyTreeView.obj" \
 	"$(INTDIR)\NavPane.obj" \
 	"$(INTDIR)\PageIndexWnd.obj" \
+	"$(INTDIR)\PageWorkingSet.obj" \
 	"$(INTDIR)\PathUtil.obj" \
 	"$(INTDIR)\PositionParser.obj" \
 	"$(INTDIR)\PrintDlg.obj" \
@@ -185,6 +186,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 "$(INTDIR)\MyTreeView.obj" : MyTreeView.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\NavPane.obj" : NavPane.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PageIndexWnd.obj" : PageIndexWnd.cpp "$(INTDIR)" $(PCH)
+"$(INTDIR)\PageWorkingSet.obj" : PageWorkingSet.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PathUtil.obj" : PathUtil.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PositionParser.obj" : PositionParser.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\PrintDlg.obj" : PrintDlg.cpp "$(INTDIR)" $(PCH)

@@ -39,7 +39,7 @@ if errorlevel 1 exit /b %errorlevel%
 set "JPEG_BUILD=src\third_party\libjpeg-turbo\build\Release_x64"
 set "TEST_BASENAME=tools\tests\thumbnail_scheduler_regression-Release-x64-native"
 set "OBJECT_DIR=src\Release\x64"
-set "APP_OBJECT_NAMES=AnnotationDlg AppSettings BitmapCache BookmarkDlg BookmarksView CropPagesDlg DjVuDoc DjVuSource DjVuView DocPropertiesDlg Drawing FindDlg FullscreenWnd Global GotoPageDlg InstallDicDlg MagnifyWnd MainFrm MDIChild MyBitmapButton MyColorPicker MyComboBox MyDialog MyDocManager MyDocTemplate MyEdit MyFileDialog MyGdiPlus MyScrollView MyStatusBar MyTheme MyToolBar MyTreeView NavPane PageIndexWnd PathUtil PositionParser PrintDlg ProgressDlg RenderScheduler RenderThread Scaling SearchResultsView SettingsAdvancedPage SettingsDictPage SettingsDisplayPage SettingsDlg SettingsGeneralPage stdafx TabbedMDIWnd ThumbnailsThread ThumbnailsView UpdateDlg WinDjView XMLParser ZoomDlg"
+set "APP_OBJECT_NAMES=AnnotationDlg AppSettings BitmapCache BookmarkDlg BookmarksView CropPagesDlg DjVuDoc DjVuSource DjVuView DocPropertiesDlg Drawing FindDlg FullscreenWnd Global GotoPageDlg InstallDicDlg MagnifyWnd MainFrm MDIChild MyBitmapButton MyColorPicker MyComboBox MyDialog MyDocManager MyDocTemplate MyEdit MyFileDialog MyGdiPlus MyScrollView MyStatusBar MyTheme MyToolBar MyTreeView NavPane PageIndexWnd PageWorkingSet PathUtil PositionParser PrintDlg ProgressDlg RenderScheduler RenderThread Scaling SearchResultsView SettingsAdvancedPage SettingsDictPage SettingsDisplayPage SettingsDlg SettingsGeneralPage stdafx TabbedMDIWnd ThumbnailsThread ThumbnailsView UpdateDlg WinDjView XMLParser ZoomDlg"
 set "APP_OBJECTS="
 for %%F in (%APP_OBJECT_NAMES%) do (
 	if not exist "%OBJECT_DIR%\%%F.obj" (

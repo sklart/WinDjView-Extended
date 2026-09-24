@@ -26,6 +26,7 @@
 #include "DjVuSource.h"
 #include "RenderRequest.h"
 #include "BitmapCache.h"
+#include "PageWorkingSet.h"
 
 class CMainFrame;
 class CMDIChild;
@@ -371,16 +372,14 @@ protected:
 		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
 	void UpdatePagesCacheContinuous(bool bUpdateImages, vector<int>& add, vector<int>& remove,
 		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
+	void UpdatePagesCacheWithWorkingSet(PageWorkingSet::Layout layout, bool bUpdateImages,
+		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
+		set<int>& readInfoPages, set<int>& cleanupPages);
+	void ApplyWorkingSetVisit(const PageWorkingSet::Visit& visit, PageWorkingSet::Layout layout,
+		bool bUpdateImages, PageWorkingSet::WorkingSet& result);
 	void ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove, set<int>& prefetchPages);
 	void GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const;
 	void AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove, set<int>& prefetchPages);
-	void UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
-		set<int>& readInfoPages, set<int>& cleanupPages, bool bCurrentPage = false);
-	void UpdatePageCacheSingle(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove,
-		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
-	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove,
-		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
 	bool HasReusableBitmap(Page& page);
 	bool IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const;
 	bool IsBitmapPinned(int nPage) const;

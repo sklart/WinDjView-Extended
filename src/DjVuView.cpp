@@ -1692,31 +1692,8 @@ void CDjVuView::UpdatePagesCacheSingle(bool bUpdateImages,
 		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == SinglePage);
-
-	set<int> desired;
-	desired.insert(0);
-	desired.insert(m_nPageCount - 1);
-	for (int nPage = max(0, m_nPage - 10); nPage <= min(m_nPageCount - 1, m_nPage + 10); ++nPage)
-		desired.insert(nPage);
-
-	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
-	{
-		if (desired.find(*it) == desired.end())
-			UpdatePageCacheSingle(*it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	}
-
-	// Submit the outer pages first so nearby pages keep their queue priority.
-	if (abs(m_nPage) > 10)
-		UpdatePageCacheSingle(0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
-		UpdatePageCacheSingle(m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	for (int nDiff = 10; nDiff >= 0; --nDiff)
-	{
-		if (m_nPage - nDiff >= 0)
-			UpdatePageCacheSingle(m_nPage - nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-		if (m_nPage + nDiff < m_nPageCount && nDiff != 0)
-			UpdatePageCacheSingle(m_nPage + nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	}
+	UpdatePagesCacheWithWorkingSet(PageWorkingSet::SinglePage, bUpdateImages,
+		add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 }
 
 void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
@@ -1724,30 +1701,8 @@ void CDjVuView::UpdatePagesCacheFacing(bool bUpdateImages,
 		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == Facing);
-
-	set<int> desired;
-	desired.insert(0);
-	desired.insert(m_nPageCount - 1);
-	for (int nPage = max(0, m_nPage - 10); nPage <= min(m_nPageCount - 1, m_nPage + 10); ++nPage)
-		desired.insert(nPage);
-
-	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
-	{
-		if (desired.find(*it) == desired.end())
-			UpdatePageCacheFacing(*it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	}
-
-	if (abs(m_nPage) > 10)
-		UpdatePageCacheFacing(0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	if (m_nPageCount > 1 && abs(m_nPageCount - 1 - m_nPage) > 10)
-		UpdatePageCacheFacing(m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	for (int nDiff = 10; nDiff >= 0; --nDiff)
-	{
-		if (m_nPage - nDiff >= 0)
-			UpdatePageCacheFacing(m_nPage - nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-		if (m_nPage + nDiff < m_nPageCount && nDiff != 0)
-			UpdatePageCacheFacing(m_nPage + nDiff, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	}
+	UpdatePagesCacheWithWorkingSet(PageWorkingSet::Facing, bUpdateImages,
+		add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 }
 
 void CDjVuView::InitPage(Page& page, int nPage, bool bNeedText, bool bNeedAnno)
@@ -1889,182 +1844,119 @@ void CDjVuView::PruneBitmapCache()
 	}
 }
 
-void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
-		set<int>& readInfoPages, set<int>& cleanupPages, bool bCurrentPage)
+void CDjVuView::ApplyWorkingSetVisit(const PageWorkingSet::Visit& visit,
+		PageWorkingSet::Layout layout, bool bUpdateImages, PageWorkingSet::WorkingSet& result)
 {
 	++m_nProcessedPageCacheEntries;
-	// Pages visible on screen are put to the front of the rendering queue.
-	// Pages which are within 2 screens from the view are put to the back
-	// of the rendering queue.
-	// Pages which are within 10 screens from the view are put to the back
-	// of the decoding queue.
-
-	int nTop = GetScrollPosition().y;
+	const int nPage = visit.page;
 	Page& page = m_pages[nPage];
-
-	if (!page.info.bDecoded)
+	PageWorkingSet::PageFacts facts;
+	facts.decoded = page.info.bDecoded;
+	facts.magnify = m_nType == Magnify;
+	facts.updateImages = bUpdateImages;
+	facts.bitmapWidth = page.szBitmap.cx;
+	facts.bitmapHeight = page.szBitmap.cy;
+	facts.displayTop = page.rcDisplay.top;
+	facts.displayBottom = page.rcDisplay.bottom;
+	const int scrollTop = GetScrollPosition().y;
+	const int viewportHeight = GetViewportSize().cy;
+	if (facts.decoded)
 	{
-		if (m_nType == Magnify)
-			return;
+		const bool inRender = PageWorkingSet::InRenderWindow(layout, nPage, m_nPageCount,
+			m_nPage, scrollTop, viewportHeight, facts);
+		if (inRender)
+		{
+			facts.bitmapPresent = page.pBitmap != NULL;
+			// The legacy condition probes reusable identity even when image
+			// updates are disabled, preserving its LRU touch semantics.
+			if (facts.bitmapPresent)
+				facts.reusableBitmap = HasReusableBitmap(page);
+		}
+		else if (facts.magnify || !PageWorkingSet::InDecodeWindow(layout, nPage,
+			m_nPageCount, m_nPage, scrollTop, viewportHeight, facts))
+		{
+			facts.sourceCached = m_pSource->IsPageCached(nPage, this);
+		}
+	}
 
+	const PageWorkingSet::Action action = PageWorkingSet::Classify(layout, nPage,
+		m_nPageCount, m_nPage, scrollTop, viewportHeight, facts);
+	switch (action)
+	{
+	case PageWorkingSet::ReadInfo:
 		m_pRenderThread->AddReadInfoJob(nPage);
-		readInfoPages.insert(nPage);
+		break;
+	case PageWorkingSet::Render:
+		m_bitmapCache.RecordMiss();
+		DeleteCachedBitmap(page);
+		if (m_nType == Magnify)
+			CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
+		m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
+			visit.foreground || nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
+		InvalidatePage(nPage);
+		break;
+	case PageWorkingSet::ReuseBitmap:
+		m_bitmapCache.RecordHit();
+		break;
+	case PageWorkingSet::Decode:
+		m_pRenderThread->AddDecodeJob(nPage);
+		break;
+	case PageWorkingSet::Cleanup:
+		m_pRenderThread->AddCleanupJob(nPage);
+		break;
+	default:
+		break;
 	}
-	else if (page.rcDisplay.top < nTop + 3*szViewport.cy &&
-			 page.rcDisplay.bottom > nTop - 2*szViewport.cy)
-	{
-		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
-		{
-			m_bitmapCache.RecordMiss();
-			DeleteCachedBitmap(page);
-			if (m_nType == Magnify)
-				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
-
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
-				bCurrentPage || nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
-			renderPages.insert(nPage);
-			InvalidatePage(nPage);
-		}
-		else
-			m_bitmapCache.RecordHit();
-		add.push_back(nPage);
-	}
-	else
-	{
-		if (m_nType != Magnify && (page.rcDisplay.top < nTop + 11*szViewport.cy
-				&& page.rcDisplay.bottom > nTop - 10*szViewport.cy
-				|| nPage == 0 || nPage == m_nPageCount - 1))
-		{
-			m_pRenderThread->AddDecodeJob(nPage);
-			decodePages.insert(nPage);
-			add.push_back(nPage);
-		}
-		else if (m_pSource->IsPageCached(nPage, this))
-		{
-			m_pRenderThread->AddCleanupJob(nPage);
-			cleanupPages.insert(nPage);
-			remove.push_back(nPage);
-		}
-		else
-		{
-			remove.push_back(nPage);
-		}
-	}
+	PageWorkingSet::RecordAction(nPage, action, result);
 }
 
-void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
-		set<int>& readInfoPages, set<int>& cleanupPages)
+void CDjVuView::UpdatePagesCacheWithWorkingSet(PageWorkingSet::Layout layout,
+		bool bUpdateImages, vector<int>& add, vector<int>& remove,
+		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages)
 {
-	++m_nProcessedPageCacheEntries;
-	// Current page and adjacent are rendered, next +- 9 pages are decoded.
-	Page& page = m_pages[nPage];
-	long nPageSize = page.szBitmap.cx * page.szBitmap.cy;
-
-	if (!page.info.bDecoded)
+	if (m_nPageCount <= 0)
+		return;
+	const CRect rcViewport(CPoint(0, 0), GetViewportSize());
+	int topPage = m_nPage, bottomPage = m_nPage, foregroundPage = m_nPage;
+	if (layout == PageWorkingSet::Continuous || layout == PageWorkingSet::ContinuousFacing)
 	{
-		if (m_nType == Magnify)
-			return;
-
-		m_pRenderThread->AddReadInfoJob(nPage);
-		readInfoPages.insert(nPage);
-	}
-	else if (nPageSize < 3000000 && abs(nPage - m_nPage) <= 2 ||
-			 abs(nPage - m_nPage) <= 1)
-	{
-		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
+		topPage = CalcTopPage();
+		bottomPage = CalcBottomPage(topPage);
+		int maxSize = -1;
+		for (int page = bottomPage; page >= topPage; --page)
 		{
-			m_bitmapCache.RecordMiss();
-			DeleteCachedBitmap(page);
-			if (m_nType == Magnify)
-				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
-
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
-				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
-			renderPages.insert(nPage);
-			InvalidatePage(nPage);
-		}
-		else
-			m_bitmapCache.RecordHit();
-		add.push_back(nPage);
-	}
-	else
-	{
-		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
-		{
-			m_pRenderThread->AddDecodeJob(nPage);
-			decodePages.insert(nPage);
-			add.push_back(nPage);
-		}
-		else if (m_pSource->IsPageCached(nPage, this))
-		{
-			m_pRenderThread->AddCleanupJob(nPage);
-			cleanupPages.insert(nPage);
-			remove.push_back(nPage);
-		}
-		else
-		{
-			remove.push_back(nPage);
+			CRect rcBitmap(m_pages[page].ptOffset, m_pages[page].szBitmap);
+			CRect intersection;
+			if (intersection.IntersectRect(rcViewport, rcBitmap - GetScrollPosition()) &&
+				intersection.Width() * intersection.Height() >= maxSize)
+			{
+				foregroundPage = page;
+				maxSize = intersection.Width() * intersection.Height();
+			}
 		}
 	}
-}
 
-void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
-		vector<int>& add, vector<int>& remove, set<int>& renderPages, set<int>& decodePages,
-		set<int>& readInfoPages, set<int>& cleanupPages)
-{
-	++m_nProcessedPageCacheEntries;
-	// Current page and adjacent are rendered, next +- 9 pages are decoded.
-	Page& page = m_pages[nPage];
-	long nPageSize = page.szBitmap.cx * page.szBitmap.cy;
-
-	if (!page.info.bDecoded)
-	{
-		if (m_nType == Magnify)
-			return;
-
-		m_pRenderThread->AddReadInfoJob(nPage);
-		readInfoPages.insert(nPage);
-	}
-	else if (nPageSize < 1500000 && nPage >= m_nPage - 4 && nPage <= m_nPage + 5 ||
-			 nPage >= m_nPage - 2 && nPage <= m_nPage + 3)
-	{
-		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
-		{
-			m_bitmapCache.RecordMiss();
-			DeleteCachedBitmap(page);
-			if (m_nType == Magnify)
-				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
-
-			m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
-				nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
-			renderPages.insert(nPage);
-			InvalidatePage(nPage);
-		}
-		else
-			m_bitmapCache.RecordHit();
-		add.push_back(nPage);
-	}
-	else
-	{
-		if (m_nType != Magnify && (abs(nPage - m_nPage) <= 10 || nPage == 0 || nPage == m_nPageCount - 1))
-		{
-			m_pRenderThread->AddDecodeJob(nPage);
-			decodePages.insert(nPage);
-			add.push_back(nPage);
-		}
-		else if (m_pSource->IsPageCached(nPage, this))
-		{
-			m_pRenderThread->AddCleanupJob(nPage);
-			cleanupPages.insert(nPage);
-			remove.push_back(nPage);
-		}
-		else
-		{
-			remove.push_back(nPage);
-		}
-	}
+	vector<PageWorkingSet::Visit> visits;
+	PageWorkingSet::BuildVisits(layout, m_nPageCount, m_nPage, topPage, bottomPage,
+		foregroundPage, GetScrollPosition().y, rcViewport.Height(), m_observedPages,
+		[this](int page) {
+			return PageWorkingSet::PageRange(m_pages[page].rcDisplay.top, m_pages[page].rcDisplay.bottom);
+		}, visits);
+	PageWorkingSet::WorkingSet result;
+	result.addObserved = add;
+	result.removeObserved = remove;
+	result.renderPages = renderPages;
+	result.decodePages = decodePages;
+	result.readInfoPages = readInfoPages;
+	result.cleanupPages = cleanupPages;
+	for (size_t i = 0; i < visits.size(); ++i)
+		ApplyWorkingSetVisit(visits[i], layout, bUpdateImages, result);
+	add.swap(result.addObserved);
+	remove.swap(result.removeObserved);
+	renderPages.swap(result.renderPages);
+	decodePages.swap(result.decodePages);
+	readInfoPages.swap(result.readInfoPages);
+	cleanupPages.swap(result.cleanupPages);
 }
 
 void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
@@ -2072,101 +1964,36 @@ void CDjVuView::UpdatePagesCacheContinuous(bool bUpdateImages,
 		set<int>& readInfoPages, set<int>& cleanupPages)
 {
 	ASSERT(m_nLayout == Continuous || m_nLayout == ContinuousFacing);
-
-	CRect rcViewport(CPoint(0, 0), GetViewportSize());
-
-	int nTopPage = CalcTopPage();
-	int nBottomPage = CalcBottomPage(nTopPage);
-	int nScrollTop = GetScrollPosition().y;
-	int nCacheTop = nTopPage;
-	int nCacheBottom = nBottomPage;
-	const int nCacheTopLimit = nScrollTop - 10*rcViewport.Height();
-	const int nCacheBottomLimit = nScrollTop + 11*rcViewport.Height();
-
-	// Page rectangles are vertically ordered. Expand from the visible pages
-	// only until the unchanged ten-screen decode window is exhausted.
-	while (nCacheTop > 0 && m_pages[nCacheTop - 1].rcDisplay.bottom > nCacheTopLimit)
-		--nCacheTop;
-	while (nCacheBottom + 1 < m_nPageCount && m_pages[nCacheBottom + 1].rcDisplay.top < nCacheBottomLimit)
-		++nCacheBottom;
-
-	set<int> desired;
-	desired.insert(0);
-	desired.insert(m_nPageCount - 1);
-	for (int nPage = nCacheTop; nPage <= nCacheBottom; ++nPage)
-		desired.insert(nPage);
-
-	// A page outside this window only needs a final visit if this view had
-	// previously observed it. This handles distant jumps without an O(N) scan.
-	for (set<int>::const_iterator it = m_observedPages.begin(); it != m_observedPages.end(); ++it)
-	{
-		if (desired.find(*it) == desired.end())
-			UpdatePageCache(rcViewport.Size(), *it, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	}
-
-	if (nCacheTop > 0)
-		UpdatePageCache(rcViewport.Size(), 0, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	if (nCacheBottom < m_nPageCount - 1)
-		UpdatePageCache(rcViewport.Size(), m_nPageCount - 1, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	for (int nPage = nCacheTop; nPage < nTopPage; ++nPage)
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-	for (int nPage = nCacheBottom; nPage > nBottomPage; --nPage)
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-
-	int nLastPage = m_nPage;
-	int nMaxSize = -1;
-	for (int nPage = nBottomPage; nPage >= nTopPage; --nPage)
-	{
-		UpdatePageCache(rcViewport.Size(), nPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
-
-		CRect rcBitmap(m_pages[nPage].ptOffset, m_pages[nPage].szBitmap);
-		CPoint ptScroll = GetScrollPosition();
-		CRect rcIntersect;
-		if (rcIntersect.IntersectRect(rcViewport, rcBitmap - ptScroll)
-				&& rcIntersect.Width() * rcIntersect.Height() >= nMaxSize)
-		{
-			nLastPage = nPage;
-			nMaxSize = rcIntersect.Width() * rcIntersect.Height();
-		}
-	}
-
-	// The largest visible page is the foreground render in continuous layouts.
-	// Repeating this request promotes an already queued visible render without
-	// changing the cache window.
-	UpdatePageCache(rcViewport.Size(), nLastPage, bUpdateImages, add, remove, renderPages, decodePages, readInfoPages, cleanupPages, true);
+	UpdatePagesCacheWithWorkingSet(static_cast<PageWorkingSet::Layout>(m_nLayout), bUpdateImages,
+		add, remove, renderPages, decodePages, readInfoPages, cleanupPages);
 }
 
 void CDjVuView::AddPrefetchPage(int nPage, vector<int>& add, vector<int>& remove, set<int>& prefetchPages)
 {
-	if (!IsValidPage(nPage))
+	PageWorkingSet::WorkingSet result;
+	result.addObserved = add;
+	result.removeObserved = remove;
+	result.prefetchPages = prefetchPages;
+	if (!PageWorkingSet::RecordPrefetchPage(nPage, m_bFirstPageAlone, result))
 		return;
-
-	// This page may have been classified as out of range by the broad cache
-	// pass above. Keep it observed while its low-priority decode is pending.
-	remove.erase(std::remove(remove.begin(), remove.end(), nPage), remove.end());
-	if (std::find(add.begin(), add.end(), nPage) == add.end())
-		add.push_back(nPage);
-
 	m_pRenderThread->AddPrefetchJob(nPage);
-	prefetchPages.insert(nPage);
+	add.swap(result.addObserved);
+	remove.swap(result.removeObserved);
+	prefetchPages.swap(result.prefetchPages);
 }
 
 void CDjVuView::GetAdjacentPrefetchPages(int& nNextPage, int& nPreviousPage) const
 {
 	int nFirstVisible = m_nPage;
 	int nLastVisible = m_nPage;
-	if (m_nLayout == Facing)
-	{
-		if (HasFacingPage(m_nPage))
-			nLastVisible = m_nPage + 1;
-	}
-	else if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
+	if (m_nLayout == Continuous || m_nLayout == ContinuousFacing)
 	{
 		nFirstVisible = CalcTopPage();
 		nLastVisible = CalcBottomPage(nFirstVisible);
 	}
-	nNextPage = nLastVisible + 1;
-	nPreviousPage = nFirstVisible - 1;
+	PageWorkingSet::AdjacentPages(static_cast<PageWorkingSet::Layout>(m_nLayout),
+		m_nPage, nFirstVisible, nLastVisible,
+		m_nLayout == Facing && HasFacingPage(m_nPage), nNextPage, nPreviousPage);
 }
 
 void CDjVuView::ScheduleAdjacentPrefetch(vector<int>& add, vector<int>& remove, set<int>& prefetchPages)

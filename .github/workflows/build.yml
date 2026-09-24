@@ -31,6 +31,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-bitmap-cache-regression.cmd
 
+      - name: Run page working set regression
+        shell: cmd
+        run: tools\tests\run-page-working-set-regression.cmd
+
       - name: Run update menu source regression
         shell: pwsh
         run: pwsh .\tools\tests\test-update-menu-source.ps1
