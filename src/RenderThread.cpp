@@ -24,6 +24,7 @@
 #include "DjVuDoc.h"
 #include "DjVuView.h"
 #include "Scaling.h"
+#include "TileRequest.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -318,12 +319,140 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
 		const CDisplaySettings& displaySettings, int nDisplayMode,
 		int nRotate, bool bThumbnail)
 {
-	return Render(pImage, RenderRequest(-1, size, nRotate, nDisplayMode, displaySettings), bThumbnail);
+	// Direct callers (thumbnails, saving/exporting, selection and print-related
+	// paths) retain the established full-page renderer. Only viewport jobs use
+	// the RenderRequest overload that can select the tiled path.
+	return RenderFullPage(pImage, RenderRequest(-1, size, nRotate, nDisplayMode, displaySettings), bThumbnail);
+}
+
+namespace
+{
+	CDIB* RenderTile(GPixmap& source, const TileRect& rect, const CDisplaySettings& settings)
+	{
+		return RenderPixmap(source, CRect(rect.x, rect.y, rect.x + rect.width,
+			rect.y + rect.height), settings);
+	}
+
+	CDIB* RenderTile(GBitmap& source, const TileRect& rect, const CDisplaySettings& settings)
+	{
+		return RenderBitmap(source, CRect(rect.x, rect.y, rect.x + rect.width,
+			rect.y + rect.height), settings);
+	}
+
+	template <typename T>
+	CDIB* AssembleTiles(T& source, const RenderRequest& request)
+	{
+		const int width = source.columns();
+		const int height = source.rows();
+		TileGrid grid(width, height);
+		CDIB* result = NULL;
+		CDIB* currentTile = NULL;
+		try
+		{
+			for (int row = 0; row < grid.Rows(); ++row)
+			{
+				for (int column = 0; column < grid.Columns(); ++column)
+				{
+					TileKey key(request, grid.At(column, row), column, row);
+					TileRequest tileRequest(key);
+					currentTile = RenderTile(source, tileRequest.key.rect, request.displaySettings);
+					TileResult tile(key, currentTile);
+					if (tile.bitmap == NULL || !tile.bitmap->IsValid())
+					{
+						delete tile.bitmap;
+						currentTile = NULL;
+						delete result;
+						return NULL;
+					}
+					const int bpp = tile.bitmap->GetBitsPerPixel();
+					if (bpp != 8 && bpp != 24)
+					{
+						delete tile.bitmap;
+						currentTile = NULL;
+						delete result;
+						return NULL;
+					}
+					if (result == NULL)
+					{
+						const BITMAPINFO* tileInfo = tile.bitmap->GetBitmapInfo();
+						const size_t infoBytes = sizeof(BITMAPINFOHEADER) +
+							static_cast<size_t>(tileInfo->bmiHeader.biClrUsed) * sizeof(RGBQUAD);
+						vector<BYTE> info(infoBytes);
+						memcpy(&info[0], tileInfo, infoBytes);
+						BITMAPINFO* destinationInfo = reinterpret_cast<BITMAPINFO*>(&info[0]);
+						destinationInfo->bmiHeader.biWidth = width;
+						destinationInfo->bmiHeader.biHeight = height;
+						result = CDIB::CreateDIB(destinationInfo);
+						if (result == NULL || !result->IsValid())
+						{
+							delete tile.bitmap;
+							currentTile = NULL;
+							delete result;
+							return NULL;
+						}
+					}
+					const size_t destinationStride = (static_cast<size_t>(width) * bpp + 31) / 32 * 4;
+					const size_t tileStride = (static_cast<size_t>(tile.key.rect.width) * bpp + 31) / 32 * 4;
+					const size_t copyBytes = static_cast<size_t>(tile.key.rect.width) * bpp / 8;
+					for (int y = 0; y < tile.key.rect.height; ++y)
+						memcpy(result->GetBits() + (static_cast<size_t>(tile.key.rect.y + y) * destinationStride) +
+							static_cast<size_t>(tile.key.rect.x) * bpp / 8,
+							tile.bitmap->GetBits() + static_cast<size_t>(y) * tileStride, copyBytes);
+					delete tile.bitmap;
+					currentTile = NULL;
+				}
+			}
+		}
+		catch (CMemoryException* error)
+		{
+			error->Delete();
+			delete currentTile;
+			delete result;
+			return NULL;
+		}
+		catch (GException&)
+		{
+			delete currentTile;
+			delete result;
+			return NULL;
+		}
+		catch (...)
+		{
+			delete currentTile;
+			delete result;
+			return NULL;
+		}
+		return result;
+	}
 }
 
 CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const RenderRequest& request, bool bThumbnail)
 {
+	return RenderInternal(pImage, request, bThumbnail, true, false);
+}
+
+CDIB* CRenderThread::RenderFullPage(GP<DjVuImage> pImage, const RenderRequest& request, bool bThumbnail)
+{
+	return RenderInternal(pImage, request, bThumbnail, false, false);
+}
+
+CDIB* CRenderThread::RenderTiled(GP<DjVuImage> pImage, const RenderRequest& request)
+{
+	return RenderInternal(pImage, request, false, true, true);
+}
+
+CDIB* CRenderThread::RenderInternal(GP<DjVuImage> pImage, const RenderRequest& request,
+	bool bThumbnail, bool bAllowTiles, bool bRequireTiles)
+{
 	if (request.size.cx <= 0 || request.size.cy <= 0)
+		return NULL;
+	const bool bTiledRequest = bAllowTiles &&
+		TileGeometry::ShouldTile(request.size.cx, request.size.cy, bThumbnail) &&
+		(request.displayMode == CDjVuView::Color ||
+		 request.displayMode == CDjVuView::BlackAndWhite ||
+		 request.displayMode == CDjVuView::Foreground ||
+		 request.displayMode == CDjVuView::Background);
+	if (bRequireTiles && !bTiledRequest)
 		return NULL;
 	CSize szImage(pImage->get_width(), pImage->get_height());
 	int nTotalRotate = GetTotalRotate(pImage, request.rotation);
@@ -446,7 +575,10 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const RenderRequest& request, 
 				pGPixmap = RescalePnm(pGPixmap, request.size.cx, request.size.cy);
 		}
 
-		pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
+		if (bTiledRequest)
+			pBitmap = AssembleTiles(*pGPixmap, request);
+		if (pBitmap == NULL && !bRequireTiles)
+			pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
 	}
 	else if (pGBitmap != NULL)
 	{
@@ -462,13 +594,24 @@ CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const RenderRequest& request, 
 		}
 
 		if (pGPixmap)
-			pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
+		{
+			if (bTiledRequest)
+				pBitmap = AssembleTiles(*pGPixmap, request);
+			if (pBitmap == NULL && !bRequireTiles)
+				pBitmap = RenderPixmap(*pGPixmap, request.displaySettings);
+		}
 		else
-			pBitmap = RenderBitmap(*pGBitmap, request.displaySettings);
+		{
+			if (bTiledRequest)
+				pBitmap = AssembleTiles(*pGBitmap, request);
+			if (pBitmap == NULL && !bRequireTiles)
+				pBitmap = RenderBitmap(*pGBitmap, request.displaySettings);
+		}
 	}
 	else
 	{
-		pBitmap = RenderEmpty(request.size, request.displaySettings);
+		if (!bRequireTiles)
+			pBitmap = RenderEmpty(request.size, request.displaySettings);
 	}
 
 	if (pBitmap != NULL)

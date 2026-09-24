@@ -54,6 +54,16 @@ their PE architecture, rejects external JPEG/DjVu imports in Release, and runs
 the long-path DjVu regression against the native library output. The startup
 smoke is run for both native Release architectures as well.
 
+The Native Release x64 golden runner also checks single-worker tile/full-page
+pixel equivalence on real DjVu pages. Tile geometry has a separate pure CI
+regression. For viewport render jobs, automatic tiling applies to raster targets of at
+least 4,194,304 pixels with a side of at least 2048 pixels; tiles are 512 px
+square (smaller at the edges). The decision uses the requested raster size
+after zoom and crop expansion, not the source document dimensions. This
+foundation tiles DIB conversion and assembly; DjVuLibre still produces the
+source pixmap/bitmap as before, so peak source-raster memory is not yet bounded.
+Direct thumbnail, save/export and print-related render calls retain the full-page path.
+
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the
 resource compiler, so `WinDjView.rc2` selected the x86 manifest. The native

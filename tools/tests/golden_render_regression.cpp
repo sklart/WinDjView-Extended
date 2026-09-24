@@ -3,6 +3,7 @@
 #include "../../src/DjVuSource.h"
 #include "../../src/RenderThread.h"
 #include "../../src/Drawing.h"
+#include "../../src/TileRequest.h"
 
 #include <bcrypt.h>
 #include <fstream>
@@ -246,6 +247,69 @@ namespace
 		path.Format(_T("tools\\tests\\artifacts\\golden-render\\%S-actual.bmp"), item.id.c_str());
 		bitmap->Save(path, CDIB::FormatBMP);
 	}
+
+	bool RunTileEquivalence(const CStringA& corpusRoot)
+	{
+		const RenderRequest identity(0, CSize(2048, 2048), 0,
+			CDjVuView::Color, CDisplaySettings());
+		const TileKey first(identity, TileRect(0, 0, 512, 512), 0, 0);
+		const TileKey same(identity, TileRect(0, 0, 512, 512), 0, 0);
+		const TileKey otherTile(identity, TileRect(512, 0, 512, 512), 1, 0);
+		RenderRequest otherRender(identity);
+		otherRender.rotation = 1;
+		if (!(first == same) || first == otherTile ||
+			first == TileKey(otherRender, first.rect, 0, 0))
+			return Fail("tile key identity mismatch");
+		struct TileCase { const char* fixture; int page, width, height, rotation, mode; bool adjusted; };
+		const TileCase cases[] = {
+			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false },
+			{ "watchmaker.djvu", 0, 2301, 1901, 1, CDjVuView::Color, true },
+			{ "cable_1973_100133.djvu", 0, 2048, 2051, 0, CDjVuView::BlackAndWhite, false },
+			{ "war_1812.djvu", 3, 2301, 1901, 2, CDjVuView::Background, false }
+		};
+		for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index)
+		{
+			const TileCase& item = cases[index];
+			CString path;
+			path.Format(_T("%S\\%S"), static_cast<LPCSTR>(corpusRoot), item.fixture);
+			DjVuSource* source = DjVuSource::FromFile(path);
+			if (source == NULL || item.page >= source->GetPageCount())
+			{
+				if (source != NULL) source->Release();
+				return Fail("tile equivalence fixture unavailable");
+			}
+			GP<DjVuImage> image = source->GetPage(item.page);
+			CDisplaySettings settings;
+			if (item.adjusted)
+			{
+				settings.bAdjustDisplay = true;
+				settings.nBrightness = 12;
+				settings.bInvertColors = true;
+			}
+			RenderRequest request(item.page, CSize(item.width, item.height), item.rotation,
+				item.mode, settings);
+			CDIB* full = image != NULL ? CRenderThread::RenderFullPage(image, request) : NULL;
+			CDIB* tiled = image != NULL ? CRenderThread::RenderTiled(image, request) : NULL;
+			CDIB* automatic = image != NULL ? CRenderThread::Render(image, request) : NULL;
+			vector<BYTE> fullPixels, tiledPixels, automaticPixels;
+			const bool equal = CanonicalRgb24(full, fullPixels) &&
+				CanonicalRgb24(tiled, tiledPixels) && CanonicalRgb24(automatic, automaticPixels) &&
+				fullPixels == tiledPixels && fullPixels == automaticPixels;
+			delete full;
+			delete tiled;
+			delete automatic;
+			source->Release();
+			if (!equal)
+			{
+				fprintf(stderr, "tile/full-page mismatch: %s rotation=%d mode=%d %dx%d\n",
+					item.fixture, item.rotation, item.mode, item.width, item.height);
+				return false;
+			}
+			printf("PASS tile/full-page %s rotation=%d mode=%d %dx%d\n",
+				item.fixture, item.rotation, item.mode, item.width, item.height);
+		}
+		return true;
+	}
 }
 
 int _tmain(int argc, TCHAR** argv)
@@ -328,6 +392,7 @@ int _tmain(int argc, TCHAR** argv)
 		source->Release();
 	}
 	if (update && passed && !WriteBaseline(baselinePath, updateCommit, cases)) passed = Fail("could not write requested baseline update");
+	if (!update && !RunTileEquivalence(corpusRoot)) passed = false;
 	printf("Golden render regression: %s\n", passed ? "PASS" : "FAIL");
 	return passed ? 0 : 1;
 }

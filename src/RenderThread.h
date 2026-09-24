@@ -58,6 +58,11 @@ public:
 		int nRotate, bool bThumbnail = false);
 	static CDIB* Render(GP<DjVuImage> pImage, const RenderRequest& request,
 		bool bThumbnail = false);
+	// Explicit compatibility path for pixel-equivalence tests and fallback.
+	static CDIB* RenderFullPage(GP<DjVuImage> pImage, const RenderRequest& request,
+		bool bThumbnail = false);
+	// Returns NULL instead of falling back; used to verify the tiled algorithm.
+	static CDIB* RenderTiled(GP<DjVuImage> pImage, const RenderRequest& request);
 
 	void PauseJobs();
 	void ResumeJobs();
@@ -79,6 +84,8 @@ public:
 	void RejectCurrentJob();
 
 private:
+	static CDIB* RenderInternal(GP<DjVuImage> pImage, const RenderRequest& request,
+		bool bThumbnail, bool bAllowTiles, bool bRequireTiles);
 	HANDLE m_hThread, m_hStopThread;
 	CCriticalSection m_lock;
 	CCriticalSection m_stopping;

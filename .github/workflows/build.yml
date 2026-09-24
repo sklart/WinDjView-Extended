@@ -35,6 +35,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-page-working-set-regression.cmd
 
+      - name: Run tile geometry regression
+        shell: cmd
+        run: tools\tests\run-tile-geometry-regression.cmd
+
       - name: Run update menu source regression
         shell: pwsh
         run: pwsh .\tools\tests\test-update-menu-source.ps1
