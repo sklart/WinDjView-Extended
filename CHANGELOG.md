@@ -9,6 +9,8 @@
 - Separated retained bitmap-cache policy from the DjVu view implementation.
 - Added a single-worker 512 px tile-conversion foundation for large raster targets,
   with full-page fallback and pixel-equivalence regression coverage.
+- Scheduled large viewport tiles as individual single-worker jobs and publish
+  their assembled bitmap only after the complete tile set finishes.
 
 ## 4.3.0 — 2026-09-22
 

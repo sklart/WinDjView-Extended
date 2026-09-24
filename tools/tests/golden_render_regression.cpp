@@ -248,6 +248,29 @@ namespace
 		bitmap->Save(path, CDIB::FormatBMP);
 	}
 
+	class TileObserver : public Observer
+	{
+	public:
+		TileObserver() : event(::CreateEvent(NULL, TRUE, FALSE, NULL)), count(0), valid(false) {}
+		~TileObserver() { ::CloseHandle(event); }
+		virtual void OnUpdate(const Observable*, const Message* message)
+		{
+			if (message == NULL || message->code != PAGE_RENDERED) return;
+			const BitmapMsg* bitmap = static_cast<const BitmapMsg*>(message);
+			valid = CanonicalRgb24(bitmap->pDIB, pixels) && bitmap->pIdentity != NULL;
+			if (bitmap->pIdentity != NULL)
+				request = *static_cast<const RenderRequest*>(bitmap->pIdentity);
+			delete bitmap->pDIB;
+			InterlockedIncrement(&count);
+			::SetEvent(event);
+		}
+		HANDLE event;
+		volatile LONG count;
+		bool valid;
+		RenderRequest request;
+		vector<BYTE> pixels;
+	};
+
 	bool RunTileEquivalence(const CStringA& corpusRoot)
 	{
 		const RenderRequest identity(0, CSize(2048, 2048), 0,
@@ -260,12 +283,14 @@ namespace
 		if (!(first == same) || first == otherTile ||
 			first == TileKey(otherRender, first.rect, 0, 0))
 			return Fail("tile key identity mismatch");
-		struct TileCase { const char* fixture; int page, width, height, rotation, mode; bool adjusted; };
+		struct TileCase { const char* fixture; int page, width, height, rotation, mode; bool adjusted, cropped; };
 		const TileCase cases[] = {
-			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false },
-			{ "watchmaker.djvu", 0, 2301, 1901, 1, CDjVuView::Color, true },
-			{ "cable_1973_100133.djvu", 0, 2048, 2051, 0, CDjVuView::BlackAndWhite, false },
-			{ "war_1812.djvu", 3, 2301, 1901, 2, CDjVuView::Background, false }
+			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false, false },
+			{ "watchmaker.djvu", 0, 2301, 1901, 1, CDjVuView::Color, true, false },
+			{ "cable_1973_100133.djvu", 0, 2048, 2051, 0, CDjVuView::BlackAndWhite, false, false },
+			{ "war_1812.djvu", 3, 2301, 1901, 2, CDjVuView::Background, false, false },
+			{ "war_1812.djvu", 3, 2301, 1901, 0, CDjVuView::Foreground, false, false },
+			{ "watchmaker.djvu", 0, 2301, 1901, 0, CDjVuView::Color, false, true }
 		};
 		for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index)
 		{
@@ -286,27 +311,61 @@ namespace
 				settings.nBrightness = 12;
 				settings.bInvertColors = true;
 			}
+			settings.bCropPages = item.cropped;
 			RenderRequest request(item.page, CSize(item.width, item.height), item.rotation,
 				item.mode, settings);
 			CDIB* full = image != NULL ? CRenderThread::RenderFullPage(image, request) : NULL;
 			CDIB* tiled = image != NULL ? CRenderThread::RenderTiled(image, request) : NULL;
 			CDIB* automatic = image != NULL ? CRenderThread::Render(image, request) : NULL;
+			if (item.cropped && full != NULL && tiled != NULL && automatic != NULL)
+			{
+				// Exercise the same post-render crop operation used by viewport jobs.
+				const CRect crop(17, 23, item.width - 29, item.height - 31);
+				CDIB* croppedFull = full->Crop(crop);
+				CDIB* croppedTiled = tiled->Crop(crop);
+				CDIB* croppedAutomatic = automatic->Crop(crop);
+				delete full;
+				delete tiled;
+				delete automatic;
+				full = croppedFull;
+				tiled = croppedTiled;
+				automatic = croppedAutomatic;
+			}
 			vector<BYTE> fullPixels, tiledPixels, automaticPixels;
 			const bool equal = CanonicalRgb24(full, fullPixels) &&
 				CanonicalRgb24(tiled, tiledPixels) && CanonicalRgb24(automatic, automaticPixels) &&
 				fullPixels == tiledPixels && fullPixels == automaticPixels;
+			bool workerEqual = true;
+			if (index == 0 && equal)
+			{
+				TileObserver observer;
+				CRenderThread* worker = new CRenderThread(source, &observer);
+				worker->PauseJobs();
+				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
+				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
+				TileGrid grid(item.width, item.height);
+				workerEqual = worker->GetQueuedJobCount() == static_cast<int>(grid.Count());
+				worker->ResumeJobs();
+				workerEqual = workerEqual &&
+					::WaitForSingleObject(observer.event, 30000) == WAIT_OBJECT_0 &&
+					observer.valid && observer.request == request &&
+					observer.pixels == fullPixels;
+				::Sleep(25);
+				workerEqual = workerEqual && InterlockedCompareExchange(&observer.count, 0, 0) == 1;
+				worker->Stop();
+			}
 			delete full;
 			delete tiled;
 			delete automatic;
 			source->Release();
-			if (!equal)
+			if (!equal || !workerEqual)
 			{
-				fprintf(stderr, "tile/full-page mismatch: %s rotation=%d mode=%d %dx%d\n",
-					item.fixture, item.rotation, item.mode, item.width, item.height);
+				fprintf(stderr, "tile/full-page mismatch: %s rotation=%d mode=%d crop=%d %dx%d\n",
+					item.fixture, item.rotation, item.mode, item.cropped, item.width, item.height);
 				return false;
 			}
-			printf("PASS tile/full-page %s rotation=%d mode=%d %dx%d\n",
-				item.fixture, item.rotation, item.mode, item.width, item.height);
+			printf("PASS tile/full-page %s rotation=%d mode=%d crop=%d %dx%d\n",
+				item.fixture, item.rotation, item.mode, item.cropped, item.width, item.height);
 		}
 		return true;
 	}

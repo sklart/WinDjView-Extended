@@ -1891,7 +1891,7 @@ void CDjVuView::ApplyWorkingSetVisit(const PageWorkingSet::Visit& visit,
 		DeleteCachedBitmap(page);
 		if (m_nType == Magnify)
 			CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
-		m_pRenderThread->AddJob(nPage, m_nRotate, page.szBitmap, m_displaySettings, m_nDisplayMode,
+		m_pRenderThread->AddViewportJob(RenderRequest(nPage, page.szBitmap, m_nRotate, m_nDisplayMode, m_displaySettings),
 			visit.foreground || nPage == m_nPage ? CRenderThread::CurrentPageRender : CRenderThread::VisibleRender);
 		InvalidatePage(nPage);
 		break;

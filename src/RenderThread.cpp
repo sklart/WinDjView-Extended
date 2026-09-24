@@ -45,8 +45,36 @@ CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 	theApp.ThreadStarted();
 }
 
+CRenderThread::TileBatch::TileBatch(const RenderRequest& request_)
+	: request(request_), grid(request_.size.cx, request_.size.cy),
+	  completion(grid), source(NULL), assembled(NULL), fallback(false) {}
+
+CRenderThread::TileBatch::~TileBatch()
+{
+	delete source;
+	delete assembled;
+}
+
+void CRenderThread::ClearTileBatches()
+{
+	for (map<int, TileBatch*>::iterator it = m_tileBatches.begin(); it != m_tileBatches.end(); ++it)
+		delete it->second;
+	m_tileBatches.clear();
+}
+
+void CRenderThread::DropTileBatch(int nPage)
+{
+	map<int, TileBatch*>::iterator it = m_tileBatches.find(nPage);
+	if (it != m_tileBatches.end())
+	{
+		delete it->second;
+		m_tileBatches.erase(it);
+	}
+}
+
 CRenderThread::~CRenderThread()
 {
+	ClearTileBatches();
 	::CloseHandle(m_hThread);
 	m_pSource->Release();
 	theApp.ThreadTerminated();
@@ -60,6 +88,7 @@ void CRenderThread::Stop()
 
 	m_lock.Lock();
 	m_scheduler.Clear();
+	ClearTileBatches();
 	m_jobReady.ResetEvent();
 	m_scheduler.RejectCurrent();
 	PauseJobs();
@@ -98,6 +127,23 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			pBitmap = pThread->Render(job);
 			break;
 
+		case TILE_RENDER:
+			{
+				pThread->m_lock.Lock();
+				map<int, TileBatch*>::iterator batch = pThread->m_tileBatches.find(job.GetPage());
+				const bool needsSource = batch != pThread->m_tileBatches.end() &&
+					batch->second->request == job.tile.key.render && batch->second->source == NULL;
+				pThread->m_lock.Unlock();
+				if (needsSource)
+				{
+				RenderScheduler::Job pageJob;
+				pageJob.type = RenderScheduler::RENDER;
+				pageJob.request = job.tile.key.render;
+				pBitmap = pThread->Render(pageJob, true);
+				}
+			}
+			break;
+
 		case DECODE:
 			pThread->m_pSource->GetPage(job.GetPage(), pThread->m_pOwner);
 			break;
@@ -119,7 +165,17 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		pThread->m_stopping.Lock();
 
 		pThread->m_lock.Lock();
-		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount());
+		CDIB* completedTilePage = NULL;
+		bool tileDone = false;
+		if (job.type == TILE_RENDER && !pThread->m_scheduler.IsCurrentJobRejected())
+			tileDone = pThread->AcceptTileResult(job, pBitmap, completedTilePage);
+		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount(), tileDone);
+		if (job.type == TILE_RENDER)
+		{
+			if (tileDone)
+				pThread->m_scheduler.CancelTiles(job.GetPage());
+			bNotify = bNotify && tileDone;
+		}
 		if (pThread->m_scheduler.HasQueuedJobs() && !pThread->IsPaused())
 			pThread->m_jobReady.SetEvent();
 		pThread->m_lock.Unlock();
@@ -135,6 +191,13 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 						result.bitmap, &result.request));
 				}
 				break;
+			case TILE_RENDER:
+				{
+				RenderResult result(job.tile.key.render, completedTilePage);
+				pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.GetPage(),
+					result.bitmap, &result.request));
+				}
+				break;
 
 			case DECODE:
 			case READINFO:
@@ -145,6 +208,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		else
 		{
 			delete pBitmap;
+			delete completedTilePage;
 		}
 
 		pThread->m_stopping.Unlock();
@@ -264,6 +328,16 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 {
 	m_lock.Lock();
 	bool cancelPrefetches = m_scheduler.Reconcile(windows);
+	for (map<int, TileBatch*>::iterator it = m_tileBatches.begin(); it != m_tileBatches.end(); )
+	{
+		if (windows.renderPages.find(it->first) != windows.renderPages.end())
+		{
+			++it;
+			continue;
+		}
+		delete it->second;
+		it = m_tileBatches.erase(it);
+	}
 	m_lock.Unlock();
 
 	// Prefetch decoding belongs to DjVuLibre.  It is safe to cancel only when
@@ -272,7 +346,7 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		m_pSource->CancelPrefetches();
 }
 
-CDIB* CRenderThread::Render(RenderScheduler::Job& job)
+CDIB* CRenderThread::Render(RenderScheduler::Job& job, bool fullPageSource)
 {
 	GP<DjVuImage> pImage = m_pSource->GetPage(job.request.page, m_pOwner);
 	CDIB* pBitmap = NULL;
@@ -294,8 +368,8 @@ CDIB* CRenderThread::Render(RenderScheduler::Job& job)
 
 			RenderRequest request(job.request);
 			request.size = job.request.size + pt;
-			pBitmap = Render(pImage, request);
-			if (job.request.displaySettings.bCropPages && (nX + nY > 1))
+			pBitmap = fullPageSource ? RenderFullPage(pImage, request) : Render(pImage, request);
+			if (pBitmap != NULL && job.request.displaySettings.bCropPages && (nX + nY > 1))
 			{		
 				CRect rcCrop2 = CRect(static_cast<int>(rcCrop.left * fScaleX), static_cast<int>(rcCrop.top * fScaleY),
 					static_cast<int>(rcCrop.left * fScaleX + job.request.size.cx), static_cast<int>(rcCrop.top * fScaleY + job.request.size.cy));
@@ -313,6 +387,96 @@ CDIB* CRenderThread::Render(RenderScheduler::Job& job)
 	}
 
 	return pBitmap;
+}
+
+// Called with m_lock held after a tile job has physically finished. The
+// staging DIB is produced once by the existing one-worker full-page renderer;
+// each independent tile job copies only its own pixels into the final DIB.
+bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
+	CDIB*& source, CDIB*& completed)
+{
+	completed = NULL;
+	map<int, TileBatch*>::iterator it = m_tileBatches.find(job.GetPage());
+	if (it == m_tileBatches.end() || it->second->request != job.tile.key.render)
+	{
+		delete source;
+		source = NULL;
+		return false;
+	}
+	TileBatch* batch = it->second;
+	if (batch->source == NULL)
+	{
+		batch->source = source;
+		source = NULL;
+	}
+	else
+	{
+		delete source;
+		source = NULL;
+	}
+	if (batch->source == NULL)
+	{
+		DropTileBatch(job.GetPage());
+		return true; // Preserve the legacy one-time failed-render notification.
+	}
+	if (batch->source->GetSize() != batch->request.size)
+		batch->fallback = true;
+	if (batch->assembled == NULL && !batch->fallback)
+	{
+		const int bpp = batch->source->GetBitsPerPixel();
+		if ((bpp != 8 && bpp != 24) ||
+			batch->source->GetBitmapInfo()->bmiHeader.biHeight < 0)
+			batch->fallback = true;
+		else
+		{
+			try
+			{
+				batch->assembled = CDIB::CreateDIB(batch->source->GetBitmapInfo());
+				if (batch->assembled == NULL || !batch->assembled->IsValid())
+					batch->fallback = true;
+			}
+			catch (CMemoryException* error)
+			{
+				error->Delete();
+				batch->fallback = true;
+			}
+			catch (...)
+			{
+				batch->fallback = true;
+			}
+		}
+		if (batch->fallback)
+		{
+			delete batch->assembled;
+			batch->assembled = NULL;
+		}
+	}
+	const TileKey& key = job.tile.key;
+	if (!(batch->grid.At(key.column, key.row) == key.rect) ||
+		!batch->completion.Mark(key.column, key.row))
+		return false;
+	if (!batch->fallback)
+	{
+		const int bpp = batch->source->GetBitsPerPixel();
+		const size_t stride = (static_cast<size_t>(batch->request.size.cx) * bpp + 31) / 32 * 4;
+		const size_t bytes = static_cast<size_t>(key.rect.width) * bpp / 8;
+		for (int y = key.rect.y; y < key.rect.y + key.rect.height; ++y)
+		{
+			const size_t offset = static_cast<size_t>(y) * stride +
+				static_cast<size_t>(key.rect.x) * bpp / 8;
+			memcpy(batch->assembled->GetBits() + offset,
+				batch->source->GetBits() + offset, bytes);
+		}
+	}
+	if (!batch->completion.Complete())
+		return false;
+	completed = batch->fallback ? batch->source : batch->assembled;
+	if (batch->fallback)
+		batch->source = NULL;
+	else
+		batch->assembled = NULL;
+	DropTileBatch(job.GetPage());
+	return true;
 }
 
 CDIB* CRenderThread::Render(GP<DjVuImage> pImage, const CSize& size,
@@ -632,8 +796,74 @@ void CRenderThread::AddJob(const RenderRequest& request, JobPriority priority)
 	job.request = request;
 	job.type = RenderScheduler::RENDER;
 	job.priority = (RenderScheduler::JobPriority)priority;
+	m_lock.Lock();
+	DropTileBatch(request.page);
+	bool queued = m_scheduler.Submit(job, ::GetTickCount());
+	if (queued && !IsPaused())
+		m_jobReady.SetEvent();
+	m_lock.Unlock();
+}
 
-	AddJob(job);
+void CRenderThread::AddViewportJob(const RenderRequest& request, JobPriority priority)
+{
+	TileGrid grid(request.size.cx, request.size.cy);
+	const bool supported = request.displayMode == CDjVuView::Color ||
+		request.displayMode == CDjVuView::BlackAndWhite ||
+		request.displayMode == CDjVuView::Foreground ||
+		request.displayMode == CDjVuView::Background;
+	if (!supported || !TileGeometry::ShouldTile(request.size.cx, request.size.cy, false) ||
+		grid.Count() > 1024)
+	{
+		AddJob(request, priority);
+		return;
+	}
+	m_lock.Lock();
+	bool queued = false;
+	try
+	{
+		map<int, TileBatch*>::iterator existing = m_tileBatches.find(request.page);
+		if (existing != m_tileBatches.end() && existing->second->request != request)
+			DropTileBatch(request.page);
+		if (m_tileBatches.find(request.page) == m_tileBatches.end())
+		{
+			TileBatch* created = new TileBatch(request);
+			try { m_tileBatches.insert(make_pair(request.page, created)); }
+			catch (...) { delete created; throw; }
+		}
+		TileBatch* batch = m_tileBatches.find(request.page)->second;
+		for (int row = 0; row < batch->grid.Rows(); ++row)
+		{
+			for (int column = 0; column < batch->grid.Columns(); ++column)
+			{
+				if (batch->completion.Has(column, row)) continue;
+				RenderScheduler::Job job;
+				job.type = RenderScheduler::TILE_RENDER;
+				job.tile = TileRequest(TileKey(request, batch->grid.At(column, row), column, row));
+				job.priority = (RenderScheduler::JobPriority)priority;
+				queued = m_scheduler.Submit(job, ::GetTickCount()) || queued;
+			}
+		}
+	}
+	catch (CMemoryException* error)
+	{
+		error->Delete();
+		m_scheduler.CancelTiles(request.page);
+		DropTileBatch(request.page);
+		m_lock.Unlock();
+		AddJob(request, priority);
+		return;
+	}
+	catch (...)
+	{
+		m_scheduler.CancelTiles(request.page);
+		DropTileBatch(request.page);
+		m_lock.Unlock();
+		AddJob(request, priority);
+		return;
+	}
+	if (queued && !IsPaused())
+		m_jobReady.SetEvent();
+	m_lock.Unlock();
 }
 
 void CRenderThread::AddDecodeJob(int nPage)
@@ -690,6 +920,13 @@ void CRenderThread::RemoveAllJobs()
 {
 	m_lock.Lock();
 	m_scheduler.Clear();
+	if (!m_tileBatches.empty())
+	{
+		ClearTileBatches();
+		JobInfo current;
+		if (m_scheduler.GetCurrentJobInfo(current) && current.type == TILE_RENDER)
+			m_scheduler.RejectCurrent();
+	}
 
 	m_lock.Unlock();
 

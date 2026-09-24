@@ -63,6 +63,10 @@ after zoom and crop expansion, not the source document dimensions. This
 foundation tiles DIB conversion and assembly; DjVuLibre still produces the
 source pixmap/bitmap as before, so peak source-raster memory is not yet bounded.
 Direct thumbnail, save/export and print-related render calls retain the full-page path.
+Phase 7B schedules each large viewport tile independently on the existing
+single worker and publishes only a complete batch. The worker currently uses
+one full-page staging DIB per active request; multi-worker rasterization and
+bounded source-raster memory are deliberately deferred.
 
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the

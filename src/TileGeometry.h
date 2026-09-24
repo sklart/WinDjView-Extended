@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 // Pixel coordinates use the same bottom-left origin as DjVuLibre pixmaps and
 // the positive-height DIB written by Drawing.cpp.
 struct TileRect
@@ -65,4 +67,37 @@ public:
 
 private:
 	int m_width, m_height, m_tileSize, m_columns, m_rows;
+};
+
+// Tracks actual completed tiles, not merely submitted jobs. A missing or
+// duplicate tile can never make a batch appear complete.
+class TileCompletion
+{
+public:
+	explicit TileCompletion(const TileGrid& grid)
+		: m_columns(grid.Columns()), m_rows(grid.Rows()),
+		  m_done(static_cast<std::size_t>(grid.Count()), false), m_remaining(grid.Count()) {}
+
+	bool Mark(int column, int row)
+	{
+		if (column < 0 || row < 0 || column >= m_columns || row >= m_rows)
+			return false;
+		const std::size_t index = static_cast<std::size_t>(row) * m_columns + column;
+		if (m_done[index]) return false;
+		m_done[index] = true;
+		--m_remaining;
+		return true;
+	}
+	bool Has(int column, int row) const
+	{
+		return column >= 0 && row >= 0 && column < m_columns && row < m_rows &&
+			m_done[static_cast<std::size_t>(row) * m_columns + column];
+	}
+	bool Complete() const { return m_remaining == 0 && !m_done.empty(); }
+	unsigned long long Remaining() const { return m_remaining; }
+
+private:
+	int m_columns, m_rows;
+	std::vector<bool> m_done;
+	unsigned long long m_remaining;
 };

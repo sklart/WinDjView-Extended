@@ -5,6 +5,7 @@
 
 struct TileKey
 {
+	TileKey() : column(-1), row(-1) {}
 	TileKey(const RenderRequest& render_, const TileRect& rect_, int column_, int row_)
 		: render(render_), rect(rect_), column(column_), row(row_) {}
 	RenderRequest render;
@@ -20,6 +21,7 @@ inline bool operator==(const TileKey& a, const TileKey& b)
 
 struct TileRequest
 {
+	TileRequest() {}
 	explicit TileRequest(const TileKey& key_) : key(key_) {}
 	TileKey key;
 };

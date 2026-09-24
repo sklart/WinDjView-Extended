@@ -10,24 +10,27 @@
 
 #include "Global.h"
 #include "RenderRequest.h"
+#include "TileRequest.h"
 
 // Pure queue policy for CRenderThread. This class owns no worker, DjVuSource,
 // UI object, or bitmap; callers execute the Job returned by TakeNext().
 class RenderScheduler
 {
 public:
-	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP };
+	enum JobType { RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP, TILE_RENDER };
 	enum JobPriority { CurrentPageRender, VisibleRender, Decode, AdjacentPrefetch, Background };
 
 	struct Job
 	{
 		Job() : nPage(-1), type(DECODE), priority(Background) {}
-		int GetPage() const { return type == RENDER ? request.page : nPage; }
+		int GetPage() const { return type == RENDER ? request.page :
+			(type == TILE_RENDER ? tile.key.render.page : nPage); }
 		bool IsActive() const { return GetPage() >= 0; }
 
 		// nPage is retained only for non-render jobs. Render jobs use request.
 		int nPage;
 		RenderRequest request;
+		TileRequest tile;
 		JobType type;
 		JobPriority priority;
 	};
@@ -38,6 +41,7 @@ public:
 		int type;
 		int priority;
 		CSize size;
+		int tileColumn, tileRow;
 	};
 
 	struct Metrics
@@ -73,12 +77,13 @@ public:
 	bool Submit(const Job& job, DWORD now);
 	bool TakeNext(Job& job);
 	// Returns whether the completed job remains valid for publication.
-	bool CompleteCurrent(DWORD now);
+	bool CompleteCurrent(DWORD now, bool finalTile = true);
 	void RejectCurrent();
 
 	// Returns true when removed speculative work requires the caller to cancel
 	// its external prefetch side effect.
 	bool Reconcile(const JobWindows& windows);
+	void CancelTiles(int nPage);
 	bool Clear();
 
 	bool HasQueuedJobs() const { return !m_jobs.empty(); }
@@ -101,8 +106,11 @@ private:
 	bool m_bRejectCurrentJob;
 	Metrics m_metrics;
 	DWORD m_dwCurrentPageRequest;
+	RenderRequest m_awaitedRenderRequest;
 	bool m_bAwaitingCurrentPageResult;
 
 	void RemoveFromQueue(int nPage);
+	bool SubmitTile(const Job& job, DWORD now);
+	void RemoveQueuedTilesForPage(int nPage);
 	bool HasSameRenderIdentity(const Job& left, const Job& right) const;
 };

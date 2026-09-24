@@ -33,7 +33,7 @@ public:
 	// all queue policy lives in RenderScheduler.
 	enum JobType { RENDER = RenderScheduler::RENDER, DECODE = RenderScheduler::DECODE,
 		PREFETCH_DECODE = RenderScheduler::PREFETCH_DECODE, READINFO = RenderScheduler::READINFO,
-		CLEANUP = RenderScheduler::CLEANUP };
+		CLEANUP = RenderScheduler::CLEANUP, TILE_RENDER = RenderScheduler::TILE_RENDER };
 	enum JobPriority { CurrentPageRender = RenderScheduler::CurrentPageRender,
 		VisibleRender = RenderScheduler::VisibleRender, Decode = RenderScheduler::Decode,
 		AdjacentPrefetch = RenderScheduler::AdjacentPrefetch, Background = RenderScheduler::Background };
@@ -47,6 +47,7 @@ public:
 	void AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings,
 		int nDisplayMode = CDjVuView::Color, JobPriority priority = VisibleRender);
 	void AddJob(const RenderRequest& request, JobPriority priority = VisibleRender);
+	void AddViewportJob(const RenderRequest& request, JobPriority priority = VisibleRender);
 	void AddDecodeJob(int nPage);
 	void AddPrefetchJob(int nPage);
 	void AddReadInfoJob(int nPage);
@@ -95,9 +96,25 @@ private:
 	DjVuSource* m_pSource;
 	long m_nPaused;
 	RenderScheduler m_scheduler;
+	struct TileBatch
+	{
+		explicit TileBatch(const RenderRequest& request_);
+		~TileBatch();
+		RenderRequest request;
+		TileGrid grid;
+		TileCompletion completion;
+		CDIB* source;
+		CDIB* assembled;
+		bool fallback;
+	};
+	map<int, TileBatch*> m_tileBatches;
 
 	static unsigned int __stdcall RenderThreadProc(void* pvData);
-	CDIB* Render(RenderScheduler::Job& job);
+	CDIB* Render(RenderScheduler::Job& job, bool fullPageSource = false);
+	void ClearTileBatches();
+	void DropTileBatch(int nPage);
+	bool AcceptTileResult(const RenderScheduler::Job& job, CDIB*& source,
+		CDIB*& completed);
 	void AddJob(const RenderScheduler::Job& job);
 	~CRenderThread();
 };
