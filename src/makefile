@@ -91,6 +91,7 @@ clean:
 LINK_OBJS = \
 	"$(INTDIR)\AnnotationDlg.obj" \
 	"$(INTDIR)\AppSettings.obj" \
+	"$(INTDIR)\BitmapCache.obj" \
 	"$(INTDIR)\BookmarkDlg.obj" \
 	"$(INTDIR)\BookmarksView.obj" \
 	"$(INTDIR)\CropPagesDlg.obj" \
@@ -151,6 +152,7 @@ $(OUT) : "$(INTDIR)" $(LINK_OBJS)
 
 "$(INTDIR)\AnnotationDlg.obj" : AnnotationDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\AppSettings.obj" : AppSettings.cpp "$(INTDIR)" $(PCH)
+"$(INTDIR)\BitmapCache.obj" : BitmapCache.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\BookmarkDlg.obj" : BookmarkDlg.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\BookmarksView.obj" : BookmarksView.cpp "$(INTDIR)" $(PCH)
 "$(INTDIR)\CropPagesDlg.obj" : CropPagesDlg.cpp "$(INTDIR)" $(PCH)

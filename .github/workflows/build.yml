@@ -27,6 +27,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-render-scheduler-regression.cmd
 
+      - name: Run bitmap cache regression
+        shell: cmd
+        run: tools\tests\run-bitmap-cache-regression.cmd
+
       - name: Run update menu source regression
         shell: pwsh
         run: pwsh .\tools\tests\test-update-menu-source.ps1

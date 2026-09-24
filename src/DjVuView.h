@@ -25,6 +25,7 @@
 #include "DjVuDoc.h"
 #include "DjVuSource.h"
 #include "RenderRequest.h"
+#include "BitmapCache.h"
 
 class CMainFrame;
 class CMDIChild;
@@ -226,10 +227,7 @@ protected:
 	int m_nProcessedPageCacheEntries;
 	void ResetPageCacheEntryCounter() { m_nProcessedPageCacheEntries = 0; }
 	int GetProcessedPageCacheEntries() const { return m_nProcessedPageCacheEntries; }
-	int m_nBitmapCacheHits, m_nBitmapCacheMisses, m_nBitmapCacheEvictions;
-	long m_nBitmapCacheClock;
-	map<int, __int64> m_bitmapCacheBytes;
-	__int64 m_nRetainedBitmapBytes;
+	BitmapCache m_bitmapCache;
 	void ResetBitmapCacheCounters();
 	void GetBitmapCacheCounters(int& hits, int& misses, int& evictions) const;
 	int GetRetainedBitmapCount() const;
@@ -277,9 +275,7 @@ protected:
 	{
 		Page() :
 			szBitmap(0, 0), ptOffset(0, 0), pBitmap(NULL), nSelStart(-1), nSelEnd(-1),
-			bHasSize(false), bBitmapRendered(false), bIsFindResult(false),
-			bBitmapIdentity(false), nBitmapRotate(0), nBitmapDisplayMode(Color),
-			nBitmapLastUsed(0) {}
+			bHasSize(false), bBitmapRendered(false), bIsFindResult(false) {}
 		~Page() { delete pBitmap; }
 
 		CSize GetSize(int nRotate) const
@@ -298,11 +294,6 @@ protected:
 		CDIB* pBitmap;
 		bool bBitmapRendered;
 		bool bIsFindResult;
-		bool bBitmapIdentity;
-		CSize szBitmapIdentity;
-		int nBitmapRotate, nBitmapDisplayMode;
-		CDisplaySettings bitmapDisplaySettings;
-		long nBitmapLastUsed;
 
 		DjVuSelection selection;
 		int nSelStart, nSelEnd;
@@ -312,7 +303,6 @@ protected:
 			delete pBitmap;
 			pBitmap = NULL;
 			bBitmapRendered = false;
-			bBitmapIdentity = false;
 		}
 	};
 	vector<Page> m_pages;
@@ -391,7 +381,7 @@ protected:
 		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
 	void UpdatePageCacheFacing(int nPage, bool bUpdateImages, vector<int>& add, vector<int>& remove,
 		set<int>& renderPages, set<int>& decodePages, set<int>& readInfoPages, set<int>& cleanupPages);
-	bool HasReusableBitmap(Page& page) const;
+	bool HasReusableBitmap(Page& page);
 	bool IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const;
 	bool IsBitmapPinned(int nPage) const;
 	bool AcceptRenderedBitmap(int nPage, CDIB* pBitmap, const RenderIdentity& identity);
@@ -399,7 +389,7 @@ protected:
 	void PruneBitmapCache();
 	void DeleteCachedBitmap(Page& page);
 	void UnregisterBitmapCacheEntry(Page& page);
-	__int64 GetBitmapStorageBytes(const CDIB* pBitmap) const;
+	RenderRequest GetExpectedBitmapIdentity(int nPage) const;
 	bool IsViewNextpageEnabled();
 	bool IsViewPreviouspageEnabled() const;
 	void ClearSelection(int nPage = -1);

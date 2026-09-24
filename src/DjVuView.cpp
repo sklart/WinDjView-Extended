@@ -292,8 +292,7 @@ CDjVuView::CDjVuView()
 	  m_pHoverAnno(NULL), m_pClickedAnno(NULL), m_bDraggingLink(false),
 	  m_bPopupMenu(false), m_bClickedCustom(false), m_bUpdateBitmaps(false),
 	  m_nWhitePoint(15), m_nMinWhiteMargins(20), m_bMouseNavigation(false),
-	  m_nProcessedPageCacheEntries(0), m_nBitmapCacheHits(0), m_nBitmapCacheMisses(0),
-	  m_nBitmapCacheEvictions(0), m_nBitmapCacheClock(0), m_nRetainedBitmapBytes(0)
+	  m_nProcessedPageCacheEntries(0)
 {
 	m_historyPoint = m_history.end();
 	m_strForSearch = "";
@@ -1762,32 +1761,35 @@ void CDjVuView::InitPage(Page& page, int nPage, bool bNeedText, bool bNeedAnno)
 
 void CDjVuView::ResetBitmapCacheCounters()
 {
-	m_nBitmapCacheHits = m_nBitmapCacheMisses = m_nBitmapCacheEvictions = 0;
+	m_bitmapCache.ResetCounters();
 }
 
 void CDjVuView::GetBitmapCacheCounters(int& hits, int& misses, int& evictions) const
 {
-	hits = m_nBitmapCacheHits; misses = m_nBitmapCacheMisses; evictions = m_nBitmapCacheEvictions;
+	m_bitmapCache.GetCounters(hits, misses, evictions);
 }
 
 int CDjVuView::GetRetainedBitmapCount() const
 {
-	return (int)m_bitmapCacheBytes.size();
+	return m_bitmapCache.GetCount();
 }
 
 __int64 CDjVuView::GetRetainedBitmapBytes() const
 {
-	return m_nRetainedBitmapBytes;
+	return m_bitmapCache.GetBytes();
 }
 
-bool CDjVuView::HasReusableBitmap(Page& page) const
+RenderRequest CDjVuView::GetExpectedBitmapIdentity(int nPage) const
 {
-	if (page.pBitmap == NULL || !page.bBitmapIdentity || page.pBitmap->GetSize() != page.szBitmap ||
-		page.szBitmapIdentity != page.szBitmap || page.nBitmapRotate != m_nRotate ||
-		page.nBitmapDisplayMode != m_nDisplayMode || page.bitmapDisplaySettings != m_displaySettings)
-		return false;
-	page.nBitmapLastUsed = ++const_cast<CDjVuView*>(this)->m_nBitmapCacheClock;
-	return true;
+	return RenderRequest(nPage, m_pages[nPage].szBitmap, m_nRotate,
+		m_nDisplayMode, m_displaySettings);
+}
+
+bool CDjVuView::HasReusableBitmap(Page& page)
+{
+	const int nPage = (int)(&page - &m_pages[0]);
+	return page.pBitmap != NULL && page.pBitmap->GetSize() == page.szBitmap &&
+		m_bitmapCache.Touch(nPage, GetExpectedBitmapIdentity(nPage));
 }
 
 bool CDjVuView::IsCurrentRenderIdentity(const Page& page, const RenderIdentity& identity) const
@@ -1815,47 +1817,19 @@ bool CDjVuView::IsBitmapPinned(int nPage) const
 void CDjVuView::SetBitmapIdentity(Page& page)
 {
 	UnregisterBitmapCacheEntry(page);
-	page.bBitmapIdentity = page.pBitmap != NULL;
 	if (page.pBitmap == NULL)
 		return;
 
 	const int nPage = (int)(&page - &m_pages[0]);
-	const __int64 bytes = GetBitmapStorageBytes(page.pBitmap);
-	if (bytes > 0)
-	{
-		m_bitmapCacheBytes[nPage] = bytes;
-		m_nRetainedBitmapBytes += bytes;
-	}
-	page.szBitmapIdentity = page.szBitmap;
-	page.nBitmapRotate = m_nRotate;
-	page.nBitmapDisplayMode = m_nDisplayMode;
-	page.bitmapDisplaySettings = m_displaySettings;
-	page.nBitmapLastUsed = ++m_nBitmapCacheClock;
+	const __int64 bytes = BitmapCache::StorageBytes(page.pBitmap->GetWidth(),
+		page.pBitmap->GetHeight(), page.pBitmap->GetBitsPerPixel());
+	m_bitmapCache.Register(GetExpectedBitmapIdentity(nPage), bytes);
 	PruneBitmapCache();
-}
-
-__int64 CDjVuView::GetBitmapStorageBytes(const CDIB* pBitmap) const
-{
-	if (pBitmap == NULL || pBitmap->GetWidth() <= 0 || pBitmap->GetHeight() <= 0 ||
-		pBitmap->GetBitsPerPixel() <= 0)
-		return 0;
-	const unsigned __int64 bitsPerLine = (unsigned __int64)pBitmap->GetWidth()*pBitmap->GetBitsPerPixel();
-	const unsigned __int64 stride = ((bitsPerLine + 31) & ~31ULL) / 8;
-	const unsigned __int64 height = (unsigned __int64)pBitmap->GetHeight();
-	if (stride > 0x7fffffffffffffffULL/height)
-		return 0x7fffffffffffffffLL;
-	return (__int64)(stride*height);
 }
 
 void CDjVuView::UnregisterBitmapCacheEntry(Page& page)
 {
-	int nPage = (int)(&page - &m_pages[0]);
-	map<int, __int64>::iterator it = m_bitmapCacheBytes.find(nPage);
-	if (it != m_bitmapCacheBytes.end())
-	{
-		m_nRetainedBitmapBytes -= it->second;
-		m_bitmapCacheBytes.erase(it);
-	}
+	m_bitmapCache.Remove((int)(&page - &m_pages[0]));
 }
 
 void CDjVuView::DeleteCachedBitmap(Page& page)
@@ -1898,19 +1872,20 @@ bool CDjVuView::AcceptRenderedBitmap(int nPage, CDIB* pBitmap, const RenderIdent
 
 void CDjVuView::PruneBitmapCache()
 {
-	const int kMaxBitmaps = 16;
-	const __int64 kMaxBytes = 64LL*1024*1024;
-	while ((int)m_bitmapCacheBytes.size() > kMaxBitmaps || m_nRetainedBitmapBytes > kMaxBytes)
+	while (m_bitmapCache.NeedsPrune())
 	{
-		int victim = -1; long oldest = LONG_MAX;
-		for (map<int, __int64>::iterator it = m_bitmapCacheBytes.begin(); it != m_bitmapCacheBytes.end(); ++it)
-			if (!IsBitmapPinned(it->first) && m_pages[it->first].nBitmapLastUsed < oldest)
-				victim = it->first, oldest = m_pages[it->first].nBitmapLastUsed;
+		vector<int> pages;
+		m_bitmapCache.GetPages(pages);
+		set<int> pinnedPages;
+		for (size_t i = 0; i < pages.size(); ++i)
+			if (IsBitmapPinned(pages[i]))
+				pinnedPages.insert(pages[i]);
+		const int victim = m_bitmapCache.ChooseVictim(pinnedPages);
 		// A currently displayed page can be larger than the retained-cache
 		// budget. Keeping it avoids render/evict/re-render churn.
 		if (victim == -1) break;
 		DeleteCachedBitmap(m_pages[victim]);
-		++m_nBitmapCacheEvictions;
+		m_bitmapCache.RecordEviction();
 	}
 }
 
@@ -1941,7 +1916,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 	{
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
-			++m_nBitmapCacheMisses;
+			m_bitmapCache.RecordMiss();
 			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
@@ -1952,7 +1927,7 @@ void CDjVuView::UpdatePageCache(const CSize& szViewport, int nPage, bool bUpdate
 			InvalidatePage(nPage);
 		}
 		else
-			++m_nBitmapCacheHits;
+			m_bitmapCache.RecordHit();
 		add.push_back(nPage);
 	}
 	else
@@ -2000,7 +1975,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 	{
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
-			++m_nBitmapCacheMisses;
+			m_bitmapCache.RecordMiss();
 			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
@@ -2011,7 +1986,7 @@ void CDjVuView::UpdatePageCacheSingle(int nPage, bool bUpdateImages,
 			InvalidatePage(nPage);
 		}
 		else
-			++m_nBitmapCacheHits;
+			m_bitmapCache.RecordHit();
 		add.push_back(nPage);
 	}
 	else
@@ -2057,7 +2032,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 	{
 		if (page.pBitmap == NULL || (!HasReusableBitmap(page) && bUpdateImages))
 		{
-			++m_nBitmapCacheMisses;
+			m_bitmapCache.RecordMiss();
 			DeleteCachedBitmap(page);
 			if (m_nType == Magnify)
 				CopyBitmapFrom(((CMagnifyWnd*) GetTopLevelParent())->GetOwner(), nPage);
@@ -2068,7 +2043,7 @@ void CDjVuView::UpdatePageCacheFacing(int nPage, bool bUpdateImages,
 			InvalidatePage(nPage);
 		}
 		else
-			++m_nBitmapCacheHits;
+			m_bitmapCache.RecordHit();
 		add.push_back(nPage);
 	}
 	else
@@ -8243,9 +8218,8 @@ void CDjVuView::CopyBitmapsFrom(CDjVuView* pFrom, bool bMove)
 
 		if (page.pBitmap == NULL && srcPage.pBitmap != NULL)
 		{
-			bool bReusable = srcPage.bBitmapIdentity && srcPage.pBitmap->GetSize() == page.szBitmap &&
-				srcPage.szBitmapIdentity == page.szBitmap && srcPage.nBitmapRotate == m_nRotate &&
-				srcPage.nBitmapDisplayMode == m_nDisplayMode && srcPage.bitmapDisplaySettings == m_displaySettings;
+			bool bReusable = srcPage.pBitmap->GetSize() == page.szBitmap &&
+				pFrom->m_bitmapCache.HasIdentity(nPage, GetExpectedBitmapIdentity(nPage));
 			if (bMove)
 			{
 				pFrom->UnregisterBitmapCacheEntry(srcPage);
@@ -8253,7 +8227,6 @@ void CDjVuView::CopyBitmapsFrom(CDjVuView* pFrom, bool bMove)
 				page.bBitmapRendered = true;
 				srcPage.pBitmap = NULL;
 				srcPage.bBitmapRendered = false;
-				srcPage.bBitmapIdentity = false;
 			}
 			else
 			{
@@ -8279,10 +8252,8 @@ void CDjVuView::CopyBitmapFrom(CDjVuView* pFrom, int nPage)
 	{
 		page.pBitmap = CDIB::CreateDIB(srcPage.pBitmap);
 		page.bBitmapRendered = true;
-		if (srcPage.bBitmapIdentity && page.pBitmap != NULL &&
-			page.pBitmap->GetSize() == page.szBitmap && srcPage.szBitmapIdentity == page.szBitmap &&
-			srcPage.nBitmapRotate == m_nRotate && srcPage.nBitmapDisplayMode == m_nDisplayMode &&
-			srcPage.bitmapDisplaySettings == m_displaySettings)
+		if (page.pBitmap != NULL && page.pBitmap->GetSize() == page.szBitmap &&
+			pFrom->m_bitmapCache.HasIdentity(nPage, GetExpectedBitmapIdentity(nPage)))
 			SetBitmapIdentity(page);
 		else
 			DeleteCachedBitmap(page);
