@@ -81,6 +81,18 @@ public:
 	void ResetSchedulerMetrics();
 	void GetSchedulerMetrics(SchedulerMetrics& metrics);
 	void GetTileRenderStats(int& regions, int& fallbacks);
+	struct TileWorkerMetrics
+	{
+		TileWorkerMetrics() : configuredTileWorkers(0), activeTileWorkers(0),
+			peakActiveTileWorkers(0), completedTileJobs(0),
+			rejectedTileResults(0), tileFallbacks(0) {}
+		int configuredTileWorkers, activeTileWorkers, peakActiveTileWorkers, completedTileJobs,
+			rejectedTileResults, tileFallbacks;
+	};
+	void GetTileWorkerMetrics(TileWorkerMetrics& metrics);
+	// Null in production. A manual-reset gate lets the regression hold real
+	// raster jobs after scheduling to exercise overlap and stale completion.
+	void SetTileStartGateForRegression(HANDLE gate);
 	void ReconcileJobs(const JobWindows& windows);
 
 	void RejectCurrentJob();
@@ -88,33 +100,47 @@ public:
 private:
 	static CDIB* RenderInternal(GP<DjVuImage> pImage, const RenderRequest& request,
 		bool bThumbnail, bool bAllowTiles, bool bRequireTiles);
-	HANDLE m_hThread, m_hStopThread;
+	HANDLE m_hThread;
+	vector<HANDLE> m_tileThreads;
 	CCriticalSection m_lock;
 	CCriticalSection m_stopping;
 	CEvent m_stop;
 	CEvent m_jobReady;
+	CEvent m_tileReady;
 	Observer* m_pOwner;
 	DjVuSource* m_pSource;
 	long m_nPaused;
 	RenderScheduler m_scheduler;
 	int m_nTileRegionRenders, m_nTileFallbacks;
+	int m_nTileWorkerLimit, m_nActiveTileWorkers;
+	unsigned long long m_nextTileBatchGeneration;
+	TileWorkerMetrics m_tileWorkerMetrics;
+	HANDLE m_tileStartGateForRegression;
 	struct TileBatch
 	{
-		explicit TileBatch(const RenderRequest& request_);
+		TileBatch(const RenderRequest& request_, unsigned long long generation_);
 		~TileBatch();
 		RenderRequest request;
+		unsigned long long generation;
 		TileGrid grid;
 		TileCompletion completion;
 		CDIB* assembled;
+		bool fallbackStarted;
+		TileKey fallbackOwner;
 	};
 	map<int, TileBatch*> m_tileBatches;
 
 	static unsigned int __stdcall RenderThreadProc(void* pvData);
+	static unsigned int __stdcall TileThreadProc(void* pvData);
+	void SignalJobs();
+	void FinishTile(const RenderScheduler::Job& job, unsigned long long token,
+		CDIB*& tile, bool fallback);
 	CDIB* Render(RenderScheduler::Job& job, bool fullPageSource = false);
 	void ClearTileBatches();
 	void DropTileBatch(int nPage);
 	CDIB* RenderTileJob(const RenderScheduler::Job& job, bool& fallback);
-	bool AcceptTileResult(const RenderScheduler::Job& job, CDIB*& tile, bool fallback,
+	bool AcceptTileResult(const RenderScheduler::Job& job, unsigned long long token,
+		CDIB*& tile, bool fallback,
 		bool& retryFallback,
 		CDIB*& completed);
 	void AddJob(const RenderScheduler::Job& job);

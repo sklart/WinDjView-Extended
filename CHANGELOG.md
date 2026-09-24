@@ -13,6 +13,8 @@
   their assembled bitmap only after the complete tile set finishes.
 - Rendered supported large viewport tiles from independent DjVuLibre raster
   regions without a full-page staging bitmap.
+- Rendered large viewport tiles with a bounded 2–4-worker pool while keeping
+  non-tile jobs serial and publishing a completed page only once.
 
 ## 4.3.0 — 2026-09-22
 

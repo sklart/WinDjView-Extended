@@ -10,7 +10,7 @@
 #include "RenderScheduler.h"
 
 RenderScheduler::RenderScheduler(int nPageCount)
-	: m_bRejectCurrentJob(false), m_dwCurrentPageRequest(0),
+	: m_nextTileToken(1), m_bRejectCurrentJob(false), m_dwCurrentPageRequest(0),
 	  m_bAwaitingCurrentPageResult(false)
 {
 	SetPageCount(nPageCount);
@@ -21,6 +21,8 @@ void RenderScheduler::SetPageCount(int nPageCount)
 	m_jobs.clear();
 	m_pages.assign(max(nPageCount, 0), m_jobs.end());
 	m_currentJob = Job();
+	m_parallelTiles.clear();
+	m_nextTileToken = 1;
 	m_bRejectCurrentJob = false;
 	ResetMetrics();
 	ResetSubmittedJobCounts();
@@ -41,6 +43,7 @@ bool RenderScheduler::Submit(const Job& job, DWORD now)
 	if (job.type == RENDER)
 	{
 		RemoveQueuedTilesForPage(nPage);
+		RejectParallelTilesForPage(nPage);
 		if (m_currentJob.IsActive() && m_currentJob.type == TILE_RENDER &&
 			m_currentJob.GetPage() == nPage && !m_bRejectCurrentJob)
 		{
@@ -165,7 +168,8 @@ bool RenderScheduler::SubmitTile(const Job& job, DWORD now)
 		return false;
 	if (m_currentJob.IsActive() && m_currentJob.GetPage() == nPage)
 	{
-		if (m_currentJob.type == TILE_RENDER && m_currentJob.tile.key == key)
+		if (m_currentJob.type == TILE_RENDER && m_currentJob.tile.key == key &&
+			m_currentJob.batchGeneration == job.batchGeneration)
 		{
 			m_bRejectCurrentJob = false;
 			if (job.priority == CurrentPageRender && m_currentJob.priority != CurrentPageRender)
@@ -180,13 +184,44 @@ bool RenderScheduler::SubmitTile(const Job& job, DWORD now)
 			return false;
 		}
 		if ((m_currentJob.type == TILE_RENDER &&
-			m_currentJob.tile.key.render != key.render) || m_currentJob.type == RENDER)
+			(m_currentJob.tile.key.render != key.render ||
+			 m_currentJob.batchGeneration != job.batchGeneration)) ||
+			m_currentJob.type == RENDER)
 		{
 			if (!m_bRejectCurrentJob)
 			{
 				m_bRejectCurrentJob = true;
 				++m_metrics.obsoleteJobsRejected;
 			}
+		}
+	}
+	for (map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.begin();
+		it != m_parallelTiles.end(); ++it)
+	{
+		RunningTile& running = it->second;
+		if (running.job.GetPage() != nPage) continue;
+		if (running.job.tile.key == key &&
+			running.job.batchGeneration == job.batchGeneration)
+		{
+			running.rejected = false;
+			if (job.priority < running.job.priority)
+				running.job.priority = job.priority;
+			if (job.priority == CurrentPageRender &&
+				(!m_bAwaitingCurrentPageResult || m_awaitedRenderRequest != key.render))
+			{
+				m_dwCurrentPageRequest = now;
+				m_awaitedRenderRequest = key.render;
+				m_metrics.currentPageResultElapsedMs = 0;
+				m_metrics.jobsExecutedBeforeCurrentPage = 0;
+				m_bAwaitingCurrentPageResult = true;
+			}
+			return false;
+		}
+		if ((running.job.tile.key.render != key.render ||
+			running.job.batchGeneration != job.batchGeneration) && !running.rejected)
+		{
+			running.rejected = true;
+			++m_metrics.obsoleteJobsRejected;
 		}
 	}
 
@@ -199,7 +234,8 @@ bool RenderScheduler::SubmitTile(const Job& job, DWORD now)
 			++it;
 			continue;
 		}
-		if (it->tile.key.render != key.render)
+		if (it->tile.key.render != key.render ||
+			it->batchGeneration != job.batchGeneration)
 		{
 			it = m_jobs.erase(it);
 			++m_metrics.obsoleteJobsRemoved;
@@ -243,7 +279,7 @@ bool RenderScheduler::SubmitTile(const Job& job, DWORD now)
 
 bool RenderScheduler::TakeNext(Job& job)
 {
-	if (m_jobs.empty())
+	if (!CanTakeNext())
 		return false;
 
 	job = m_jobs.front();
@@ -255,6 +291,89 @@ bool RenderScheduler::TakeNext(Job& job)
 	if (m_bAwaitingCurrentPageResult && job.priority != CurrentPageRender)
 		++m_metrics.jobsExecutedBeforeCurrentPage;
 	return true;
+}
+
+bool RenderScheduler::CanTakeNext() const
+{
+	return !m_jobs.empty() && (m_jobs.front().type == TILE_RENDER || m_parallelTiles.empty());
+}
+
+bool RenderScheduler::TakeNextParallelTile(Job& job, unsigned long long& token)
+{
+	if (m_jobs.empty() || m_jobs.front().type != TILE_RENDER ||
+		(m_currentJob.IsActive() && m_currentJob.type != TILE_RENDER))
+		return false;
+	job = m_jobs.front();
+	m_jobs.pop_front();
+	token = m_nextTileToken++;
+	RunningTile running = { job, false };
+	m_parallelTiles.insert(make_pair(token, running));
+	if (m_bAwaitingCurrentPageResult && job.priority != CurrentPageRender)
+		++m_metrics.jobsExecutedBeforeCurrentPage;
+	return true;
+}
+
+bool RenderScheduler::IsParallelTileRejected(unsigned long long token) const
+{
+	map<unsigned long long, RunningTile>::const_iterator it = m_parallelTiles.find(token);
+	return it == m_parallelTiles.end() || it->second.rejected;
+}
+
+bool RenderScheduler::CompleteParallelTile(unsigned long long token, DWORD now, bool finalTile)
+{
+	map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.find(token);
+	if (it == m_parallelTiles.end()) return false;
+	const bool accept = !it->second.rejected;
+	if (accept && finalTile && it->second.job.priority == CurrentPageRender &&
+		m_bAwaitingCurrentPageResult &&
+		it->second.job.tile.key.render == m_awaitedRenderRequest)
+	{
+		m_metrics.currentPageResultElapsedMs = now - m_dwCurrentPageRequest;
+		m_bAwaitingCurrentPageResult = false;
+	}
+	m_parallelTiles.erase(it);
+	return accept;
+}
+
+void RenderScheduler::RejectParallelTilesForPage(int nPage)
+{
+	for (map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.begin();
+		it != m_parallelTiles.end(); ++it)
+		if (it->second.job.GetPage() == nPage && !it->second.rejected)
+		{
+			it->second.rejected = true;
+			++m_metrics.obsoleteJobsRejected;
+		}
+}
+
+void RenderScheduler::RejectParallelTiles()
+{
+	for (map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.begin();
+		it != m_parallelTiles.end(); ++it)
+		if (!it->second.rejected)
+		{
+			it->second.rejected = true;
+			++m_metrics.obsoleteJobsRejected;
+		}
+}
+
+void RenderScheduler::CancelTileSiblings(int nPage, unsigned long long ownerToken)
+{
+	RemoveQueuedTilesForPage(nPage);
+	for (map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.begin();
+		it != m_parallelTiles.end(); ++it)
+		if (it->second.job.GetPage() == nPage && it->first != ownerToken && !it->second.rejected)
+		{
+			it->second.rejected = true;
+			++m_metrics.obsoleteJobsRejected;
+		}
+	if (ownerToken != 0 && m_currentJob.IsActive() &&
+		m_currentJob.type == TILE_RENDER && m_currentJob.GetPage() == nPage &&
+		!m_bRejectCurrentJob)
+	{
+		m_bRejectCurrentJob = true;
+		++m_metrics.obsoleteJobsRejected;
+	}
 }
 
 bool RenderScheduler::CompleteCurrent(DWORD now, bool finalTile)
@@ -329,6 +448,14 @@ bool RenderScheduler::Reconcile(const JobWindows& windows)
 		if (m_currentJob.type == PREFETCH_DECODE)
 			cancelPrefetches = true;
 	}
+	for (map<unsigned long long, RunningTile>::iterator it = m_parallelTiles.begin();
+		it != m_parallelTiles.end(); ++it)
+		if (windows.renderPages.find(it->second.job.GetPage()) == windows.renderPages.end() &&
+			!it->second.rejected)
+		{
+			it->second.rejected = true;
+			++m_metrics.obsoleteJobsRejected;
+		}
 	return cancelPrefetches;
 }
 
@@ -350,6 +477,7 @@ bool RenderScheduler::Clear()
 void RenderScheduler::CancelTiles(int nPage)
 {
 	RemoveQueuedTilesForPage(nPage);
+	RejectParallelTilesForPage(nPage);
 	if (m_currentJob.IsActive() && m_currentJob.type == TILE_RENDER &&
 		m_currentJob.GetPage() == nPage && !m_bRejectCurrentJob)
 	{

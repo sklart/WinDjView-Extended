@@ -34,10 +34,28 @@
 // CRenderThread class
 
 CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
-	: m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0),
-	  m_scheduler(pSource->GetPageCount()), m_nTileRegionRenders(0), m_nTileFallbacks(0)
+	: m_stop(FALSE, TRUE), m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0),
+	  m_scheduler(pSource->GetPageCount()), m_nTileRegionRenders(0), m_nTileFallbacks(0),
+	  m_nTileWorkerLimit(2), m_nActiveTileWorkers(0),
+	  m_nextTileBatchGeneration(1), m_tileStartGateForRegression(NULL)
 {
 	m_pSource->AddRef();
+	SYSTEM_INFO systemInfo;
+	::GetSystemInfo(&systemInfo);
+	if (systemInfo.dwNumberOfProcessors > 2)
+		m_nTileWorkerLimit = static_cast<int>(min(4u, systemInfo.dwNumberOfProcessors));
+	// The primary worker also renders tiles. Auxiliary workers never take
+	// non-tile jobs, and all of them share the same scheduler under m_lock.
+	for (int i = 1; i < m_nTileWorkerLimit; ++i)
+	{
+		UINT tileThreadId;
+		HANDLE tileThread = (HANDLE)_beginthreadex(NULL, 0, TileThreadProc, this, 0, &tileThreadId);
+		if (tileThread == NULL) break;
+		m_tileThreads.push_back(tileThread);
+		::SetThreadPriority(tileThread, THREAD_PRIORITY_BELOW_NORMAL);
+		theApp.ThreadStarted();
+	}
+	m_nTileWorkerLimit = 1 + static_cast<int>(m_tileThreads.size());
 
 	UINT dwThreadId;
 	m_hThread = (HANDLE)_beginthreadex(NULL, 0, RenderThreadProc, this, 0, &dwThreadId);
@@ -45,9 +63,9 @@ CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 	theApp.ThreadStarted();
 }
 
-CRenderThread::TileBatch::TileBatch(const RenderRequest& request_)
-	: request(request_), grid(request_.size.cx, request_.size.cy),
-	  completion(grid), assembled(NULL) {}
+CRenderThread::TileBatch::TileBatch(const RenderRequest& request_, unsigned long long generation_)
+	: request(request_), generation(generation_), grid(request_.size.cx, request_.size.cy),
+	  completion(grid), assembled(NULL), fallbackStarted(false) {}
 
 CRenderThread::TileBatch::~TileBatch()
 {
@@ -74,6 +92,8 @@ void CRenderThread::DropTileBatch(int nPage)
 CRenderThread::~CRenderThread()
 {
 	ClearTileBatches();
+	for (size_t i = 0; i < m_tileThreads.size(); ++i)
+		::CloseHandle(m_tileThreads[i]);
 	::CloseHandle(m_hThread);
 	m_pSource->Release();
 	theApp.ThreadTerminated();
@@ -87,9 +107,11 @@ void CRenderThread::Stop()
 
 	m_lock.Lock();
 	m_scheduler.Clear();
+	m_scheduler.RejectParallelTiles();
 	ClearTileBatches();
 	m_jobReady.ResetEvent();
 	m_scheduler.RejectCurrent();
+	m_tileReady.SetEvent();
 	PauseJobs();
 	m_lock.Unlock();
 	m_pSource->CancelPrefetches();
@@ -108,7 +130,7 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 	{
 		pThread->m_lock.Lock();
 
-		if (!pThread->m_scheduler.HasQueuedJobs())
+		if (!pThread->m_scheduler.CanTakeNext())
 		{
 			pThread->m_lock.Unlock();
 			continue;
@@ -116,6 +138,15 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 
 		RenderScheduler::Job job;
 		pThread->m_scheduler.TakeNext(job);
+		HANDLE tileGate = job.type == TILE_RENDER ? pThread->m_tileStartGateForRegression : NULL;
+		if (job.type == TILE_RENDER)
+		{
+			++pThread->m_nActiveTileWorkers;
+			pThread->m_tileWorkerMetrics.activeTileWorkers = pThread->m_nActiveTileWorkers;
+			pThread->m_tileWorkerMetrics.peakActiveTileWorkers = max(
+				pThread->m_tileWorkerMetrics.peakActiveTileWorkers, pThread->m_nActiveTileWorkers);
+		}
+		pThread->SignalJobs();
 		pThread->m_lock.Unlock();
 
 		CDIB* pBitmap = NULL;
@@ -128,6 +159,12 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 
 		case TILE_RENDER:
+			if (tileGate != NULL)
+			{
+				HANDLE gateEvents[] = { pThread->m_stop.m_hObject, tileGate };
+				if (::WaitForMultipleObjects(2, gateEvents, FALSE, INFINITE) != WAIT_OBJECT_0 + 1)
+					break;
+			}
 			pBitmap = pThread->RenderTileJob(job, tileFallback);
 			break;
 
@@ -148,47 +185,17 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 			break;
 		}
 
-		// Cannot stop while the owner is being updated
-		pThread->m_stopping.Lock();
-
-		pThread->m_lock.Lock();
-		CDIB* completedTilePage = NULL;
-		bool tileDone = false;
-		bool retryFallback = false;
-		if (job.type == TILE_RENDER && !pThread->m_scheduler.IsCurrentJobRejected())
-		{
-			if (tileFallback) ++pThread->m_nTileFallbacks;
-			else ++pThread->m_nTileRegionRenders;
-			tileDone = pThread->AcceptTileResult(job, pBitmap, tileFallback,
-				retryFallback, completedTilePage);
-		}
-		if (retryFallback)
-		{
-			pThread->m_lock.Unlock();
-			pThread->m_stopping.Unlock();
-			RenderScheduler::Job pageJob;
-			pageJob.type = RenderScheduler::RENDER;
-			pageJob.request = job.tile.key.render;
-			pBitmap = pThread->Render(pageJob, true);
-			pThread->m_stopping.Lock();
-			pThread->m_lock.Lock();
-			if (!pThread->m_scheduler.IsCurrentJobRejected())
-			{
-				bool unusedRetry = false;
-				++pThread->m_nTileFallbacks;
-				tileDone = pThread->AcceptTileResult(job, pBitmap, true,
-					unusedRetry, completedTilePage);
-			}
-		}
-		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount(), tileDone);
 		if (job.type == TILE_RENDER)
 		{
-			if (tileDone)
-				pThread->m_scheduler.CancelTiles(job.GetPage());
-			bNotify = bNotify && tileDone;
+			pThread->FinishTile(job, 0, pBitmap, tileFallback);
+			continue;
 		}
-		if (pThread->m_scheduler.HasQueuedJobs() && !pThread->IsPaused())
-			pThread->m_jobReady.SetEvent();
+
+		// Cannot stop while the owner is being updated
+		pThread->m_stopping.Lock();
+		pThread->m_lock.Lock();
+		bool bNotify = pThread->m_scheduler.CompleteCurrent(::GetTickCount());
+		pThread->SignalJobs();
 		pThread->m_lock.Unlock();
 
 		if (bNotify)
@@ -202,14 +209,6 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 						result.bitmap, &result.request));
 				}
 				break;
-			case TILE_RENDER:
-				{
-				RenderResult result(job.tile.key.render, completedTilePage);
-				pThread->m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.GetPage(),
-					result.bitmap, &result.request));
-				}
-				break;
-
 			case DECODE:
 			case READINFO:
 				pThread->m_pOwner->OnUpdate(NULL, &PageMsg(PAGE_DECODED, job.GetPage()));
@@ -219,7 +218,6 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 		else
 		{
 			delete pBitmap;
-			delete completedTilePage;
 		}
 
 		pThread->m_stopping.Unlock();
@@ -230,6 +228,9 @@ unsigned int __stdcall CRenderThread::RenderThreadProc(void* pvData)
 	// Ensure that a call to Stop() is finished
 	pThread->m_stopping.Lock();
 	pThread->m_stopping.Unlock();
+	if (!pThread->m_tileThreads.empty())
+		::WaitForMultipleObjects(static_cast<DWORD>(pThread->m_tileThreads.size()),
+			&pThread->m_tileThreads[0], TRUE, INFINITE);
 
 	// Clean page cache
 	for (int nPage = 0; nPage < pThread->m_pSource->GetPageCount(); ++nPage)
@@ -250,8 +251,7 @@ void CRenderThread::ResumeJobs()
 	m_lock.Lock();
 
 	InterlockedExchange(&m_nPaused, 0);
-	if (m_scheduler.HasQueuedJobs())
-		m_jobReady.SetEvent();
+	SignalJobs();
 
 	m_lock.Unlock();
 }
@@ -341,6 +341,133 @@ void CRenderThread::GetTileRenderStats(int& regions, int& fallbacks)
 	regions = m_nTileRegionRenders;
 	fallbacks = m_nTileFallbacks;
 	m_lock.Unlock();
+}
+
+void CRenderThread::GetTileWorkerMetrics(TileWorkerMetrics& metrics)
+{
+	m_lock.Lock();
+	metrics = m_tileWorkerMetrics;
+	metrics.configuredTileWorkers = m_nTileWorkerLimit;
+	m_lock.Unlock();
+}
+
+void CRenderThread::SetTileStartGateForRegression(HANDLE gate)
+{
+	m_lock.Lock();
+	m_tileStartGateForRegression = gate;
+	m_lock.Unlock();
+}
+
+void CRenderThread::SignalJobs()
+{
+	// Caller holds m_lock. Each successful take wakes the next worker so an
+	// auto-reset event can fill, but never exceed, the bounded worker pool.
+	if (IsPaused() || !m_scheduler.HasQueuedJobs()) return;
+	m_jobReady.SetEvent();
+	m_tileReady.SetEvent();
+}
+
+unsigned int __stdcall CRenderThread::TileThreadProc(void* pvData)
+{
+	::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+	CRenderThread* thread = reinterpret_cast<CRenderThread*>(pvData);
+	HANDLE events[] = { thread->m_tileReady.m_hObject, thread->m_stop.m_hObject };
+	while (::WaitForMultipleObjects(2, events, FALSE, INFINITE) == WAIT_OBJECT_0)
+	{
+		thread->m_lock.Lock();
+		RenderScheduler::Job job;
+		unsigned long long token = 0;
+		if (!thread->m_scheduler.TakeNextParallelTile(job, token))
+		{
+			thread->m_lock.Unlock();
+			continue;
+		}
+		++thread->m_nActiveTileWorkers;
+		thread->m_tileWorkerMetrics.activeTileWorkers = thread->m_nActiveTileWorkers;
+		thread->m_tileWorkerMetrics.peakActiveTileWorkers = max(
+			thread->m_tileWorkerMetrics.peakActiveTileWorkers, thread->m_nActiveTileWorkers);
+		HANDLE tileGate = thread->m_tileStartGateForRegression;
+		thread->SignalJobs();
+		thread->m_lock.Unlock();
+
+		bool fallback = false;
+		CDIB* tile = NULL;
+		if (tileGate != NULL)
+		{
+			HANDLE gateEvents[] = { thread->m_stop.m_hObject, tileGate };
+			if (::WaitForMultipleObjects(2, gateEvents, FALSE, INFINITE) == WAIT_OBJECT_0 + 1)
+				tile = thread->RenderTileJob(job, fallback);
+		}
+		else
+			tile = thread->RenderTileJob(job, fallback);
+		thread->FinishTile(job, token, tile, fallback);
+	}
+	::CoUninitialize();
+	theApp.ThreadTerminated();
+	return 0;
+}
+
+void CRenderThread::FinishTile(const RenderScheduler::Job& job,
+	unsigned long long token, CDIB*& tile, bool fallback)
+{
+	m_stopping.Lock();
+	m_lock.Lock();
+	CDIB* completed = NULL;
+	bool retryFallback = false;
+	bool done = false;
+	const bool rejected = ::WaitForSingleObject(m_stop.m_hObject, 0) == WAIT_OBJECT_0 ||
+		(token == 0 ? m_scheduler.IsCurrentJobRejected() :
+		m_scheduler.IsParallelTileRejected(token));
+	++m_tileWorkerMetrics.completedTileJobs;
+	if (rejected)
+		++m_tileWorkerMetrics.rejectedTileResults;
+	else
+	{
+		if (!fallback) ++m_nTileRegionRenders;
+		done = AcceptTileResult(job, token, tile, fallback, retryFallback, completed);
+	}
+	if (retryFallback)
+	{
+		++m_nTileFallbacks;
+		++m_tileWorkerMetrics.tileFallbacks;
+		m_lock.Unlock();
+		m_stopping.Unlock();
+		RenderScheduler::Job pageJob;
+		pageJob.type = RenderScheduler::RENDER;
+		pageJob.request = job.tile.key.render;
+		delete tile;
+		tile = Render(pageJob, true);
+		m_stopping.Lock();
+		m_lock.Lock();
+		const bool fallbackRejected = ::WaitForSingleObject(m_stop.m_hObject, 0) == WAIT_OBJECT_0 ||
+			(token == 0 ? m_scheduler.IsCurrentJobRejected() :
+			m_scheduler.IsParallelTileRejected(token));
+		if (!fallbackRejected)
+		{
+			bool unusedRetry = false;
+			done = AcceptTileResult(job, token, tile, true, unusedRetry, completed);
+		}
+		else if (!rejected)
+			++m_tileWorkerMetrics.rejectedTileResults;
+	}
+	const bool accept = token == 0 ? m_scheduler.CompleteCurrent(::GetTickCount(), done) :
+		m_scheduler.CompleteParallelTile(token, ::GetTickCount(), done);
+	if (done) m_scheduler.CancelTiles(job.GetPage());
+	--m_nActiveTileWorkers;
+	m_tileWorkerMetrics.activeTileWorkers = m_nActiveTileWorkers;
+	SignalJobs();
+	m_lock.Unlock();
+	if (accept && done)
+	{
+		RenderResult result(job.tile.key.render, completed);
+		m_pOwner->OnUpdate(NULL, &BitmapMsg(PAGE_RENDERED, job.GetPage(),
+			result.bitmap, &result.request));
+	}
+	else
+		delete completed;
+	delete tile;
+	tile = NULL;
+	m_stopping.Unlock();
 }
 
 void CRenderThread::ReconcileJobs(const JobWindows& windows)
@@ -508,20 +635,19 @@ CDIB* CRenderThread::RenderTileJob(const RenderScheduler::Job& job, bool& fallba
 	}
 	delete bitmap;
 	fallback = true;
-	RenderScheduler::Job pageJob;
-	pageJob.type = RenderScheduler::RENDER;
-	pageJob.request = identity;
-	return Render(pageJob, true);
+	return NULL;
 }
 
 // Called with m_lock held after a tile job has physically finished.
 bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
-	CDIB*& tile, bool fallback, bool& retryFallback, CDIB*& completed)
+	unsigned long long token, CDIB*& tile, bool fallback,
+	bool& retryFallback, CDIB*& completed)
 {
 	completed = NULL;
 	retryFallback = false;
 	map<int, TileBatch*>::iterator it = m_tileBatches.find(job.GetPage());
-	if (it == m_tileBatches.end() || it->second->request != job.tile.key.render)
+	if (it == m_tileBatches.end() || it->second->request != job.tile.key.render ||
+		it->second->generation != job.batchGeneration)
 	{
 		delete tile;
 		tile = NULL;
@@ -530,10 +656,24 @@ bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
 	TileBatch* batch = it->second;
 	if (fallback)
 	{
+		if (!batch->fallbackStarted)
+		{
+			batch->fallbackStarted = true;
+			batch->fallbackOwner = job.tile.key;
+			m_scheduler.CancelTileSiblings(job.GetPage(), token);
+			retryFallback = true;
+			return false;
+		}
 		completed = tile;
 		tile = NULL;
 		DropTileBatch(job.GetPage());
 		return true;
+	}
+	if (batch->fallbackStarted)
+	{
+		delete tile;
+		tile = NULL;
+		return false;
 	}
 	const TileKey& key = job.tile.key;
 	if (tile == NULL || !tile->IsValid() ||
@@ -543,6 +683,10 @@ bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
 	{
 		delete tile;
 		tile = NULL;
+		batch->fallbackStarted = true;
+		batch->fallbackOwner = job.tile.key;
+		m_scheduler.CancelTileSiblings(job.GetPage(), token);
+		retryFallback = true;
 		return false;
 	}
 	const int bpp = tile->GetBitsPerPixel();
@@ -550,6 +694,9 @@ bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
 	{
 		delete tile;
 		tile = NULL;
+		batch->fallbackStarted = true;
+		batch->fallbackOwner = job.tile.key;
+		m_scheduler.CancelTileSiblings(job.GetPage(), token);
 		retryFallback = true;
 		return false;
 	}
@@ -575,6 +722,9 @@ bool CRenderThread::AcceptTileResult(const RenderScheduler::Job& job,
 	{
 		delete tile;
 		tile = NULL;
+		batch->fallbackStarted = true;
+		batch->fallbackOwner = job.tile.key;
+		m_scheduler.CancelTileSiblings(job.GetPage(), token);
 		retryFallback = true;
 		return false;
 	}
@@ -916,8 +1066,7 @@ void CRenderThread::AddJob(const RenderRequest& request, JobPriority priority)
 	m_lock.Lock();
 	DropTileBatch(request.page);
 	bool queued = m_scheduler.Submit(job, ::GetTickCount());
-	if (queued && !IsPaused())
-		m_jobReady.SetEvent();
+	if (queued) SignalJobs();
 	m_lock.Unlock();
 }
 
@@ -943,11 +1092,22 @@ void CRenderThread::AddViewportJob(const RenderRequest& request, JobPriority pri
 			DropTileBatch(request.page);
 		if (m_tileBatches.find(request.page) == m_tileBatches.end())
 		{
-			TileBatch* created = new TileBatch(request);
+			TileBatch* created = new TileBatch(request, m_nextTileBatchGeneration++);
 			try { m_tileBatches.insert(make_pair(request.page, created)); }
 			catch (...) { delete created; throw; }
 		}
 		TileBatch* batch = m_tileBatches.find(request.page)->second;
+		if (batch->fallbackStarted)
+		{
+			RenderScheduler::Job owner;
+			owner.type = RenderScheduler::TILE_RENDER;
+			owner.tile = TileRequest(batch->fallbackOwner);
+			owner.batchGeneration = batch->generation;
+			owner.priority = (RenderScheduler::JobPriority)priority;
+			m_scheduler.Submit(owner, ::GetTickCount());
+			m_lock.Unlock();
+			return;
+		}
 		for (int row = 0; row < batch->grid.Rows(); ++row)
 		{
 			for (int column = 0; column < batch->grid.Columns(); ++column)
@@ -956,6 +1116,7 @@ void CRenderThread::AddViewportJob(const RenderRequest& request, JobPriority pri
 				RenderScheduler::Job job;
 				job.type = RenderScheduler::TILE_RENDER;
 				job.tile = TileRequest(TileKey(request, batch->grid.At(column, row), column, row));
+				job.batchGeneration = batch->generation;
 				job.priority = (RenderScheduler::JobPriority)priority;
 				queued = m_scheduler.Submit(job, ::GetTickCount()) || queued;
 			}
@@ -978,8 +1139,7 @@ void CRenderThread::AddViewportJob(const RenderRequest& request, JobPriority pri
 		AddJob(request, priority);
 		return;
 	}
-	if (queued && !IsPaused())
-		m_jobReady.SetEvent();
+	if (queued) SignalJobs();
 	m_lock.Unlock();
 }
 
@@ -1027,8 +1187,7 @@ void CRenderThread::AddJob(const RenderScheduler::Job& job)
 {
 	m_lock.Lock();
 	bool queued = m_scheduler.Submit(job, ::GetTickCount());
-	if (queued && !IsPaused())
-		m_jobReady.SetEvent();
+	if (queued) SignalJobs();
 
 	m_lock.Unlock();
 }
@@ -1040,6 +1199,7 @@ void CRenderThread::RemoveAllJobs()
 	if (!m_tileBatches.empty())
 	{
 		ClearTileBatches();
+		m_scheduler.RejectParallelTiles();
 		JobInfo current;
 		if (m_scheduler.GetCurrentJobInfo(current) && current.type == TILE_RENDER)
 			m_scheduler.RejectCurrent();

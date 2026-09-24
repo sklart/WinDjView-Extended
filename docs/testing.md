@@ -54,7 +54,7 @@ their PE architecture, rejects external JPEG/DjVu imports in Release, and runs
 the long-path DjVu regression against the native library output. The startup
 smoke is run for both native Release architectures as well.
 
-The Native Release x64 golden runner also checks single-worker tile/full-page
+The Native Release x64 golden runner also checks multi-worker tile/full-page
 pixel equivalence on real DjVu pages. Tile geometry has a separate pure CI
 regression. For viewport render jobs, automatic tiling applies to raster targets of at
 least 4,194,304 pixels with a side of at least 2048 pixels; tiles are 512 px
@@ -63,14 +63,26 @@ after zoom and crop expansion, not the source document dimensions. This
 foundation's direct `RenderTiled()` API tiles DIB conversion after a full
 DjVuLibre source raster; viewport jobs now use independent raster regions.
 Direct thumbnail, save/export and print-related render calls retain the full-page path.
-Phase 7B schedules each large viewport tile independently on the existing
-single worker and publishes only a complete batch. Phase 8A requests each
+Phase 7B schedules each large viewport tile independently and publishes only
+a complete batch. Phase 8A requests each
 supported tile region directly from DjVuLibre and no longer keeps a full-page
 staging DIB. B&W viewport requests are covered by pixel-identical region
 regressions, including rotation, adjustments and crop. Layered color paths can
 differ by a channel when rendered as isolated regions, so they, whole-source
 PnmScaleFixed scaling, unsupported regions, and failed tile renders retain the
-pixel-compatible full-page fallback. Multi-worker rasterization is deferred.
+pixel-compatible full-page fallback. Phase 8B uses one shared scheduler and
+2–4 bounded workers only for viewport tile jobs; non-tile jobs remain serial.
+
+Phase 8B completion gates are blocking: the multi-worker scheduler regression,
+real-worker parallel execution and 1–4 worker bound, exactly-once publication,
+stale/replacement/reconciliation/fallback/shutdown contracts, pixel equivalence
+and unchanged Golden Render hashes, all existing render/cache/corpus/ASan
+regressions, and the full CI matrix. The worker metrics (`peakActiveTileWorkers`,
+`completedTileJobs`, `rejectedTileResults`, `tileFallbacks`) are diagnostic,
+not UI state. Deferred, non-blocking evaluation is a repeatable speedup/memory
+benchmark against single-worker rendering, manual long-scroll/zoom visual soak,
+and the cost/benefit decision for Phase 8C progressive publication or tile cache.
+No minimum speedup threshold is a Phase 8B correctness gate.
 
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the

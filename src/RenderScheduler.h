@@ -22,7 +22,7 @@ public:
 
 	struct Job
 	{
-		Job() : nPage(-1), type(DECODE), priority(Background) {}
+		Job() : nPage(-1), type(DECODE), priority(Background), batchGeneration(0) {}
 		int GetPage() const { return type == RENDER ? request.page :
 			(type == TILE_RENDER ? tile.key.render.page : nPage); }
 		bool IsActive() const { return GetPage() >= 0; }
@@ -33,6 +33,8 @@ public:
 		TileRequest tile;
 		JobType type;
 		JobPriority priority;
+		// Tile-batch lifecycle token. Not part of pixel/render identity.
+		unsigned long long batchGeneration;
 	};
 
 	struct JobInfo
@@ -76,6 +78,13 @@ public:
 	// the worker so scheduler tests do not depend on a clock or a thread.
 	bool Submit(const Job& job, DWORD now);
 	bool TakeNext(Job& job);
+	bool CanTakeNext() const;
+	bool TakeNextParallelTile(Job& job, unsigned long long& token);
+	bool IsParallelTileRejected(unsigned long long token) const;
+	bool CompleteParallelTile(unsigned long long token, DWORD now, bool finalTile);
+	bool HasParallelTiles() const { return !m_parallelTiles.empty(); }
+	void RejectParallelTiles();
+	void CancelTileSiblings(int nPage, unsigned long long ownerToken);
 	// Returns whether the completed job remains valid for publication.
 	bool CompleteCurrent(DWORD now, bool finalTile = true);
 	void RejectCurrent();
@@ -103,6 +112,13 @@ private:
 	list<Job> m_jobs;
 	vector<list<Job>::iterator> m_pages;
 	Job m_currentJob;
+	struct RunningTile
+	{
+		Job job;
+		bool rejected;
+	};
+	map<unsigned long long, RunningTile> m_parallelTiles;
+	unsigned long long m_nextTileToken;
 	bool m_bRejectCurrentJob;
 	Metrics m_metrics;
 	DWORD m_dwCurrentPageRequest;
@@ -112,5 +128,6 @@ private:
 	void RemoveFromQueue(int nPage);
 	bool SubmitTile(const Job& job, DWORD now);
 	void RemoveQueuedTilesForPage(int nPage);
+	void RejectParallelTilesForPage(int nPage);
 	bool HasSameRenderIdentity(const Job& left, const Job& right) const;
 };

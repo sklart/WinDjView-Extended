@@ -43,6 +43,10 @@ jobs:
         shell: cmd
         run: tools\tests\run-tile-scheduler-regression.cmd
 
+      - name: Run multi-worker tile scheduler regression
+        shell: cmd
+        run: tools\tests\run-multi-worker-tile-regression.cmd
+
       - name: Run update menu source regression
         shell: pwsh
         run: pwsh .\tools\tests\test-update-menu-source.ps1

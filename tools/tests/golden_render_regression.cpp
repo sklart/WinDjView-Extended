@@ -364,11 +364,26 @@ namespace
 				TileObserver observer;
 				CRenderThread* worker = new CRenderThread(source, &observer);
 				worker->PauseJobs();
+				HANDLE fallbackGate = index == 0 ? ::CreateEvent(NULL, TRUE, FALSE, NULL) : NULL;
+				if (fallbackGate != NULL) worker->SetTileStartGateForRegression(fallbackGate);
 				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
 				worker->AddViewportJob(request, CRenderThread::CurrentPageRender);
 				TileGrid grid(item.width, item.height);
 				workerEqual = workerEqual && worker->GetQueuedJobCount() == static_cast<int>(grid.Count());
 				worker->ResumeJobs();
+				if (fallbackGate != NULL)
+				{
+					bool overlapping = false;
+					for (int attempt = 0; attempt < 2000; ++attempt)
+					{
+						CRenderThread::TileWorkerMetrics snapshot;
+						worker->GetTileWorkerMetrics(snapshot);
+						if (snapshot.activeTileWorkers >= 2) { overlapping = true; break; }
+						::Sleep(1);
+					}
+					workerEqual = workerEqual && overlapping;
+					::SetEvent(fallbackGate);
+				}
 				workerEqual = workerEqual &&
 					::WaitForSingleObject(observer.event, 30000) == WAIT_OBJECT_0 &&
 					observer.valid && observer.request == request &&
@@ -377,15 +392,45 @@ namespace
 				workerEqual = workerEqual && InterlockedCompareExchange(&observer.count, 0, 0) == 1;
 				int regions = 0, fallbacks = 0;
 				worker->GetTileRenderStats(regions, fallbacks);
+				CRenderThread::TileWorkerMetrics tileMetrics;
+				worker->GetTileWorkerMetrics(tileMetrics);
+				printf("tile workers: peak=%d completed=%d rejected=%d fallbacks=%d\n",
+					tileMetrics.peakActiveTileWorkers, tileMetrics.completedTileJobs,
+					tileMetrics.rejectedTileResults, tileMetrics.tileFallbacks);
+				workerEqual = workerEqual && tileMetrics.configuredTileWorkers >= 2 &&
+					tileMetrics.configuredTileWorkers <= 4 &&
+					tileMetrics.peakActiveTileWorkers >= 1 &&
+					tileMetrics.peakActiveTileWorkers <= tileMetrics.configuredTileWorkers &&
+					tileMetrics.completedTileJobs >= 1;
 				const bool completeRegions = regions == static_cast<int>(grid.Count()) && fallbacks == 0;
 				const bool singleFallback = regions == 0 && fallbacks == 1;
 				workerEqual = workerEqual && (completeRegions || singleFallback);
 				if (item.mode == CDjVuView::BlackAndWhite)
-					workerEqual = workerEqual && completeRegions;
+					workerEqual = workerEqual && completeRegions &&
+						tileMetrics.peakActiveTileWorkers >= 2 &&
+						tileMetrics.completedTileJobs == static_cast<int>(grid.Count());
+				if (singleFallback)
+					workerEqual = workerEqual && tileMetrics.tileFallbacks == 1 &&
+						(tileMetrics.peakActiveTileWorkers == 1 ||
+						 tileMetrics.rejectedTileResults > 0);
+				if (fallbackGate != NULL)
+				{
+					for (int attempt = 0; attempt < 2000; ++attempt)
+					{
+						worker->GetTileWorkerMetrics(tileMetrics);
+						if (tileMetrics.activeTileWorkers == 0) break;
+						::Sleep(1);
+					}
+					workerEqual = workerEqual && singleFallback &&
+						tileMetrics.peakActiveTileWorkers >= 2 &&
+						tileMetrics.rejectedTileResults >= 1;
+					if (tileMetrics.activeTileWorkers == 0) ::CloseHandle(fallbackGate);
+				}
 				if (!workerEqual)
 				{
-					fprintf(stderr, "tile worker mismatch: regions=%d expected=%llu fallbacks=%d\n",
-						regions, grid.Count(), fallbacks);
+					fprintf(stderr, "tile worker mismatch: regions=%d expected=%llu fallbacks=%d peak=%d completed=%d rejected=%d\n",
+						regions, grid.Count(), fallbacks, tileMetrics.peakActiveTileWorkers,
+						tileMetrics.completedTileJobs, tileMetrics.rejectedTileResults);
 					if (observer.pixels.size() == workerReference.size())
 						for (size_t n = 0; n < workerReference.size(); ++n)
 							if (observer.pixels[n] != workerReference[n])
@@ -426,6 +471,89 @@ namespace
 				worker->Stop();
 				workerEqual = workerEqual && replaced;
 				if (!replaced) fprintf(stderr, "tile queued stale replacement failed\n");
+
+				// Replace a request after at least two real region renders are active.
+				// This exercises the worker/batch boundary, not only queue policy.
+				RenderRequest live(request);
+				RenderRequest liveReplacement(live);
+				liveReplacement.rotation = 2;
+				CDIB* liveFull = CRenderThread::RenderFullPage(image, liveReplacement);
+				vector<BYTE> livePixels;
+				bool liveValid = CanonicalRgb24(liveFull, livePixels);
+				delete liveFull;
+				TileObserver liveObserver;
+				CRenderThread* liveWorker = new CRenderThread(source, &liveObserver);
+				HANDLE gate = ::CreateEvent(NULL, TRUE, FALSE, NULL);
+				liveWorker->SetTileStartGateForRegression(gate);
+				liveWorker->AddViewportJob(live, CRenderThread::CurrentPageRender);
+				bool started = false;
+				const int liveTileCount = static_cast<int>(TileGrid(live.size.cx, live.size.cy).Count());
+				for (int attempt = 0; attempt < 2000; ++attempt)
+				{
+					CRenderThread::TileWorkerMetrics snapshot;
+					liveWorker->GetTileWorkerMetrics(snapshot);
+					if (snapshot.activeTileWorkers >= 2 &&
+						snapshot.completedTileJobs < liveTileCount - 2)
+					{
+						started = true;
+						break;
+					}
+					::Sleep(1);
+				}
+				if (started)
+				{
+					CRenderThread::JobWindows emptyWindow;
+					liveWorker->ReconcileJobs(emptyWindow);
+					liveWorker->AddViewportJob(liveReplacement, CRenderThread::CurrentPageRender);
+				}
+				::SetEvent(gate);
+				bool livePass = liveValid && started &&
+					::WaitForSingleObject(liveObserver.event, 30000) == WAIT_OBJECT_0 &&
+					liveObserver.valid && liveObserver.request == liveReplacement &&
+					liveObserver.pixels == livePixels;
+				::Sleep(25);
+				CRenderThread::TileWorkerMetrics liveMetrics;
+				liveWorker->GetTileWorkerMetrics(liveMetrics);
+				livePass = livePass && InterlockedCompareExchange(&liveObserver.count, 0, 0) == 1 &&
+					liveMetrics.rejectedTileResults > 0 &&
+					liveMetrics.peakActiveTileWorkers <= 4;
+				for (int attempt = 0; attempt < 2000; ++attempt)
+				{
+					liveWorker->GetTileWorkerMetrics(liveMetrics);
+					if (liveMetrics.activeTileWorkers == 0) break;
+					::Sleep(1);
+				}
+				if (liveMetrics.activeTileWorkers == 0) ::CloseHandle(gate);
+				liveWorker->Stop();
+				workerEqual = workerEqual && livePass;
+				if (!livePass)
+					fprintf(stderr, "live tile replacement failed: started=%d peak=%d rejected=%d count=%ld\n",
+						started, liveMetrics.peakActiveTileWorkers,
+						liveMetrics.rejectedTileResults,
+						InterlockedCompareExchange(&liveObserver.count, 0, 0));
+
+				// Stop while multiple workers are held on an actual tile job. The
+				// stop event must release them without publishing an incomplete page.
+				static TileObserver shutdownObserver;
+				CRenderThread* shutdownWorker = new CRenderThread(source, &shutdownObserver);
+				HANDLE shutdownGate = ::CreateEvent(NULL, TRUE, FALSE, NULL);
+				shutdownWorker->SetTileStartGateForRegression(shutdownGate);
+				shutdownWorker->AddViewportJob(live, CRenderThread::CurrentPageRender);
+				bool shutdownActive = false;
+				for (int attempt = 0; attempt < 2000; ++attempt)
+				{
+					CRenderThread::TileWorkerMetrics snapshot;
+					shutdownWorker->GetTileWorkerMetrics(snapshot);
+					if (snapshot.activeTileWorkers >= 2) { shutdownActive = true; break; }
+					::Sleep(1);
+				}
+				shutdownWorker->Stop();
+				::SetEvent(shutdownGate);
+				::Sleep(50);
+				workerEqual = workerEqual && shutdownActive &&
+					InterlockedCompareExchange(&shutdownObserver.count, 0, 0) == 0;
+				// Keep the gate handle alive through asynchronous worker teardown.
+				// This test process releases it on exit.
 			}
 			delete full;
 			delete tiled;
