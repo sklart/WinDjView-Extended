@@ -11,7 +11,7 @@ function Require-SourcePattern {
 }
 
 Require-SourcePattern 'src\RenderThread.h' 'AddPrefetchJob\s*\(int nPage\)' 'prefetch job API'
-Require-SourcePattern 'src\RenderScheduler.h' 'enum JobType \{ RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP \}' 'prefetch job type'
+Require-SourcePattern 'src\RenderScheduler.h' 'enum JobType \{ RENDER, DECODE, PREFETCH_DECODE, READINFO, CLEANUP(?:, TILE_RENDER)? \}' 'prefetch job type'
 Require-SourcePattern 'src\RenderScheduler.h' 'enum JobPriority \{ CurrentPageRender, VisibleRender, Decode, AdjacentPrefetch, Background \}' 'explicit scheduler priorities'
 Require-SourcePattern 'src\RenderScheduler.cpp' 'existing->priority < AdjacentPrefetch' 'visible-job priority guard'
 Require-SourcePattern 'src\RenderScheduler.cpp' 'insertAt->priority <= job\.priority' 'priority queue insertion'
