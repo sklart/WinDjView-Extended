@@ -20,6 +20,8 @@ public:
 	BitmapCache();
 	void Register(const RenderRequest& request, __int64 bytes);
 	void Remove(int page);
+	// Forget metadata only. CDIB ownership stays with the caller; counters remain.
+	void Clear();
 	bool HasIdentity(int page, const RenderRequest& request) const;
 	bool Touch(int page, const RenderRequest& request);
 	void GetPages(std::vector<int>& pages) const;

@@ -134,6 +134,30 @@ static void TestReplacementAndStorage()
 	Check(cache.GetBytes() == 100, "removal recalculates a previously saturated total");
 }
 
+static void TestClear()
+{
+	BitmapCache cache;
+	cache.Register(Request(1), 100);
+	cache.Register(Request(2), 200);
+	cache.Register(Request(3), 300);
+	cache.RecordHit();
+	cache.RecordMiss();
+	cache.RecordEviction();
+	cache.Clear();
+	Check(cache.GetCount() == 0 && cache.GetBytes() == 0,
+		"Clear removes every metadata entry and retained byte");
+	Check(!cache.HasIdentity(1, Request(1)) && !cache.HasIdentity(2, Request(2)) &&
+		!cache.HasIdentity(3, Request(3)) && !cache.Touch(1, Request(1)),
+		"Clear forgets old render identities");
+	std::vector<int> pages;
+	cache.GetPages(pages);
+	Check(pages.empty(), "Clear leaves no registered pages");
+	int hits, misses, evictions;
+	cache.GetCounters(hits, misses, evictions);
+	Check(hits == 1 && misses == 1 && evictions == 1,
+		"Clear preserves cumulative counters until ResetCounters");
+}
+
 int _tmain()
 {
 	TestIdentityAndCounters();
@@ -141,6 +165,7 @@ int _tmain()
 	TestLimits();
 	TestOversizedPinnedBitmap();
 	TestReplacementAndStorage();
+	TestClear();
 	if (failures != 0)
 		return 1;
 	puts("Bitmap cache regression: PASS");

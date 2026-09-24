@@ -48,6 +48,12 @@ void BitmapCache::Remove(int page)
 		RecalculateBytes();
 }
 
+void BitmapCache::Clear()
+{
+	m_entries.clear();
+	m_bytes = 0;
+}
+
 bool BitmapCache::HasIdentity(int page, const RenderRequest& request) const
 {
 	std::map<int, Entry>::const_iterator it = m_entries.find(page);

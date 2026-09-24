@@ -6,6 +6,7 @@
 
 - Added a user-visible **Check for Updates** command to the Help menu.
 - The About dialog identifies 64-bit builds with an `(x64)` suffix.
+- Separated retained bitmap-cache policy from the DjVu view implementation.
 
 ## 4.3.0 — 2026-09-22
 
