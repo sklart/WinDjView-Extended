@@ -33,7 +33,8 @@
 
 // CRenderThread class
 
-CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
+CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner,
+	int tileWorkersForBenchmark)
 	: m_stop(FALSE, TRUE), m_pOwner(pOwner), m_pSource(pSource), m_nPaused(0),
 	  m_scheduler(pSource->GetPageCount()), m_nTileRegionRenders(0), m_nTileFallbacks(0),
 	  m_nTileWorkerLimit(2), m_nActiveTileWorkers(0),
@@ -44,6 +45,9 @@ CRenderThread::CRenderThread(DjVuSource* pSource, Observer* pOwner)
 	::GetSystemInfo(&systemInfo);
 	if (systemInfo.dwNumberOfProcessors > 2)
 		m_nTileWorkerLimit = static_cast<int>(min(4u, systemInfo.dwNumberOfProcessors));
+	if (tileWorkersForBenchmark == 1 || tileWorkersForBenchmark == 2 ||
+		tileWorkersForBenchmark == 4)
+		m_nTileWorkerLimit = tileWorkersForBenchmark;
 	// The primary worker also renders tiles. Auxiliary workers never take
 	// non-tile jobs, and all of them share the same scheduler under m_lock.
 	for (int i = 1; i < m_nTileWorkerLimit; ++i)
@@ -348,6 +352,16 @@ void CRenderThread::GetTileWorkerMetrics(TileWorkerMetrics& metrics)
 	m_lock.Lock();
 	metrics = m_tileWorkerMetrics;
 	metrics.configuredTileWorkers = m_nTileWorkerLimit;
+	m_lock.Unlock();
+}
+
+void CRenderThread::ResetTileWorkerMetricsForBenchmark()
+{
+	m_lock.Lock();
+	// The benchmark calls this only between completed page requests.
+	m_tileWorkerMetrics = TileWorkerMetrics();
+	m_tileWorkerMetrics.activeTileWorkers = m_nActiveTileWorkers;
+	m_tileWorkerMetrics.peakActiveTileWorkers = m_nActiveTileWorkers;
 	m_lock.Unlock();
 }
 

@@ -41,7 +41,9 @@ public:
 	typedef RenderScheduler::Metrics SchedulerMetrics;
 	typedef RenderScheduler::JobWindows JobWindows;
 
-	CRenderThread(DjVuSource* pSource, Observer* pOwner);
+	// A nonzero limit is only used by the performance harness. Existing callers
+	// keep the production hardware-based 2-4 worker selection.
+	CRenderThread(DjVuSource* pSource, Observer* pOwner, int tileWorkersForBenchmark = 0);
 	void Stop();
 
 	void AddJob(int nPage, int nRotate, const CSize& size, const CDisplaySettings& displaySettings,
@@ -90,6 +92,7 @@ public:
 			rejectedTileResults, tileFallbacks;
 	};
 	void GetTileWorkerMetrics(TileWorkerMetrics& metrics);
+	void ResetTileWorkerMetricsForBenchmark();
 	// Null in production. A manual-reset gate lets the regression hold real
 	// raster jobs after scheduling to exercise overlap and stale completion.
 	void SetTileStartGateForRegression(HANDLE gate);

@@ -83,6 +83,9 @@ not UI state. Deferred, non-blocking evaluation is a repeatable speedup/memory
 benchmark against single-worker rendering, manual long-scroll/zoom visual soak,
 and the cost/benefit decision for Phase 8C progressive publication or tile cache.
 No minimum speedup threshold is a Phase 8B correctness gate.
+Phase 8C's repeatable 1/2/4-worker measurements, raw CI artifact, local
+reference result, and follow-up decision are documented in
+[`tile-performance.md`](tile-performance.md).
 
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the

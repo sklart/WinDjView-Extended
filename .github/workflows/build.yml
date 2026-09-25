@@ -338,6 +338,19 @@ jobs:
         shell: cmd
         run: tools\tests\run-golden-render-regression.cmd Release x64 native tools\tests\corpus\files
 
+      - name: Run tile performance benchmark
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-tile-performance-benchmark.cmd tools\tests\corpus\files
+
+      - name: Upload tile performance benchmark
+        if: always() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tile-performance-native-release-x64
+          path: tools/tests/artifacts/tile-performance/
+          if-no-files-found: warn
+
       - name: Run render prefetch queue regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd
