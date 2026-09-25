@@ -79,13 +79,19 @@ stale/replacement/reconciliation/fallback/shutdown contracts, pixel equivalence
 and unchanged Golden Render hashes, all existing render/cache/corpus/ASan
 regressions, and the full CI matrix. The worker metrics (`peakActiveTileWorkers`,
 `completedTileJobs`, `rejectedTileResults`, `tileFallbacks`) are diagnostic,
-not UI state. Deferred, non-blocking evaluation is a repeatable speedup/memory
-benchmark against single-worker rendering, manual long-scroll/zoom visual soak,
-and the cost/benefit decision for Phase 8C progressive publication or tile cache.
-No minimum speedup threshold is a Phase 8B correctness gate.
+not UI state. The repeatable speedup evaluation was completed in Phase 8C;
+manual long-scroll/zoom visual soak remains a separate release check. There
+is no minimum speedup threshold for tile correctness.
 Phase 8C's repeatable 1/2/4-worker measurements, raw CI artifact, local
 reference result, and follow-up decision are documented in
 [`tile-performance.md`](tile-performance.md).
+Phase 8D adds a blocking real-worker stress regression in Native Release x64:
+`tools\tests\run-tile-stress-regression.cmd tools\tests\corpus\files`.
+It covers repeated viewport changes and close/reopen while tiles are active;
+batch/queue/worker invariants and a generous steady-memory/handle ceiling are
+mandatory; raw memory measurements remain diagnostic. See
+[`tile-performance.md`](tile-performance.md) for
+fallback cases and intentionally deferred progressive repaint/tile cache.
 
 The Release x64 startup blocker was an x86 Common Controls dependency embedded
 by the native resource compile: `WIN64` reached C++ compilation but not the

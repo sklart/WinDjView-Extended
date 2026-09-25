@@ -79,7 +79,10 @@ CRenderThread::TileBatch::~TileBatch()
 void CRenderThread::ClearTileBatches()
 {
 	for (map<int, TileBatch*>::iterator it = m_tileBatches.begin(); it != m_tileBatches.end(); ++it)
+	{
 		delete it->second;
+		++m_tileWorkerMetrics.batchesDestroyed;
+	}
 	m_tileBatches.clear();
 }
 
@@ -90,6 +93,7 @@ void CRenderThread::DropTileBatch(int nPage)
 	{
 		delete it->second;
 		m_tileBatches.erase(it);
+		++m_tileWorkerMetrics.batchesDestroyed;
 	}
 }
 
@@ -352,7 +356,16 @@ void CRenderThread::GetTileWorkerMetrics(TileWorkerMetrics& metrics)
 	m_lock.Lock();
 	metrics = m_tileWorkerMetrics;
 	metrics.configuredTileWorkers = m_nTileWorkerLimit;
+	metrics.liveBatches = static_cast<int>(m_tileBatches.size());
 	m_lock.Unlock();
+}
+
+HANDLE CRenderThread::DuplicateThreadHandleForRegression()
+{
+	HANDLE duplicate = NULL;
+	::DuplicateHandle(::GetCurrentProcess(), m_hThread, ::GetCurrentProcess(),
+		&duplicate, SYNCHRONIZE, FALSE, 0);
+	return duplicate;
 }
 
 void CRenderThread::ResetTileWorkerMetricsForBenchmark()
@@ -362,6 +375,7 @@ void CRenderThread::ResetTileWorkerMetricsForBenchmark()
 	m_tileWorkerMetrics = TileWorkerMetrics();
 	m_tileWorkerMetrics.activeTileWorkers = m_nActiveTileWorkers;
 	m_tileWorkerMetrics.peakActiveTileWorkers = m_nActiveTileWorkers;
+	m_tileWorkerMetrics.liveBatches = static_cast<int>(m_tileBatches.size());
 	m_lock.Unlock();
 }
 
@@ -497,6 +511,7 @@ void CRenderThread::ReconcileJobs(const JobWindows& windows)
 		}
 		delete it->second;
 		it = m_tileBatches.erase(it);
+		++m_tileWorkerMetrics.batchesDestroyed;
 	}
 	m_lock.Unlock();
 
@@ -1109,6 +1124,7 @@ void CRenderThread::AddViewportJob(const RenderRequest& request, JobPriority pri
 			TileBatch* created = new TileBatch(request, m_nextTileBatchGeneration++);
 			try { m_tileBatches.insert(make_pair(request.page, created)); }
 			catch (...) { delete created; throw; }
+			++m_tileWorkerMetrics.batchesCreated;
 		}
 		TileBatch* batch = m_tileBatches.find(request.page)->second;
 		if (batch->fallbackStarted)

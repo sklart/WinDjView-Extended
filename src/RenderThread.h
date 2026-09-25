@@ -87,12 +87,15 @@ public:
 	{
 		TileWorkerMetrics() : configuredTileWorkers(0), activeTileWorkers(0),
 			peakActiveTileWorkers(0), completedTileJobs(0),
-			rejectedTileResults(0), tileFallbacks(0) {}
+			rejectedTileResults(0), tileFallbacks(0), batchesCreated(0),
+			batchesDestroyed(0), liveBatches(0) {}
 		int configuredTileWorkers, activeTileWorkers, peakActiveTileWorkers, completedTileJobs,
-			rejectedTileResults, tileFallbacks;
+			rejectedTileResults, tileFallbacks, batchesCreated, batchesDestroyed, liveBatches;
 	};
 	void GetTileWorkerMetrics(TileWorkerMetrics& metrics);
 	void ResetTileWorkerMetricsForBenchmark();
+	// Test-only lifecycle synchronization; caller owns the duplicated OS handle.
+	HANDLE DuplicateThreadHandleForRegression();
 	// Null in production. A manual-reset gate lets the regression hold real
 	// raster jobs after scheduling to exercise overlap and stale completion.
 	void SetTileStartGateForRegression(HANDLE gate);

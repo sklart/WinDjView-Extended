@@ -17,6 +17,8 @@
   non-tile jobs serial and publishing a completed page only once.
 - Added repeatable real-DjVu tile-worker benchmarks for 1, 2 and 4 workers,
   with pixel checks and informational CI artifacts.
+- Added long-running multi-worker tile lifecycle stress coverage for rapid
+  navigation, render-setting changes, document shutdown and reopen.
 
 ## 4.3.0 — 2026-09-22
 

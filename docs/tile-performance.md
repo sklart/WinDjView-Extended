@@ -56,3 +56,28 @@ Neither progressive repaint nor a tile cache is justified by this timing
 data alone: progressive repaint would need a separate perceived-latency
 evaluation, and tile-cache reuse would need realistic repeated pan/zoom
 traces plus a memory budget. Both remain separate future decisions.
+
+## Phase 8D stabilization
+
+The blocking Native Release x64 `tile_stress_regression` drives the real
+`CRenderThread` and shared scheduler through repeated A→B→A→C→A replacements,
+viewport-style reconciliation, sequential page changes, zoom, rotation, crop,
+display-mode and adjustment changes, and document close/reopen with active
+workers. Every completed request must publish exactly once with its current
+identity. The test checks that active workers, queued jobs and live batches
+return to zero, batch creation/destruction balances, stale tile results are
+rejected, and no batch starts more than one full-page fallback. It reports
+configured/peak workers, completed/rejected tiles, fallbacks and batch
+lifecycle counts. Process private bytes after warm-up, peak and final steady
+state are reported. A deliberately generous 64 MiB post-warm-up ceiling and
+handle-count check after the first close catch sustained growth across repeated
+document reopens; first-use runtime initialization and small allocator
+retention are not treated as leaks by themselves.
+
+The known full-page fallback cases remain layered color region differences,
+whole-source PnmScaleFixed scaling, unsupported regions, and tile render
+failures. Thumbnail, print and export rendering stays full-page. Phases 8A–8D
+cover independent region rasterization, bounded parallel scheduling,
+repeatable performance measurement and runtime lifecycle hardening. Progressive
+repaint and a tile cache remain intentionally deferred pending separate
+user-perceived latency and repeated-pan evidence with a memory budget.

@@ -351,6 +351,11 @@ jobs:
           path: tools/tests/artifacts/tile-performance/
           if-no-files-found: warn
 
+      - name: Run multi-worker tile runtime stress regression
+        if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
+        shell: cmd
+        run: tools\tests\run-tile-stress-regression.cmd tools\tests\corpus\files
+
       - name: Run render prefetch queue regression
         if: success() && matrix.configuration == 'Release' && matrix.platform == 'x64'
         shell: cmd
