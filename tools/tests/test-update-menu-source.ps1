@@ -11,6 +11,7 @@ function Require-SourcePattern {
 }
 
 Require-SourcePattern 'src\MainFrm.h' 'virtual void OnInitMenuPopup\(CMenu\* pPopupMenu, UINT nIndex, BOOL bSysMenu\)' 'menu popup override'
+Require-SourcePattern 'src\MainFrm.cpp' 'ON_WM_INITMENUPOPUP\(\)' 'menu popup message-map binding'
 Require-SourcePattern 'src\MainFrm.cpp' 'void CMainFrame::OnInitMenuPopup\(CMenu\* pPopupMenu, UINT nIndex, BOOL bSysMenu\)' 'menu popup implementation'
 Require-SourcePattern 'src\MainFrm.cpp' 'GetMenuState\(ID_APP_ABOUT, MF_BYCOMMAND\) != \(UINT\)-1' 'Help/About menu guard'
 Require-SourcePattern 'src\MainFrm.cpp' 'GetMenuState\(ID_CHECK_FOR_UPDATE, MF_BYCOMMAND\) == \(UINT\)-1' 'duplicate insertion guard'
